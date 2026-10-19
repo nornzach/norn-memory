@@ -32,7 +32,7 @@ This is a polyglot monorepo and **every package sets its own rules**. Read the `
 | `server/` | [`server/AGENTS.md`](server/AGENTS.md) | Docker Compose, FastAPI |
 | `docs/` | [`docs/AGENTS.md`](docs/AGENTS.md) | Mintlify |
 | `skills/` | [`skills/AGENTS.md`](skills/AGENTS.md) | markdown, size-budgeted |
-| `.github/` | [`.github/AGENTS.md`](.github/AGENTS.md) | GitHub Actions |
+| `.github/` | `.github/workflows/ci.yml` | GitHub Actions: Python SDK lint and tests |
 
 ## Repository map
 
