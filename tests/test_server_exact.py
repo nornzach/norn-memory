@@ -1,8 +1,8 @@
 """Tests for exact records: exact_store.py, the /exact routes and the exact_* MCP tools.
 
 The unit tests at the top run anywhere. The store, REST and MCP tests need Postgres (JSONB and
-pg_trgm): point MEM0_TEST_POSTGRES_URL at a database they may wipe, for example
-postgresql+psycopg://postgres:<password>@postgres:5432/mem0_exact_test. Without it they are skipped.
+pg_trgm): point NORN_M_TEST_POSTGRES_URL at a database they may wipe, for example
+postgresql+psycopg://postgres:<password>@postgres:5432/norn_m_exact_test. Without it they are skipped.
 As in test_server_features.py, ``server/`` is put on ``sys.path``.
 """
 
@@ -33,11 +33,11 @@ TEST_ENV = {
     "OPENAI_API_KEY": "fake-key",
     "ADMIN_API_KEY": "",
     "AUTH_DISABLED": "false",
-    "MEM0_TELEMETRY": "false",
-    "MEM0_ALLOW_SECRETS": "",
+    "NORN_M_TELEMETRY": "false",
+    "NORN_M_ALLOW_SECRETS": "",
 }
 ADMIN_KEY = "test-admin-key-for-pytest-0123456789"
-USER = {"X-Mem0-User-Id": "zach"}
+USER = {"X-Norn-M-User-Id": "zach"}
 MCP_HEADERS = {"Accept": "application/json, text/event-stream", "X-API-Key": ADMIN_KEY, **USER}
 # Characters that a rewrite, a LIKE pattern or JSON escaping could mangle.
 TRICKY_PASSWORD = "  p@ss w0rd!%_\\'\"中文 "
@@ -239,9 +239,9 @@ class TestSecretGuardMessage:
 
 @pytest.fixture(scope="module")
 def pg_engine():
-    url = os.environ.get("MEM0_TEST_POSTGRES_URL")
+    url = os.environ.get("NORN_M_TEST_POSTGRES_URL")
     if not url:
-        pytest.skip("MEM0_TEST_POSTGRES_URL is not set")
+        pytest.skip("NORN_M_TEST_POSTGRES_URL is not set")
     from sqlalchemy import create_engine, text
     from sqlalchemy.exc import OperationalError
 
@@ -467,7 +467,7 @@ class TestStoreSearch:
 def app(store):
     pytest.importorskip("mcp", reason="mcp not installed")
     mock_memory = MagicMock()
-    with patch("mem0.Memory.from_config", return_value=mock_memory):
+    with patch("norn_m.Memory.from_config", return_value=mock_memory):
         import main
 
         main = importlib.reload(main)
@@ -622,12 +622,12 @@ class TestProvenance:
     SOURCE = {"device": "mac", "agent": "claude-code", "key_label": "laptop"}
 
     def test_create_records_the_source(self, store):
-        data = store.RecordWrite(fields={"ip": "1"}, project="Mem0", cwd="/repo/")
+        data = store.RecordWrite(fields={"ip": "1"}, project="Norn-M", cwd="/repo/")
         record = store.put_record("zach", "server/hk1", data, merge=False, source=self.SOURCE)
         assert {f: record[f] for f in ("device", "agent", "project", "cwd", "key_label")} == {
             "device": "mac",
             "agent": "claude-code",
-            "project": "mem0",
+            "project": "norn-m",
             "cwd": "/repo",
             "key_label": "laptop",
         }
@@ -657,23 +657,23 @@ class TestProvenance:
 
     def test_search_by_project_device_agent_and_folder(self, store):
         put = store.put_record
-        put("zach", "a", store.RecordWrite(project="mem0", cwd="/repo"), merge=False, source={"device": "mac"})
-        put("zach", "b", store.RecordWrite(project="mem0", cwd="/repo/server"), merge=False, source={"agent": "omp"})
+        put("zach", "a", store.RecordWrite(project="norn-m", cwd="/repo"), merge=False, source={"device": "mac"})
+        put("zach", "b", store.RecordWrite(project="norn-m", cwd="/repo/server"), merge=False, source={"agent": "omp"})
         put("zach", "c", store.RecordWrite(project="web", cwd="/repo-old"), merge=False, source={"device": "mac"})
         put("zach", "d", store.RecordWrite(cwd="C:\\repo\\api"), merge=False)
 
         def keys(**filters):
             return [r["key"] for r in store.search_records("zach", **filters)]
 
-        assert keys(project="MEM0") == ["a", "b"]
+        assert keys(project="NORN-M") == ["a", "b"]
         assert keys(device="mac") == ["a", "c"]
         assert keys(agent="omp") == ["b"]
         assert keys(cwd="/repo") == ["a", "b"]
         assert keys(cwd="C:\\repo") == ["d"]
-        assert keys(project="mem0", device="mac") == ["a"]
+        assert keys(project="norn-m", device="mac") == ["a"]
 
     def test_exact_set_records_the_connection(self, app):
-        headers = {"X-Mem0-Device": "Windows", "X-Mem0-Agent": "Devin"}
+        headers = {"X-Norn-M-Device": "Windows", "X-Norn-M-Agent": "Devin"}
         arguments = {"key": "server/hk1", "fields": {"ip": "1"}, "project": "infra", "cwd": "/srv/infra"}
         record = _tool(app, "exact_set", arguments, headers)
         content = record["structuredContent"]
@@ -693,7 +693,7 @@ class TestProvenance:
             app,
             "PUT",
             "/exact/records/site/github.com",
-            headers={"X-Mem0-Device": "web", "X-Mem0-Project": "ignored"},
+            headers={"X-Norn-M-Device": "web", "X-Norn-M-Project": "ignored"},
             json={"fields": {"username": "zach"}, "project": "personal"},
         )
         assert (resp.json()["device"], resp.json()["project"]) == ("web", "personal")

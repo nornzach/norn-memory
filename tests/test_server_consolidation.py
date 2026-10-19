@@ -30,7 +30,7 @@ if str(SERVER_DIR) not in sys.path:
 TEST_ENV = {
     "JWT_SECRET": "test-secret-for-pytest-only-0123456789",
     "OPENAI_API_KEY": "fake-key",
-    "MEM0_TELEMETRY": "false",
+    "NORN_M_TELEMETRY": "false",
 }
 
 
@@ -45,7 +45,7 @@ def _row(memory_id, text, created_at, **scope):
 
 
 class FakeMemory:
-    """Just enough of mem0.Memory: embeddings come from a fixed table, search is cosine similarity."""
+    """Just enough of norn_m.Memory: embeddings come from a fixed table, search is cosine similarity."""
 
     def __init__(self, rows, vectors, llm_replies):
         self.rows = {r.id: r for r in rows}

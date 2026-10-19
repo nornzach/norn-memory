@@ -1,6 +1,6 @@
 import pytest
 
-from mem0.utils.scoring import (
+from norn_m.utils.scoring import (
     get_bm25_params,
     normalize_bm25,
     score_and_rank,

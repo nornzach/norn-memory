@@ -4,14 +4,14 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.openai import OpenAIConfig
-from mem0.llms.openai import OpenAILLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.openai import OpenAIConfig
+from norn_m.llms.openai import OpenAILLM
 
 
 @pytest.fixture
 def mock_openai_client():
-    with patch("mem0.llms.openai.OpenAI") as mock_openai:
+    with patch("norn_m.llms.openai.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -292,7 +292,7 @@ def test_gpt5_mini_not_classified_as_reasoning(mock_openai_client):
 
     gpt-5.4-mini supports temperature and other standard params.
     The previous substring match on "gpt-5" incorrectly stripped these.
-    Regression test for https://github.com/mem0ai/mem0/issues/4738
+    Regression test for upstream issue #4738
     """
     config = OpenAIConfig(model="gpt-5.4-mini", temperature=0.1)
     llm = OpenAILLM(config)
@@ -333,7 +333,7 @@ def test_is_reasoning_model_classification(mock_openai_client):
 def test_is_reasoning_model_explicit_override(mock_openai_client):
     """Explicit is_reasoning_model overrides the name-based heuristic both ways.
 
-    See https://github.com/mem0ai/mem0/issues/5296 — deployments with custom or
+    See upstream issue #5296 — deployments with custom or
     versioned names need to opt in/out without relying on string matching.
     None (default) must preserve the existing heuristic.
     """
@@ -382,7 +382,7 @@ def test_gpt5_uses_max_completion_tokens(mock_openai_client):
 
     The GPT-5 family rejects the legacy max_tokens param on Chat Completions and
     requires max_completion_tokens. Regression test for
-    https://github.com/mem0ai/mem0/issues/5054
+    upstream issue #5054
     """
     config = OpenAIConfig(model="gpt-5.4-mini", temperature=0.7, max_tokens=100, top_p=1.0)
     llm = OpenAILLM(config)

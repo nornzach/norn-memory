@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from mem0.memory.storage import SQLiteManager
+from norn_m.memory.storage import SQLiteManager
 
 
 class TestSQLiteManager:

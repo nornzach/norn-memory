@@ -7,7 +7,7 @@ import pytest
 import pytz
 from valkey.exceptions import ResponseError
 
-from mem0.vector_stores.valkey import ValkeyDB
+from norn_m.vector_stores.valkey import ValkeyDB
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ def test_insert(valkey_db, mock_valkey_client):
     # Check that hset was called with the correct arguments
     mock_valkey_client.hset.assert_called_once()
     args, kwargs = mock_valkey_client.hset.call_args
-    assert args[0] == "mem0:test_collection:test_id"
+    assert args[0] == "norn_m:test_collection:test_id"
     assert "memory_id" in kwargs["mapping"]
     assert kwargs["mapping"]["memory_id"] == "test_id"
     assert kwargs["mapping"]["hash"] == "test_hash"
@@ -190,7 +190,7 @@ def test_delete(valkey_db, mock_valkey_client):
     valkey_db.delete("test_id")
 
     # Check that delete was called with the correct key
-    mock_valkey_client.delete.assert_called_once_with("mem0:test_collection:test_id")
+    mock_valkey_client.delete.assert_called_once_with("norn_m:test_collection:test_id")
 
 
 def test_update(valkey_db, mock_valkey_client):
@@ -210,7 +210,7 @@ def test_update(valkey_db, mock_valkey_client):
     # Check that hset was called with the correct arguments
     mock_valkey_client.hset.assert_called_once()
     args, kwargs = mock_valkey_client.hset.call_args
-    assert args[0] == "mem0:test_collection:test_id"
+    assert args[0] == "norn_m:test_collection:test_id"
     assert kwargs["mapping"]["memory_id"] == "test_id"
     assert kwargs["mapping"]["memory"] == "updated_data"
 
@@ -288,7 +288,7 @@ def test_get(valkey_db, mock_valkey_client):
     result = valkey_db.get("test_id")
 
     # Check that hgetall was called with the correct key
-    mock_valkey_client.hgetall.assert_called_once_with("mem0:test_collection:test_id")
+    mock_valkey_client.hgetall.assert_called_once_with("norn_m:test_collection:test_id")
 
     # Check the result
     assert result.id == "test_id"
@@ -1025,7 +1025,7 @@ def test_cluster_mode_get(valkey_db_cluster, mock_valkey_cluster_client):
 def test_cluster_mode_delete(valkey_db_cluster, mock_valkey_cluster_client):
     """Test that delete works in cluster mode."""
     valkey_db_cluster.delete("id1")
-    mock_valkey_cluster_client.delete.assert_called_once_with("mem0:test_cluster:id1")
+    mock_valkey_cluster_client.delete.assert_called_once_with("norn_m:test_cluster:id1")
 
 
 # Schema field-type tests (regression for #5006)
@@ -1039,7 +1039,7 @@ def test_default_fields_memory_is_text():
     text collapses into a single token, breaking full-text search and bloating the
     inverted index.
     """
-    from mem0.vector_stores.valkey import DEFAULT_FIELDS
+    from norn_m.vector_stores.valkey import DEFAULT_FIELDS
 
     memory_field = next(f for f in DEFAULT_FIELDS if f["name"] == "memory")
     assert memory_field["type"] == "text", (
@@ -1057,7 +1057,7 @@ def test_build_index_schema_indexes_memory_as_text(valkey_db):
         collection_name="test_collection",
         embedding_dims=1536,
         distance_metric="COSINE",
-        prefix="mem0:test_collection",
+        prefix="norn_m:test_collection",
     )
 
     # Locate the 'memory' field declaration and check the type token that follows it.

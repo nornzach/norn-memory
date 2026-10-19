@@ -1,9 +1,9 @@
 import pytest
 from botocore.exceptions import ClientError
 
-from mem0.configs.vector_stores.s3_vectors import S3VectorsConfig
-from mem0.memory.main import Memory
-from mem0.vector_stores.s3_vectors import S3Vectors
+from norn_m.configs.vector_stores.s3_vectors import S3VectorsConfig
+from norn_m.memory.main import Memory
+from norn_m.vector_stores.s3_vectors import S3Vectors
 
 BUCKET_NAME = "test-bucket"
 INDEX_NAME = "test-index"
@@ -23,7 +23,7 @@ def mock_boto_client(mocker):
 def mock_embedder(mocker):
     mock_embedder = mocker.MagicMock()
     mock_embedder.return_value.embed.return_value = [0.1, 0.2, 0.3]
-    mocker.patch("mem0.utils.factory.EmbedderFactory.create", mock_embedder)
+    mocker.patch("norn_m.utils.factory.EmbedderFactory.create", mock_embedder)
 
     return mock_embedder
 
@@ -31,8 +31,8 @@ def mock_embedder(mocker):
 @pytest.fixture
 def mock_llm(mocker):
     mock_llm = mocker.MagicMock()
-    mocker.patch("mem0.utils.factory.LlmFactory.create", mock_llm)
-    mocker.patch("mem0.memory.storage.SQLiteManager", mocker.MagicMock())
+    mocker.patch("norn_m.utils.factory.LlmFactory.create", mock_llm)
+    mocker.patch("norn_m.memory.storage.SQLiteManager", mocker.MagicMock())
 
     return mock_llm
 

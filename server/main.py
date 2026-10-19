@@ -61,7 +61,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import func, select
 
-from mem0.exceptions import ValidationError as Mem0ValidationError
+from norn_m.exceptions import ValidationError as NornMValidationError
 
 load_dotenv()
 
@@ -103,7 +103,7 @@ def _warn_if_unconfigured() -> None:
         "    1. Set ADMIN_API_KEY=<long-random-value>  (fastest, no client changes)\n"
         "    2. Register an admin at http://<host>:3000/setup\n"
         "    3. Set AUTH_DISABLED=true                 (local development only)\n"
-        "  Docs: https://docs.mem0.ai/open-source/features/rest-api#authentication\n"
+        "  Docs: https://github.com/nornzach/norn-memory/blob/main/docs/api.md#authentication\n"
         "%s",
         "=" * 72,
         "=" * 72,
@@ -147,17 +147,17 @@ PROVIDER_API_KEY_ENV = {
 }
 
 HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
-DEFAULT_LLM_PROVIDER = os.environ.get("MEM0_DEFAULT_LLM_PROVIDER", "openai")
-DEFAULT_LLM_MODEL = os.environ.get("MEM0_DEFAULT_LLM_MODEL", "gpt-5-mini")
-DEFAULT_EMBEDDER_PROVIDER = os.environ.get("MEM0_DEFAULT_EMBEDDER_PROVIDER", "openai")
-DEFAULT_EMBEDDER_MODEL = os.environ.get("MEM0_DEFAULT_EMBEDDER_MODEL", "text-embedding-3-small")
+DEFAULT_LLM_PROVIDER = os.environ.get("NORN_M_DEFAULT_LLM_PROVIDER", "openai")
+DEFAULT_LLM_MODEL = os.environ.get("NORN_M_DEFAULT_LLM_MODEL", "gpt-5-mini")
+DEFAULT_EMBEDDER_PROVIDER = os.environ.get("NORN_M_DEFAULT_EMBEDDER_PROVIDER", "openai")
+DEFAULT_EMBEDDER_MODEL = os.environ.get("NORN_M_DEFAULT_EMBEDDER_MODEL", "text-embedding-3-small")
 # Must match the embedder's output size; pgvector creates the column with this width.
-DEFAULT_EMBEDDER_DIMS = int(os.environ.get("MEM0_DEFAULT_EMBEDDER_DIMS", "1536"))
+DEFAULT_EMBEDDER_DIMS = int(os.environ.get("NORN_M_DEFAULT_EMBEDDER_DIMS", "1536"))
 
 if DEFAULT_LLM_PROVIDER not in BUNDLED_LLM_PROVIDERS:
-    raise RuntimeError(f"MEM0_DEFAULT_LLM_PROVIDER must be one of: {', '.join(BUNDLED_LLM_PROVIDERS)}")
+    raise RuntimeError(f"NORN_M_DEFAULT_LLM_PROVIDER must be one of: {', '.join(BUNDLED_LLM_PROVIDERS)}")
 if DEFAULT_EMBEDDER_PROVIDER not in BUNDLED_EMBEDDER_PROVIDERS:
-    raise RuntimeError(f"MEM0_DEFAULT_EMBEDDER_PROVIDER must be one of: {', '.join(BUNDLED_EMBEDDER_PROVIDERS)}")
+    raise RuntimeError(f"NORN_M_DEFAULT_EMBEDDER_PROVIDER must be one of: {', '.join(BUNDLED_EMBEDDER_PROVIDERS)}")
 
 DEFAULT_CONFIG = {
     "version": "v1.1",
@@ -198,7 +198,7 @@ initialize_state(DEFAULT_CONFIG)
 
 
 app = FastAPI(
-    title="Mem0 REST APIs",
+    title="Norn-M REST APIs",
     description=(
         "A REST API for managing and searching memories for your AI Agents and Apps.\n\n"
         "## Authentication\n"
@@ -248,7 +248,7 @@ class MemoryCreate(BaseModel):
     memory_type: Optional[str] = Field(None, description="Type of memory to store (e.g. 'core').")
     prompt: Optional[str] = Field(None, description="Custom prompt to use for fact extraction.")
     # Provenance (see provenance.py), stored in metadata. Each wins over the same key in metadata and
-    # over the X-Mem0-* header; device and agent are usually set once per connection by header instead.
+    # over the X-Norn-M-* header; device and agent are usually set once per connection by header instead.
     project: Optional[str] = Field(None, description="Project or repository this memory belongs to.")
     cwd: Optional[str] = Field(None, description="Working folder the memory was recorded in.")
     device: Optional[str] = Field(None, description="Device it was written from, e.g. 'mac' or 'phone'.")
@@ -278,7 +278,7 @@ class SearchRequest(BaseModel):
 
 
 class GenerateInstructionsRequest(BaseModel):
-    use_case: str = Field(..., description="Description of what the user will use Mem0 for.")
+    use_case: str = Field(..., description="Description of what the user will use Norn-M for.")
 
 
 def _client_error(exc: Exception) -> HTTPException:
@@ -406,7 +406,7 @@ async def log_requests(request: Request, call_next):
             )
 
 
-@app.get("/configure", summary="Get current Mem0 configuration")
+@app.get("/configure", summary="Get current Norn-M configuration")
 def get_config(_auth=Depends(verify_unscoped)):
     return _redact_config(get_current_config())
 
@@ -427,7 +427,7 @@ def test_config(config: Dict[str, Any], _auth=Depends(require_admin)):
     }
 
 
-@app.post("/configure", summary="Configure Mem0")
+@app.post("/configure", summary="Configure Norn-M")
 def set_config(config: Dict[str, Any], _auth=Depends(require_admin)):
     """Set memory configuration. Requires admin role.
 
@@ -509,7 +509,7 @@ def add_memory(
     scope: Optional[KeyScope] = Depends(get_key_scope),
 ):
     """Store new memories. Each one is stamped with where it came from: device, agent, project and
-    folder (from metadata, or the X-Mem0-Device/-Agent/-Project/-Cwd headers) and the API key's label."""
+    folder (from metadata, or the X-Norn-M-Device/-Agent/-Project/-Cwd headers) and the API key's label."""
     if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
     if scope is not None:
@@ -542,7 +542,7 @@ def add_memory(
         params["metadata"] = metadata
     try:
         response = get_memory_instance().add(messages=[m.model_dump() for m in memory_create.messages], **params)
-    except (ValueError, Mem0ValidationError) as e:
+    except (ValueError, NornMValidationError) as e:
         raise _client_error(e)
     except Exception:
         raise upstream_error()
@@ -699,7 +699,7 @@ def update_memory(
         params["expiration_date"] = updated_memory.expiration_date
     try:
         response = get_memory_instance().update(**params)
-    except (ValueError, Mem0ValidationError) as e:
+    except (ValueError, NornMValidationError) as e:
         raise _client_error(e)
     except Exception:
         raise upstream_error()
@@ -734,7 +734,7 @@ def delete_memory(memory_id: str, scope: Optional[KeyScope] = Depends(get_key_sc
         _require_visible(memory_id, scope)
     try:
         get_memory_instance().delete(memory_id=memory_id)
-    except (ValueError, Mem0ValidationError) as e:
+    except (ValueError, NornMValidationError) as e:
         raise _client_error(e)
     except Exception:
         raise upstream_error()

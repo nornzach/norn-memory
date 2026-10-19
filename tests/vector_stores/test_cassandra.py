@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.vector_stores.cassandra import CassandraDB, OutputData
+from norn_m.vector_stores.cassandra import CassandraDB, OutputData
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def mock_cluster(mock_session):
 @pytest.fixture
 def cassandra_instance(mock_cluster, mock_session):
     """Create a CassandraDB instance with mocked cluster."""
-    with patch('mem0.vector_stores.cassandra.Cluster') as mock_cluster_class:
+    with patch('norn_m.vector_stores.cassandra.Cluster') as mock_cluster_class:
         mock_cluster_class.return_value = mock_cluster
         
         instance = CassandraDB(
@@ -46,7 +46,7 @@ def cassandra_instance(mock_cluster, mock_session):
 
 def test_cassandra_init(mock_cluster, mock_session):
     """Test CassandraDB initialization."""
-    with patch('mem0.vector_stores.cassandra.Cluster') as mock_cluster_class:
+    with patch('norn_m.vector_stores.cassandra.Cluster') as mock_cluster_class:
         mock_cluster_class.return_value = mock_cluster
 
         instance = CassandraDB(
@@ -229,7 +229,7 @@ def test_reset(cassandra_instance):
 
 def test_astra_db_connection(mock_cluster, mock_session):
     """Test connection with DataStax Astra DB secure connect bundle."""
-    with patch('mem0.vector_stores.cassandra.Cluster') as mock_cluster_class:
+    with patch('norn_m.vector_stores.cassandra.Cluster') as mock_cluster_class:
         mock_cluster_class.return_value = mock_cluster
 
         instance = CassandraDB(

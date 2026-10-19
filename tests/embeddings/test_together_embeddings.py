@@ -2,8 +2,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.embeddings.together import TogetherEmbedding
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.embeddings.together import TogetherEmbedding
 
 DEFAULT_MODEL = "intfloat/multilingual-e5-large-instruct"
 DEFAULT_EMBEDDING_DIMS = 1024
@@ -11,7 +11,7 @@ DEFAULT_EMBEDDING_DIMS = 1024
 
 @pytest.fixture
 def mock_together_client():
-    with patch("mem0.embeddings.together.Together") as mock_together:
+    with patch("norn_m.embeddings.together.Together") as mock_together:
         mock_client = Mock()
         mock_together.return_value = mock_client
         yield mock_client

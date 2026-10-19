@@ -10,7 +10,7 @@ from pymochow.model.table import (
     VectorTopkSearchRequest,
 )
 
-from mem0.vector_stores.baidu import BaiduDB
+from norn_m.vector_stores.baidu import BaiduDB
 
 
 @pytest.fixture

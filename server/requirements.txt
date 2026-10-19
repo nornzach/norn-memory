@@ -1,4 +1,4 @@
-# The mem0 SDK is not listed here on purpose: install it from this repo (`pip install -e ..`),
+# The norn_m SDK is not listed here on purpose: install it from this repo (`pip install -e ..`),
 # never from PyPI. The Dockerfiles do this before installing these requirements.
 fastapi==0.115.8
 uvicorn==0.34.0

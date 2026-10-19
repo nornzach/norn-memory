@@ -42,7 +42,7 @@ def _mock_memory():
     mock_instance.reset.return_value = None
 
     with patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key"}):
-        with patch("mem0.Memory.from_config", return_value=mock_instance):
+        with patch("norn_m.Memory.from_config", return_value=mock_instance):
             yield mock_instance
 
 

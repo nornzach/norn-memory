@@ -39,7 +39,7 @@ def dummy_verify_password() -> None:
 def generate_api_key() -> tuple[str, str, str]:
     """Returns (full_key, prefix, hash)."""
     raw = secrets.token_urlsafe(32)
-    full_key = f"m0sk_{raw}"
+    full_key = f"nmsk_{raw}"
     prefix = full_key[:12]
     key_hash = pwd_context.hash(full_key)
     return full_key, prefix, key_hash

@@ -6,9 +6,9 @@ import pytest
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
-from mem0.configs.vector_stores.neptune import NeptuneAnalyticsConfig
-from mem0.utils.factory import VectorStoreFactory
-from mem0.vector_stores.neptune_analytics import (
+from norn_m.configs.vector_stores.neptune import NeptuneAnalyticsConfig
+from norn_m.utils.factory import VectorStoreFactory
+from norn_m.vector_stores.neptune_analytics import (
     NeptuneAnalyticsVector,
     _escape_cypher,
     _validate_filter,
@@ -17,8 +17,8 @@ from mem0.vector_stores.neptune_analytics import (
 load_dotenv()
 
 # Configure logging
-logging.getLogger("mem0.vector.neptune.main").setLevel(logging.INFO)
-logging.getLogger("mem0.vector.neptune.base").setLevel(logging.INFO)
+logging.getLogger("norn_m.vector.neptune.main").setLevel(logging.INFO)
+logging.getLogger("norn_m.vector.neptune.base").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -179,7 +179,7 @@ class TestNeptuneAnalyticsOperations:
         )
 
         result = na_instance.list_cols()
-        assert result == ["MEM0_VECTOR_test"]
+        assert result == ["NORN_M_VECTOR_test"]
 
 
     def test_invalid_endpoint_format(self):
@@ -209,7 +209,7 @@ class TestNeptuneFilterValidation:
     def test_filter_accepts_scalars(self):
         _validate_filter("user_id", "alice")
         _validate_filter("count", 42)
-        _validate_filter("label", "MEM0_VECTOR_test")
+        _validate_filter("label", "NORN_M_VECTOR_test")
 
     def test_escape_cypher_quotes(self):
         assert _escape_cypher("alice") == "alice"
@@ -262,8 +262,8 @@ class TestNeptuneAnalyticsConfigCollectionNameValidation:
 
 class TestNeptuneAnalyticsVectorInitValidation:
     def test_accepts_valid_identifier(self, monkeypatch):
-        from mem0.vector_stores.neptune_analytics import NeptuneAnalyticsVector
-        monkeypatch.setattr("mem0.vector_stores.neptune_analytics.NeptuneAnalyticsGraph", lambda *args, **kwargs: None)
+        from norn_m.vector_stores.neptune_analytics import NeptuneAnalyticsVector
+        monkeypatch.setattr("norn_m.vector_stores.neptune_analytics.NeptuneAnalyticsGraph", lambda *args, **kwargs: None)
         
         vec = NeptuneAnalyticsVector(
             endpoint="neptune-graph://test",
@@ -273,8 +273,8 @@ class TestNeptuneAnalyticsVectorInitValidation:
 
     @pytest.mark.parametrize("payload", INJECTION_PAYLOADS)
     def test_rejects_injection_payload_in_init(self, payload, monkeypatch):
-        from mem0.vector_stores.neptune_analytics import NeptuneAnalyticsVector
-        monkeypatch.setattr("mem0.vector_stores.neptune_analytics.NeptuneAnalyticsGraph", lambda *args, **kwargs: None)
+        from norn_m.vector_stores.neptune_analytics import NeptuneAnalyticsVector
+        monkeypatch.setattr("norn_m.vector_stores.neptune_analytics.NeptuneAnalyticsGraph", lambda *args, **kwargs: None)
 
         with pytest.raises(ValueError, match="Invalid collection_name"):
             NeptuneAnalyticsVector(
@@ -336,7 +336,7 @@ class TestNeptuneAnalyticsUpdateRollback:
     vector upsert step fails. See the compensation logic in `NeptuneAnalyticsVector.update()`."""
 
     def _make_vec(self, monkeypatch):
-        monkeypatch.setattr("mem0.vector_stores.neptune_analytics.NeptuneAnalyticsGraph", lambda *args, **kwargs: None)
+        monkeypatch.setattr("norn_m.vector_stores.neptune_analytics.NeptuneAnalyticsGraph", lambda *args, **kwargs: None)
         vec = NeptuneAnalyticsVector(endpoint="neptune-graph://test", collection_name="rollback")
         vec.graph = _FakeNeptuneGraph()
         return vec

@@ -7,26 +7,26 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from mem0.exceptions import LLMError, VectorStoreError
-from mem0.memory.main import AsyncMemory, Memory
+from norn_m.exceptions import LLMError, VectorStoreError
+from norn_m.memory.main import AsyncMemory, Memory
 
 
 def _setup_mocks(mocker):
     """Helper to setup common mocks for both sync and async fixtures"""
     mock_embedder = mocker.MagicMock()
     mock_embedder.return_value.embed.return_value = [0.1, 0.2, 0.3]
-    mocker.patch("mem0.utils.factory.EmbedderFactory.create", mock_embedder)
+    mocker.patch("norn_m.utils.factory.EmbedderFactory.create", mock_embedder)
 
     mock_vector_store = mocker.MagicMock()
     mock_vector_store.return_value.search.return_value = []
     mocker.patch(
-        "mem0.utils.factory.VectorStoreFactory.create", side_effect=[mock_vector_store.return_value, mocker.MagicMock()]
+        "norn_m.utils.factory.VectorStoreFactory.create", side_effect=[mock_vector_store.return_value, mocker.MagicMock()]
     )
 
     mock_llm = mocker.MagicMock()
-    mocker.patch("mem0.utils.factory.LlmFactory.create", mock_llm)
+    mocker.patch("norn_m.utils.factory.LlmFactory.create", mock_llm)
 
-    mocker.patch("mem0.memory.storage.SQLiteManager", mocker.MagicMock())
+    mocker.patch("norn_m.memory.storage.SQLiteManager", mocker.MagicMock())
 
     return mock_llm, mock_vector_store
 
@@ -261,7 +261,7 @@ class TestAsyncAddToVectorStoreErrors:
     @pytest.mark.asyncio
     async def test_async_empty_llm_response_fact_extraction(self, mock_async_memory, caplog, mocker):
         """Test invalid JSON response from LLM during extraction (async)"""
-        mocker.patch("mem0.utils.factory.EmbedderFactory.create", return_value=MagicMock())
+        mocker.patch("norn_m.utils.factory.EmbedderFactory.create", return_value=MagicMock())
         mock_async_memory.llm.generate_response.return_value = "invalid json"
 
         with caplog.at_level(logging.ERROR):
@@ -275,7 +275,7 @@ class TestAsyncAddToVectorStoreErrors:
     @pytest.mark.asyncio
     async def test_async_empty_llm_response_memory_actions(self, mock_async_memory, caplog, mocker):
         """Test empty response in AsyncMemory._add_to_vector_store (v3: single-pass, 1 LLM call)"""
-        mocker.patch("mem0.utils.factory.EmbedderFactory.create", return_value=MagicMock())
+        mocker.patch("norn_m.utils.factory.EmbedderFactory.create", return_value=MagicMock())
         mock_async_memory.llm.generate_response.return_value = ""
 
         with caplog.at_level(logging.WARNING):
@@ -295,7 +295,7 @@ class TestAsyncAddToVectorStoreErrors:
         into ``return []``. Without the fix a future revert of the async
         ``raise`` back to ``return []`` would pass the suite silently.
         """
-        mocker.patch("mem0.utils.factory.EmbedderFactory.create", return_value=MagicMock())
+        mocker.patch("norn_m.utils.factory.EmbedderFactory.create", return_value=MagicMock())
 
         class _ProviderError(Exception):
             pass
@@ -311,7 +311,7 @@ class TestAsyncAddToVectorStoreErrors:
 
 def _build_memory_instance(mocker, memory_cls):
     _setup_mocks(mocker)
-    mocker.patch("mem0.memory.main.SQLiteManager", mocker.MagicMock())
+    mocker.patch("norn_m.memory.main.SQLiteManager", mocker.MagicMock())
     memory = memory_cls()
     memory.config = mocker.MagicMock()
     memory.config.custom_instructions = None
@@ -434,7 +434,7 @@ def test_update_memory_metadata_cannot_change_identity_fields(mocker, caplog):
     memory = _build_memory_instance(mocker, Memory)
     memory.vector_store.get.return_value = MagicMock(payload=dict(_EXISTING_UPDATE_PAYLOAD))
 
-    with caplog.at_level(logging.WARNING, logger="mem0.memory.main"):
+    with caplog.at_level(logging.WARNING, logger="norn_m.memory.main"):
         memory._update_memory("memory-id", "new memory", {}, metadata=dict(_ATTACKER_UPDATE_METADATA))
 
     payload = memory.vector_store.update.call_args.kwargs["payload"]
@@ -476,7 +476,7 @@ def test_add_metadata_cannot_set_identity_fields(mocker, caplog):
     """
     memory = _build_memory_instance(mocker, Memory)
 
-    with caplog.at_level(logging.WARNING, logger="mem0.memory.main"):
+    with caplog.at_level(logging.WARNING, logger="norn_m.memory.main"):
         metadata = _captured_add_metadata(
             memory, mocker, user_id="attacker", metadata=dict(_ATTACKER_ADD_METADATA)
         )
@@ -867,7 +867,7 @@ class TestEntityBoostParallelism:
         return AsyncMemory()
 
     def test_sync_boosts_preserve_scoring(self, mock_memory):
-        from mem0.utils.scoring import ENTITY_BOOST_WEIGHT
+        from norn_m.utils.scoring import ENTITY_BOOST_WEIGHT
 
         mock_memory.embedding_model = Mock()
         mock_memory.embedding_model.embed_batch = Mock(return_value=[[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]])
@@ -908,7 +908,7 @@ class TestEntityBoostParallelism:
 
     @pytest.mark.asyncio
     async def test_async_boosts_preserve_scoring(self, mock_async_memory):
-        from mem0.utils.scoring import ENTITY_BOOST_WEIGHT
+        from norn_m.utils.scoring import ENTITY_BOOST_WEIGHT
 
         mock_async_memory.embedding_model = Mock()
         mock_async_memory.embedding_model.embed_batch = Mock(return_value=[[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]])
@@ -1103,7 +1103,7 @@ class TestAddPipelineEntityEmbeddingCountGuard:
         mock_memory._entity_store.update = Mock()
 
         mocker.patch(
-            "mem0.memory.main.extract_entities_batch",
+            "norn_m.memory.main.extract_entities_batch",
             return_value=[
                 [("person", "Alice"), ("person", "Bob")],
                 [("person", "Bob"), ("person", "Alice")],
@@ -1146,7 +1146,7 @@ class TestAddPipelineEntityEmbeddingCountGuard:
         mock_async_memory._entity_store.update = Mock()
 
         mocker.patch(
-            "mem0.memory.main.extract_entities_batch",
+            "norn_m.memory.main.extract_entities_batch",
             return_value=[
                 [("person", "Alice"), ("person", "Bob")],
                 [("person", "Bob"), ("person", "Alice")],
@@ -1198,7 +1198,7 @@ class TestPartialInsertFailure:
         memory.db.save_messages = MagicMock()
         memory.db.batch_add_history = MagicMock()
         memory.embedding_model.embed_batch = Mock(side_effect=lambda texts, action: [[0.1, 0.2, 0.3] for _ in texts])
-        mocker.patch("mem0.memory.main.extract_entities_batch", return_value=[])
+        mocker.patch("norn_m.memory.main.extract_entities_batch", return_value=[])
 
         return memory
 
@@ -1273,7 +1273,7 @@ class TestAsyncPartialInsertFailure:
         memory.db.save_messages = MagicMock()
         memory.db.batch_add_history = MagicMock()
         memory.embedding_model.embed_batch = Mock(side_effect=lambda texts, action: [[0.1, 0.2, 0.3] for _ in texts])
-        mocker.patch("mem0.memory.main.extract_entities_batch", return_value=[])
+        mocker.patch("norn_m.memory.main.extract_entities_batch", return_value=[])
 
         return memory
 

@@ -21,7 +21,8 @@ const en = {
     yourKey: "Your API Key",
     saveKeyWarning: "Save this key — you won't see it again.",
     emptyTitle: "No API keys yet",
-    emptyDescription: "Create your first API key to start using the Mem0 API.",
+    emptyDescription:
+      "Create your first API key to start using the Norn-M API.",
     revokeTitle: "Revoke API key",
     revokeDescription:
       "Applications using this key will immediately stop working. This cannot be undone.",
@@ -111,7 +112,7 @@ const en = {
     connected: (ms: number) => `Connected in ${ms} ms`,
     vectorSize: (dims: number) => `${dims}-dimensional vectors`,
     dimsMismatch: (dims: number, expected: number) =>
-      `The model returns ${dims}-dimensional vectors, but the vector store expects ${expected}. Pick a model with that size, set the dimensions if the API supports it, or recreate the vector store with MEM0_DEFAULT_EMBEDDER_DIMS.`,
+      `The model returns ${dims}-dimensional vectors, but the vector store expects ${expected}. Pick a model with that size, set the dimensions if the API supports it, or recreate the vector store with NORN_M_DEFAULT_EMBEDDER_DIMS.`,
     otherProviderBefore:
       "Need a provider that doesn't speak the OpenAI API? Install its Python package, rebuild the image, and extend the bundled list. See the ",
     setupGuide: "setup guide",
@@ -143,7 +144,7 @@ const zh: typeof en = {
     yourKey: "你的 API 密钥",
     saveKeyWarning: "请保存此密钥——之后将无法再次查看。",
     emptyTitle: "暂无 API 密钥",
-    emptyDescription: "创建第一个 API 密钥以开始使用 Mem0 API。",
+    emptyDescription: "创建第一个 API 密钥以开始使用 Norn-M API。",
     revokeTitle: "吊销 API 密钥",
     revokeDescription: "使用此密钥的应用将立即停止工作，且无法恢复。",
     revoke: "吊销",
@@ -229,7 +230,7 @@ const zh: typeof en = {
     connected: (ms) => `连接成功，耗时 ${ms} ms`,
     vectorSize: (dims) => `${dims} 维向量`,
     dimsMismatch: (dims, expected) =>
-      `该模型输出 ${dims} 维向量，但向量库需要 ${expected} 维。请换用该维度的模型；如果接口支持，也可以填写向量维度；或者用 MEM0_DEFAULT_EMBEDDER_DIMS 重建向量库。`,
+      `该模型输出 ${dims} 维向量，但向量库需要 ${expected} 维。请换用该维度的模型；如果接口支持，也可以填写向量维度；或者用 NORN_M_DEFAULT_EMBEDDER_DIMS 重建向量库。`,
     otherProviderBefore:
       "需要不兼容 OpenAI 接口的服务商？请安装对应的 Python 包、重新构建镜像，并扩展内置列表。参见",
     setupGuide: "安装指南",

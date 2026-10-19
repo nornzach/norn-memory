@@ -1,6 +1,6 @@
 const en = {
   login: {
-    title: "Sign in to Mem0",
+    title: "Sign in to Norn-M",
     invalidEmail: "Enter a valid email address.",
     failed: "Login failed",
     signingIn: "Signing in…",
@@ -9,7 +9,8 @@ const en = {
     resetTitle: "Reset your admin password",
     resetDescription:
       "Run this command on the server host. It overwrites the existing password; anyone already signed in stays signed in until their session expires.",
-    trustedBy: "Trusted by 100k+ Developers",
+    tagline: "Self-hosted memory for your AI agents.",
+    taglineDetail: "Runs on your own network. Nothing leaves it.",
   },
   setup: {
     steps: ["Admin Account", "Providers", "API Key", "Use Case", "Quick Test"],
@@ -94,7 +95,7 @@ const en = {
 
 const zh: typeof en = {
   login: {
-    title: "登录 Mem0",
+    title: "登录 Norn-M",
     invalidEmail: "请输入有效的邮箱地址。",
     failed: "登录失败",
     signingIn: "登录中…",
@@ -103,7 +104,8 @@ const zh: typeof en = {
     resetTitle: "重置管理员密码",
     resetDescription:
       "在服务器主机上运行此命令。它会覆盖现有密码；已登录的用户在会话过期前仍保持登录。",
-    trustedBy: "超过 10 万开发者信赖",
+    tagline: "为你的 AI Agent 提供自托管记忆。",
+    taglineDetail: "运行在你自己的网络里，数据不会外流。",
   },
   setup: {
     steps: ["管理员账户", "模型服务商", "API 密钥", "使用场景", "快速测试"],

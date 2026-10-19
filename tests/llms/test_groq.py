@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.llms.groq import GroqLLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.llms.groq import GroqLLM
 
 
 @pytest.fixture
 def mock_groq_client():
-    with patch("mem0.llms.groq.Groq") as mock_groq:
+    with patch("norn_m.llms.groq.Groq") as mock_groq:
         mock_client = Mock()
         mock_groq.return_value = mock_client
         yield mock_client

@@ -2,17 +2,17 @@ from unittest.mock import Mock, patch
 
 import pytest
 import numpy as np
-from mem0.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
 
 try:
-    from mem0.embeddings.fastembed import FastEmbedEmbedding
+    from norn_m.embeddings.fastembed import FastEmbedEmbedding
 except ImportError:
     pytest.skip("fastembed not installed", allow_module_level=True)
   
 
 @pytest.fixture
 def mock_fastembed_client():
-    with patch("mem0.embeddings.fastembed.TextEmbedding") as mock_fastembed:
+    with patch("norn_m.embeddings.fastembed.TextEmbedding") as mock_fastembed:
         mock_client = Mock()
         mock_fastembed.return_value = mock_client
         yield mock_client

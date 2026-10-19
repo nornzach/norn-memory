@@ -9,8 +9,8 @@ try:
 except ImportError:
     raise ImportError("Elasticsearch requires extra dependencies. Install with `pip install elasticsearch`") from None
 
-from mem0.configs.vector_stores.elasticsearch import ElasticsearchConfig
-from mem0.vector_stores.elasticsearch import ElasticsearchDB, OutputData, _validate_filter
+from norn_m.configs.vector_stores.elasticsearch import ElasticsearchConfig
+from norn_m.vector_stores.elasticsearch import ElasticsearchDB, OutputData, _validate_filter
 
 
 class TestElasticsearchDB(unittest.TestCase):
@@ -42,7 +42,7 @@ class TestElasticsearchDB(unittest.TestCase):
         self.client_mock.indices.get_alias = MagicMock()
 
         # Start patches BEFORE creating ElasticsearchDB instance
-        patcher = patch("mem0.vector_stores.elasticsearch.Elasticsearch", return_value=self.client_mock)
+        patcher = patch("norn_m.vector_stores.elasticsearch.Elasticsearch", return_value=self.client_mock)
         self.mock_es = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -157,7 +157,7 @@ class TestElasticsearchDB(unittest.TestCase):
         ids = ["id1", "id2"]
 
         # Mock bulk operation
-        with patch("mem0.vector_stores.elasticsearch.bulk") as mock_bulk:
+        with patch("norn_m.vector_stores.elasticsearch.bulk") as mock_bulk:
             mock_bulk.return_value = (2, [])  # Simulate successful bulk insert
 
             # Perform insert
@@ -374,12 +374,12 @@ class TestElasticsearchDB(unittest.TestCase):
             "port": 9200,
             "user": "elastic",
             "password": "password",
-            "headers": {"x-extra-info": "my-mem0-instance"},
+            "headers": {"x-extra-info": "my-norn-m-instance"},
         }
         es_config = ElasticsearchConfig(**config)
         self.assertIsNotNone(es_config.headers)
         self.assertEqual(len(es_config.headers), 1)
-        self.assertEqual(es_config.headers["x-extra-info"], "my-mem0-instance")
+        self.assertEqual(es_config.headers["x-extra-info"], "my-norn-m-instance")
 
     def test_es_invalid_headers(self):
         base_config = {

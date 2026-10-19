@@ -2,15 +2,15 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from mem0 import AsyncMemory, Memory
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.vllm import VllmConfig
-from mem0.llms.vllm import VllmLLM
+from norn_m import AsyncMemory, Memory
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.vllm import VllmConfig
+from norn_m.llms.vllm import VllmLLM
 
 
 @pytest.fixture
 def mock_vllm_client():
-    with patch("mem0.llms.vllm.OpenAI") as mock_openai:
+    with patch("norn_m.llms.vllm.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -42,7 +42,7 @@ def test_base_url_default_when_neither_set(mock_vllm_client, monkeypatch):
 
 def test_openai_client_receives_explicit_base_url(monkeypatch):
     monkeypatch.delenv("VLLM_BASE_URL", raising=False)
-    with patch("mem0.llms.vllm.OpenAI") as mock_openai:
+    with patch("norn_m.llms.vllm.OpenAI") as mock_openai:
         VllmLLM(VllmConfig(vllm_base_url="http://from-arg:8000/v1"))
 
     assert mock_openai.call_args.kwargs["base_url"] == "http://from-arg:8000/v1"
@@ -50,7 +50,7 @@ def test_openai_client_receives_explicit_base_url(monkeypatch):
 
 def test_openai_client_receives_base_url_from_env(monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "http://from-env:8000/v1")
-    with patch("mem0.llms.vllm.OpenAI") as mock_openai:
+    with patch("norn_m.llms.vllm.OpenAI") as mock_openai:
         VllmLLM(VllmConfig())
 
     base_url = mock_openai.call_args.kwargs["base_url"]
@@ -61,7 +61,7 @@ def test_openai_client_receives_base_url_from_env(monkeypatch):
 def test_openai_client_receives_base_url_from_env_via_base_llm_config(monkeypatch):
     """Original #6256 repro: BaseLlmConfig (not VllmConfig) plus VLLM_BASE_URL only."""
     monkeypatch.setenv("VLLM_BASE_URL", "http://remote-vllm:8000/v1")
-    with patch("mem0.llms.vllm.OpenAI") as mock_openai:
+    with patch("norn_m.llms.vllm.OpenAI") as mock_openai:
         VllmLLM(BaseLlmConfig(model="Qwen/Qwen2.5-32B-Instruct"))
 
     base_url = mock_openai.call_args.kwargs["base_url"]
@@ -188,10 +188,10 @@ def test_generate_response_without_response_format(mock_vllm_client):
 
 def create_mocked_memory():
     """Create a fully mocked Memory instance for testing."""
-    with patch('mem0.utils.factory.LlmFactory.create') as mock_llm_factory, \
-         patch('mem0.utils.factory.EmbedderFactory.create') as mock_embedder_factory, \
-         patch('mem0.utils.factory.VectorStoreFactory.create') as mock_vector_factory, \
-         patch('mem0.memory.storage.SQLiteManager') as mock_sqlite:
+    with patch('norn_m.utils.factory.LlmFactory.create') as mock_llm_factory, \
+         patch('norn_m.utils.factory.EmbedderFactory.create') as mock_embedder_factory, \
+         patch('norn_m.utils.factory.VectorStoreFactory.create') as mock_vector_factory, \
+         patch('norn_m.memory.storage.SQLiteManager') as mock_sqlite:
 
         mock_llm = MagicMock()
         mock_llm_factory.return_value = mock_llm
@@ -218,10 +218,10 @@ def create_mocked_memory():
 
 def create_mocked_async_memory():
     """Create a fully mocked AsyncMemory instance for testing."""
-    with patch('mem0.utils.factory.LlmFactory.create') as mock_llm_factory, \
-         patch('mem0.utils.factory.EmbedderFactory.create') as mock_embedder_factory, \
-         patch('mem0.utils.factory.VectorStoreFactory.create') as mock_vector_factory, \
-         patch('mem0.memory.storage.SQLiteManager') as mock_sqlite:
+    with patch('norn_m.utils.factory.LlmFactory.create') as mock_llm_factory, \
+         patch('norn_m.utils.factory.EmbedderFactory.create') as mock_embedder_factory, \
+         patch('norn_m.utils.factory.VectorStoreFactory.create') as mock_vector_factory, \
+         patch('norn_m.memory.storage.SQLiteManager') as mock_sqlite:
 
         mock_llm = MagicMock()
         mock_llm_factory.return_value = mock_llm
@@ -291,7 +291,7 @@ async def test_async_thinking_tags_async():
         else:
             return func(*args, **kwargs)
 
-    with patch('mem0.memory.main.asyncio.to_thread', side_effect=mock_to_thread):
+    with patch('norn_m.memory.main.asyncio.to_thread', side_effect=mock_to_thread):
         result = await memory._add_to_vector_store(
             messages=[{"role": "user", "content": "I love sci-fi movies"}],
             metadata={},

@@ -1,9 +1,9 @@
 import httpx
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.utils.factory import LlmFactory
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.utils.factory import LlmFactory
 
 
 @pytest.mark.parametrize("config_cls", [BaseLlmConfig, BaseEmbedderConfig])

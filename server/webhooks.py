@@ -1,7 +1,7 @@
 """Outgoing webhook delivery.
 
 Each delivery is a JSON POST signed with HMAC-SHA256 of the raw body, sent in the
-`X-Mem0-Signature: sha256=<hex>` header. Deliveries run on a small thread pool so
+`X-Norn-M-Signature: sha256=<hex>` header. Deliveries run on a small thread pool so
 memory requests never wait on a slow receiver.
 """
 
@@ -52,9 +52,9 @@ def deliver(
             content=body,
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "mem0-webhooks",
-                "X-Mem0-Event": event,
-                "X-Mem0-Signature": sign(secret, body),
+                "User-Agent": "norn-m-webhooks",
+                "X-Norn-M-Event": event,
+                "X-Norn-M-Signature": sign(secret, body),
             },
             timeout=DELIVERY_TIMEOUT_SECONDS,
         )

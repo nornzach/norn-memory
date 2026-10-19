@@ -1,8 +1,8 @@
 """Where a memory or exact record came from: device, agent, project, working folder and API key.
 
 Device and agent are fixed per connection, so each agent's MCP config sends them once as headers
-(X-Mem0-Device: mac, X-Mem0-Agent: claude-code). Project and folder change from session to session,
-so agents pass them on each write; X-Mem0-Project and X-Mem0-Cwd are fallbacks for agents pinned to
+(X-Norn-M-Device: mac, X-Norn-M-Agent: claude-code). Project and folder change from session to session,
+so agents pass them on each write; X-Norn-M-Project and X-Norn-M-Cwd are fallbacks for agents pinned to
 one project. The label of the API key that made the write is added here and cannot be set by callers.
 
 Memories keep these as metadata fields, not agent_id: agent_id is a scope that API keys can be limited
@@ -18,10 +18,10 @@ FIELDS = ("device", "agent", "project", "cwd")
 KEY_LABEL = "key_label"
 STAMPED = FIELDS + (KEY_LABEL,)
 HEADERS = {
-    "device": "X-Mem0-Device",
-    "agent": "X-Mem0-Agent",
-    "project": "X-Mem0-Project",
-    "cwd": "X-Mem0-Cwd",
+    "device": "X-Norn-M-Device",
+    "agent": "X-Norn-M-Agent",
+    "project": "X-Norn-M-Project",
+    "cwd": "X-Norn-M-Cwd",
 }
 MAX_LENGTH = {"device": 64, "agent": 64, "project": 255, "cwd": 1024}
 # Device, agent and project group memories, so "Mac" and "mac" must land in the same group.

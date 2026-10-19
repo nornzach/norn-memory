@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 from langchain_community.vectorstores import VectorStore
 
-from mem0.vector_stores.langchain import Langchain
+from norn_m.vector_stores.langchain import Langchain
 
 
 @pytest.fixture
@@ -232,7 +232,7 @@ def test_list_with_exception(langchain_instance):
 def test_search_score_is_never_none(langchain_instance):
     """Regression: similarity_search_by_vector returns Documents with no scores.
     search() must not propagate None — score_and_rank crashes on None < threshold."""
-    from mem0.utils.scoring import score_and_rank
+    from norn_m.utils.scoring import score_and_rank
 
     mock_docs = [Mock(metadata={"data": "mem A"}, id="id1"), Mock(metadata={"data": "mem B"}, id="id2")]
     langchain_instance.client.similarity_search_by_vector.return_value = mock_docs

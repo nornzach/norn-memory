@@ -13,7 +13,7 @@ from databricks.sdk.service.vectorsearch import (
     VectorIndexType,
 )
 
-from mem0.vector_stores.databricks import Databricks
+from norn_m.vector_stores.databricks import Databricks
 
 # ---------------------- Fixtures ---------------------- #
 
@@ -29,7 +29,7 @@ def _make_exec_response(state="SUCCEEDED", error=None):
 @pytest.fixture
 def mock_workspace_client():
     """Patch WorkspaceClient and provide a fully mocked client with required sub-clients."""
-    with patch("mem0.vector_stores.databricks.WorkspaceClient") as mock_wc_cls:
+    with patch("norn_m.vector_stores.databricks.WorkspaceClient") as mock_wc_cls:
         mock_wc = MagicMock(name="WorkspaceClient")
 
         # warehouses.list -> iterable of objects with name/id
@@ -48,10 +48,10 @@ def mock_workspace_client():
 
         # vector_search_indexes list/create/query/delete
         mock_wc.vector_search_indexes.list_indexes.return_value = []
-        mock_wc.vector_search_indexes.create_index.return_value = SimpleNamespace(name="catalog.schema.mem0")
+        mock_wc.vector_search_indexes.create_index.return_value = SimpleNamespace(name="catalog.schema.norn_m")
         mock_wc.vector_search_indexes.query_index.return_value = SimpleNamespace(result=SimpleNamespace(data_array=[]))
         mock_wc.vector_search_indexes.delete_index.return_value = None
-        mock_wc.vector_search_indexes.get_index.return_value = SimpleNamespace(name="mem0")
+        mock_wc.vector_search_indexes.get_index.return_value = SimpleNamespace(name="norn_m")
 
         # statement execution
         mock_wc.statement_execution.execute_statement.return_value = _make_exec_response()
@@ -69,7 +69,7 @@ def db_instance_delta(mock_workspace_client):
         catalog="catalog",
         schema="schema",
         table_name="table",
-        collection_name="mem0",
+        collection_name="norn_m",
         warehouse_name="test-warehouse",
         index_type=VectorIndexType.DELTA_SYNC,
         embedding_model_endpoint_name="embedding-endpoint",
@@ -87,7 +87,7 @@ def db_instance_direct(mock_workspace_client):
         catalog="catalog",
         schema="schema",
         table_name="table",
-        collection_name="mem0",
+        collection_name="norn_m",
         warehouse_name="test-warehouse",
         index_type=VectorIndexType.DIRECT_ACCESS,
         embedding_dimension=4,
@@ -129,7 +129,7 @@ def test_create_col_invalid_type(mock_workspace_client):
         catalog="catalog",
         schema="schema",
         table_name="table",
-        collection_name="mem0",
+        collection_name="norn_m",
         warehouse_name="test-warehouse",
         index_type=VectorIndexType.DELTA_SYNC,
     )
@@ -385,16 +385,16 @@ def test_get_vector_direct_access(db_instance_direct, mock_workspace_client):
 
 def test_list_cols(db_instance_delta, mock_workspace_client):
     mock_workspace_client.vector_search_indexes.list_indexes.return_value = [
-        SimpleNamespace(name="catalog.schema.mem0"),
+        SimpleNamespace(name="catalog.schema.norn_m"),
         SimpleNamespace(name="catalog.schema.other"),
     ]
     cols = db_instance_delta.list_cols()
-    assert "catalog.schema.mem0" in cols and "catalog.schema.other" in cols
+    assert "catalog.schema.norn_m" in cols and "catalog.schema.other" in cols
 
 
 def test_col_info(db_instance_delta):
     info = db_instance_delta.col_info()
-    assert info["name"] == "mem0"
+    assert info["name"] == "norn_m"
     assert any(col.name == "memory_id" for col in info["fields"])
 
 
@@ -569,7 +569,7 @@ def test_ensure_source_table_uses_dynamic_names(mock_workspace_client):
 
 def test_config_rejects_old_doc_params():
     """Config should reject the old documentation parameter names like index_name and source_table_name."""
-    from mem0.configs.vector_stores.databricks import DatabricksConfig
+    from norn_m.configs.vector_stores.databricks import DatabricksConfig
     with pytest.raises(ValueError, match="Extra fields not allowed"):
         DatabricksConfig(
             workspace_url="https://test",
@@ -584,7 +584,7 @@ def test_config_rejects_old_doc_params():
 
 def test_config_rejects_source_table_name():
     """Config should reject source_table_name which was in old docs."""
-    from mem0.configs.vector_stores.databricks import DatabricksConfig
+    from norn_m.configs.vector_stores.databricks import DatabricksConfig
     with pytest.raises(ValueError, match="Extra fields not allowed"):
         DatabricksConfig(
             workspace_url="https://test",
@@ -599,7 +599,7 @@ def test_config_rejects_source_table_name():
 
 def test_config_accepts_correct_params():
     """Config should accept all the correct parameter names."""
-    from mem0.configs.vector_stores.databricks import DatabricksConfig
+    from norn_m.configs.vector_stores.databricks import DatabricksConfig
     config = DatabricksConfig(
         workspace_url="https://test",
         access_token="tok",
@@ -630,8 +630,8 @@ def test_reset(db_instance_delta, mock_workspace_client):
 
 def test_e2e_config_to_factory_delta_sync(mock_workspace_client):
     """End-to-end: VectorStoreConfig validates docs-correct params, factory creates Databricks instance."""
-    from mem0.utils.factory import VectorStoreFactory
-    from mem0.vector_stores.configs import VectorStoreConfig
+    from norn_m.utils.factory import VectorStoreFactory
+    from norn_m.vector_stores.configs import VectorStoreConfig
 
     # Step 1: Config validation (simulates what Memory.from_config does)
     vs_config = VectorStoreConfig(
@@ -661,8 +661,8 @@ def test_e2e_config_to_factory_delta_sync(mock_workspace_client):
 
 def test_e2e_config_to_factory_direct_access(mock_workspace_client):
     """End-to-end: DIRECT_ACCESS via config → factory creates correct instance."""
-    from mem0.utils.factory import VectorStoreFactory
-    from mem0.vector_stores.configs import VectorStoreConfig
+    from norn_m.utils.factory import VectorStoreFactory
+    from norn_m.vector_stores.configs import VectorStoreConfig
 
     mock_workspace_client.tables.exists.return_value = SimpleNamespace(table_exists=True)
 
@@ -687,7 +687,7 @@ def test_e2e_config_to_factory_direct_access(mock_workspace_client):
 
 def test_e2e_old_docs_config_rejected():
     """End-to-end: Config from old docs (with index_name, source_table_name) is rejected at validation."""
-    from mem0.vector_stores.configs import VectorStoreConfig
+    from norn_m.vector_stores.configs import VectorStoreConfig
 
     with pytest.raises(ValueError, match="Extra fields not allowed"):
         VectorStoreConfig(
@@ -705,8 +705,8 @@ def test_e2e_old_docs_config_rejected():
 
 def test_e2e_crud_lifecycle_delta_sync(mock_workspace_client):
     """End-to-end CRUD lifecycle: insert → search → get → list → update → delete."""
-    from mem0.utils.factory import VectorStoreFactory
-    from mem0.vector_stores.configs import VectorStoreConfig
+    from norn_m.utils.factory import VectorStoreFactory
+    from norn_m.vector_stores.configs import VectorStoreConfig
 
     vs_config = VectorStoreConfig(
         provider="databricks",
@@ -803,8 +803,8 @@ def test_e2e_crud_lifecycle_delta_sync(mock_workspace_client):
 
 def test_e2e_crud_lifecycle_direct_access(mock_workspace_client):
     """End-to-end CRUD lifecycle for DIRECT_ACCESS: insert → search → get → list."""
-    from mem0.utils.factory import VectorStoreFactory
-    from mem0.vector_stores.configs import VectorStoreConfig
+    from norn_m.utils.factory import VectorStoreFactory
+    from norn_m.vector_stores.configs import VectorStoreConfig
 
     mock_workspace_client.tables.exists.return_value = SimpleNamespace(table_exists=True)
 
@@ -1079,7 +1079,7 @@ class TestIdentifierValidation:
                 catalog="catalog",
                 schema="schema",
                 table_name="t; DROP TABLE x; --",
-                collection_name="mem0",
+                collection_name="norn_m",
                 warehouse_name="test-warehouse",
             )
 
@@ -1092,7 +1092,7 @@ class TestIdentifierValidation:
                 catalog="cat.evil",
                 schema="schema",
                 table_name="table",
-                collection_name="mem0",
+                collection_name="norn_m",
                 warehouse_name="test-warehouse",
             )
 
@@ -1105,7 +1105,7 @@ class TestIdentifierValidation:
                 catalog="catalog",
                 schema="schema name",
                 table_name="table",
-                collection_name="mem0",
+                collection_name="norn_m",
                 warehouse_name="test-warehouse",
             )
 
@@ -1130,8 +1130,8 @@ class TestIdentifierValidation:
             catalog="my_catalog",
             schema="my_schema",
             table_name="my_table_01",
-            collection_name="mem0",
+            collection_name="norn_m",
             warehouse_name="test-warehouse",
         )
         assert db.fully_qualified_table_name == "my_catalog.my_schema.my_table_01"
-        assert db.fully_qualified_index_name == "my_catalog.my_schema.mem0"
+        assert db.fully_qualified_index_name == "my_catalog.my_schema.norn_m"

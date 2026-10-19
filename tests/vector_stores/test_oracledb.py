@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 import oracledb
 import pytest
 
-from mem0.configs.vector_stores.oracledb import (
+from norn_m.configs.vector_stores.oracledb import (
     OracleAIVectorSearchConfig,
     _quote_identifier,
 )
-from mem0.vector_stores.oracledb import OracleAIVectorSearch, _convert_distance_to_score
+from norn_m.vector_stores.oracledb import OracleAIVectorSearch, _convert_distance_to_score
 
 # Global Oracle connection settings (override via env to run in different environments)
 ORACLE_USER = os.environ.get("ORACLE_USER") or ""
@@ -30,7 +30,7 @@ DIM = 128
 
 def _unique_collection_name() -> str:
     # Keep under Oracle's 30-char identifier limit
-    return f"TEST_MEM0_{uuid.uuid4().hex[:8]}"
+    return f"TEST_NORN_M_{uuid.uuid4().hex[:8]}"
 
 
 # Representative coverage of the old matrix. Every option value from the previous
@@ -399,7 +399,7 @@ def test_search_and_list_follow_base_contract():
     ]
 
     store = object.__new__(OracleAIVectorSearch)
-    store.collection_name = '"MEM0"'
+    store.collection_name = '"NORN_M"'
     store.config = SimpleNamespace(distance_metric="COSINE")
     store._get_cursor = MagicMock(
         side_effect=[
@@ -444,8 +444,8 @@ def test_build_filters_rejects_empty_metadata_key():
 @pytest.mark.parametrize(
     ("collection_name", "expected"),
     [
-        ("MEM0", (None, "MEM0")),
-        ("SCHEMA.MEM0", ("SCHEMA", "MEM0")),
+        ("NORN_M", (None, "NORN_M")),
+        ("SCHEMA.NORN_M", ("SCHEMA", "NORN_M")),
         ('"my.table"', (None, "my.table")),
     ],
 )
@@ -458,16 +458,16 @@ def test_split_collection_name(collection_name, expected):
 
 def test_col_info_looks_up_the_unqualified_table_name():
     cursor = MagicMock()
-    cursor.fetchone.return_value = ("MEM0", 7, "1.5 MB")
+    cursor.fetchone.return_value = ("NORN_M", 7, "1.5 MB")
 
     store = object.__new__(OracleAIVectorSearch)
-    store.collection_name = _quote_identifier("SCHEMA.MEM0")
+    store.collection_name = _quote_identifier("SCHEMA.NORN_M")
     store._get_cursor = MagicMock(return_value=nullcontext(cursor))
 
     info = store.col_info()
 
-    assert info == {"name": "MEM0", "count": 7, "size": "1.5 MB"}
-    assert cursor.execute.call_args.kwargs == {"table_name": "MEM0", "owner": "SCHEMA"}
+    assert info == {"name": "NORN_M", "count": 7, "size": "1.5 MB"}
+    assert cursor.execute.call_args.kwargs == {"table_name": "NORN_M", "owner": "SCHEMA"}
 
 
 def test_col_info_raises_when_collection_is_missing():
@@ -475,7 +475,7 @@ def test_col_info_raises_when_collection_is_missing():
     cursor.fetchone.return_value = None
 
     store = object.__new__(OracleAIVectorSearch)
-    store.collection_name = _quote_identifier("MEM0")
+    store.collection_name = _quote_identifier("NORN_M")
     store._get_cursor = MagicMock(return_value=nullcontext(cursor))
 
     with pytest.raises(ValueError, match="not found"):
@@ -1055,7 +1055,7 @@ def test_does_not_close_caller_supplied_pool():
 
 @requires_oracle_credentials
 def test_documentation():
-    from mem0 import Memory
+    from norn_m import Memory
 
     if not os.environ.get("OPENAI_API_KEY"):
         pytest.skip("OPENAI_API_KEY is required for the end-to-end documentation test")

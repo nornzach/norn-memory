@@ -4,7 +4,7 @@ import { DashboardClientLayout } from "./dashboard-client-layout";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getServerMessages();
-  return { title: t.meta.dashboard, description: "Mem0 Dashboard" };
+  return { title: t.meta.dashboard, description: "Norn-M Dashboard" };
 }
 
 export default async function DashboardLayout({

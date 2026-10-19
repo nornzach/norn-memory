@@ -1,6 +1,6 @@
 import pytest
 
-from mem0.reranker.llm_reranker import LLMReranker
+from norn_m.reranker.llm_reranker import LLMReranker
 
 
 class TestExtractScore:

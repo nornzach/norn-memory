@@ -10,9 +10,9 @@ try:
 except ImportError:
     raise ImportError("OpenSearch requires extra dependencies. Install with `pip install opensearch-py`") from None
 
-from mem0 import Memory
-from mem0.configs.base import MemoryConfig
-from mem0.vector_stores.opensearch import OpenSearchDB
+from norn_m import Memory
+from norn_m.configs.base import MemoryConfig
+from norn_m.vector_stores.opensearch import OpenSearchDB
 
 
 # Mock classes for testing OpenSearch with AWS authentication
@@ -106,7 +106,7 @@ class TestOpenSearchDB(unittest.TestCase):
         self.client_mock.search = MagicMock()
         self.client_mock.index = MagicMock(return_value={"_id": "doc1"})
 
-        patcher = patch("mem0.vector_stores.opensearch.OpenSearch", return_value=self.client_mock)
+        patcher = patch("norn_m.vector_stores.opensearch.OpenSearch", return_value=self.client_mock)
         self.mock_os = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -173,7 +173,7 @@ class TestOpenSearchDB(unittest.TestCase):
 
     def test_auto_refresh_enabled(self):
         """Test that refresh is called once per batch (not per document) when auto_refresh=True."""
-        with patch("mem0.vector_stores.opensearch.OpenSearch", return_value=self.client_mock):
+        with patch("norn_m.vector_stores.opensearch.OpenSearch", return_value=self.client_mock):
             auto_refresh_db = OpenSearchDB(
                 host="localhost",
                 port=9200,
@@ -312,7 +312,7 @@ class TestOpenSearchDB(unittest.TestCase):
         self.assertEqual(len(result[0]), 1)
         self.assertEqual(result[0][0].id, "id1")
 
-    @patch("mem0.vector_stores.opensearch.logger")
+    @patch("norn_m.vector_stores.opensearch.logger")
     def test_list_error_returns_nested_empty_list(self, mock_logger):
         """list() error path must return [[]] (not bare []) so callers can do
         result[0]; e.g. Memory.delete_all() does list(filters=...)[0]."""
@@ -393,7 +393,7 @@ class TestOpenSearchDB(unittest.TestCase):
         self.assertIn("1536", error_msg)
         self.client_mock.search.assert_not_called()
 
-    @patch("mem0.vector_stores.opensearch.logger")
+    @patch("norn_m.vector_stores.opensearch.logger")
     def test_update_error_logs_with_exc_info(self, mock_logger):
         """Update errors should log with exc_info and re-raise."""
         mock_search_response = {"hits": {"hits": [{"_id": "doc1", "_source": {"id": "id1"}}]}}
@@ -407,7 +407,7 @@ class TestOpenSearchDB(unittest.TestCase):
         call_kwargs = mock_logger.error.call_args
         self.assertTrue(call_kwargs[1].get("exc_info"), "logger.error must be called with exc_info=True")
 
-    @patch("mem0.vector_stores.opensearch.logger")
+    @patch("norn_m.vector_stores.opensearch.logger")
     def test_insert_error_logs_with_exc_info(self, mock_logger):
         """Error logging should include exc_info for full stack trace."""
         vectors = [[0.1] * 1536]
@@ -422,7 +422,7 @@ class TestOpenSearchDB(unittest.TestCase):
         call_kwargs = mock_logger.error.call_args
         self.assertTrue(call_kwargs[1].get("exc_info"), "logger.error must be called with exc_info=True")
 
-    @patch("mem0.vector_stores.opensearch.logger")
+    @patch("norn_m.vector_stores.opensearch.logger")
     def test_search_error_logs_with_exc_info(self, mock_logger):
         """Search errors should log with exc_info and re-raise (not swallow as [])."""
         self.client_mock.search.side_effect = Exception("Search failed")
@@ -432,7 +432,7 @@ class TestOpenSearchDB(unittest.TestCase):
         call_kwargs = mock_logger.error.call_args
         self.assertTrue(call_kwargs[1].get("exc_info"), "logger.error must be called with exc_info=True")
 
-    @patch("mem0.vector_stores.opensearch.logger")
+    @patch("norn_m.vector_stores.opensearch.logger")
     def test_keyword_search_error_logs_and_degrades(self, mock_logger):
         """Keyword search errors should log with exc_info and degrade to None (not raise).
 
@@ -451,7 +451,7 @@ class TestOpenSearchDB(unittest.TestCase):
         mock_credentials = MagicMock()
         mock_signer = AWSV4SignerAuth(mock_credentials, "us-east-1", "es")
 
-        with patch("mem0.vector_stores.opensearch.OpenSearch") as mock_opensearch:
+        with patch("norn_m.vector_stores.opensearch.OpenSearch") as mock_opensearch:
             OpenSearchDB(
                 host="localhost",
                 port=9200,
@@ -474,10 +474,10 @@ class TestOpenSearchDB(unittest.TestCase):
 
 
 # Tests for OpenSearch config deepcopy with AWS authentication (Issue #3464)
-@patch("mem0.utils.factory.EmbedderFactory.create")
-@patch("mem0.utils.factory.VectorStoreFactory.create")
-@patch("mem0.utils.factory.LlmFactory.create")
-@patch("mem0.memory.storage.SQLiteManager")
+@patch("norn_m.utils.factory.EmbedderFactory.create")
+@patch("norn_m.utils.factory.VectorStoreFactory.create")
+@patch("norn_m.utils.factory.LlmFactory.create")
+@patch("norn_m.memory.storage.SQLiteManager")
 def test_safe_deepcopy_config_handles_opensearch_auth(
     mock_sqlite, mock_llm_factory, mock_vector_factory, mock_embedder_factory
 ):
@@ -488,7 +488,7 @@ def test_safe_deepcopy_config_handles_opensearch_auth(
     mock_llm_factory.return_value = MagicMock()
     mock_sqlite.return_value = MagicMock()
 
-    from mem0.memory.main import _safe_deepcopy_config
+    from norn_m.memory.main import _safe_deepcopy_config
 
     config_with_auth = MockOpenSearchConfig(collection_name="opensearch_test", include_auth=True)
 
@@ -509,10 +509,10 @@ def test_safe_deepcopy_config_handles_opensearch_auth(
     assert safe_config.verify_certs is True
 
 
-@patch("mem0.utils.factory.EmbedderFactory.create")
-@patch("mem0.utils.factory.VectorStoreFactory.create")
-@patch("mem0.utils.factory.LlmFactory.create")
-@patch("mem0.memory.storage.SQLiteManager")
+@patch("norn_m.utils.factory.EmbedderFactory.create")
+@patch("norn_m.utils.factory.VectorStoreFactory.create")
+@patch("norn_m.utils.factory.LlmFactory.create")
+@patch("norn_m.memory.storage.SQLiteManager")
 def test_safe_deepcopy_config_normal_configs(mock_sqlite, mock_llm_factory, mock_vector_factory, mock_embedder_factory):
     """Test that _safe_deepcopy_config handles normal OpenSearch configs without auth."""
     mock_embedder_factory.return_value = MagicMock()
@@ -521,7 +521,7 @@ def test_safe_deepcopy_config_normal_configs(mock_sqlite, mock_llm_factory, mock
     mock_llm_factory.return_value = MagicMock()
     mock_sqlite.return_value = MagicMock()
 
-    from mem0.memory.main import _safe_deepcopy_config
+    from norn_m.memory.main import _safe_deepcopy_config
 
     config_without_auth = MockOpenSearchConfig(collection_name="normal_test", include_auth=False)
 
@@ -535,10 +535,10 @@ def test_safe_deepcopy_config_normal_configs(mock_sqlite, mock_llm_factory, mock
     assert safe_config.verify_certs is True
 
 
-@patch("mem0.utils.factory.EmbedderFactory.create")
-@patch("mem0.utils.factory.VectorStoreFactory.create")
-@patch("mem0.utils.factory.LlmFactory.create")
-@patch("mem0.memory.storage.SQLiteManager")
+@patch("norn_m.utils.factory.EmbedderFactory.create")
+@patch("norn_m.utils.factory.VectorStoreFactory.create")
+@patch("norn_m.utils.factory.LlmFactory.create")
+@patch("norn_m.memory.storage.SQLiteManager")
 def test_memory_initialization_opensearch_aws_auth(
     mock_sqlite, mock_llm_factory, mock_vector_factory, mock_embedder_factory
 ):
@@ -552,7 +552,7 @@ def test_memory_initialization_opensearch_aws_auth(
 
     config = MemoryConfig()
     config.vector_store.provider = "opensearch"
-    config.vector_store.config = MockOpenSearchConfig(collection_name="mem0_test", include_auth=True)
+    config.vector_store.config = MockOpenSearchConfig(collection_name="norn_m_test", include_auth=True)
 
     memory = Memory(config)
 
@@ -572,7 +572,7 @@ class TestOpenSearchFilterValidation(unittest.TestCase):
         self.client_mock.indices.create = MagicMock()
         self.client_mock.search = MagicMock()
 
-        patcher = patch("mem0.vector_stores.opensearch.OpenSearch", return_value=self.client_mock)
+        patcher = patch("norn_m.vector_stores.opensearch.OpenSearch", return_value=self.client_mock)
         self.mock_os = patcher.start()
         self.addCleanup(patcher.stop)
 

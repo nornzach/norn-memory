@@ -4,8 +4,8 @@ import pytest
 
 pytest.importorskip("langchain", reason="langchain not installed")
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.llms.langchain import LangchainLLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.llms.langchain import LangchainLLM
 
 # Add the import for BaseChatModel
 try:

@@ -3,13 +3,13 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.embeddings.huggingface import HuggingFaceEmbedding
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.embeddings.huggingface import HuggingFaceEmbedding
 
 
 @pytest.fixture
 def mock_sentence_transformer():
-    with patch("mem0.embeddings.huggingface.SentenceTransformer") as mock_transformer:
+    with patch("norn_m.embeddings.huggingface.SentenceTransformer") as mock_transformer:
         mock_model = Mock()
         mock_transformer.return_value = mock_model
         yield mock_model
@@ -79,7 +79,7 @@ def test_embed_with_huggingface_base_url(monkeypatch):
         model="my-custom-model",
         model_kwargs={"truncate": True},
     )
-    with patch("mem0.embeddings.huggingface.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.huggingface.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
 
@@ -110,7 +110,7 @@ def test_embed_with_huggingface_base_url_forwards_api_key():
         model="my-custom-model",
         api_key="tei-token",
     )
-    with patch("mem0.embeddings.huggingface.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.huggingface.OpenAI") as mock_openai:
         HuggingFaceEmbedding(config)
 
         mock_openai.assert_called_once_with(base_url="http://localhost:8080", api_key="tei-token")
@@ -119,7 +119,7 @@ def test_embed_with_huggingface_base_url_forwards_api_key():
 def test_embed_with_huggingface_base_url_falls_back_to_env_var(monkeypatch):
     monkeypatch.setenv("HUGGINGFACE_API_KEY", "env-token")
     config = BaseEmbedderConfig(huggingface_base_url="http://localhost:8080", model="my-custom-model")
-    with patch("mem0.embeddings.huggingface.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.huggingface.OpenAI") as mock_openai:
         HuggingFaceEmbedding(config)
 
         mock_openai.assert_called_once_with(base_url="http://localhost:8080", api_key="env-token")
@@ -130,7 +130,7 @@ def test_embed_with_huggingface_base_url_config_key_beats_env_var(monkeypatch):
     config = BaseEmbedderConfig(
         huggingface_base_url="http://localhost:8080", model="my-custom-model", api_key="config-token"
     )
-    with patch("mem0.embeddings.huggingface.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.huggingface.OpenAI") as mock_openai:
         HuggingFaceEmbedding(config)
 
         mock_openai.assert_called_once_with(base_url="http://localhost:8080", api_key="config-token")
@@ -161,7 +161,7 @@ def test_embed_batch_empty_list_sentence_transformer(mock_sentence_transformer):
 
 def test_embed_batch_base_url():
     config = BaseEmbedderConfig(huggingface_base_url="http://localhost:8080", model="my-custom-model")
-    with patch("mem0.embeddings.huggingface.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.huggingface.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
 
@@ -181,7 +181,7 @@ def test_embed_batch_base_url():
 
 def test_embed_batch_count_mismatch_raises_base_url():
     config = BaseEmbedderConfig(huggingface_base_url="http://localhost:8080", model="my-custom-model")
-    with patch("mem0.embeddings.huggingface.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.huggingface.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
 

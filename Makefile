@@ -2,7 +2,7 @@
 
 # Variables
 ISORT_OPTIONS = --profile black
-PROJECT_NAME := mem0ai
+PROJECT_NAME := norn-m
 
 # Default target
 all: format sort lint
@@ -21,20 +21,14 @@ format:
 
 # Sort imports with isort
 sort:
-	hatch run isort mem0/
+	hatch run isort norn_m/
 
 # Lint code with ruff
 lint:
 	hatch run lint
 
-docs:
-	cd docs && mintlify dev
-
 build:
 	hatch build
-
-publish:
-	hatch publish
 
 clean:
 	rm -rf dist

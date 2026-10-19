@@ -79,7 +79,7 @@ export default function ExportPage() {
       const url = URL.createObjectURL(res.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `mem0-memories-${formatDate(new Date(), "yyyyMMdd-HHmmss")}.${exportFormat}`;
+      link.download = `norn-m-memories-${formatDate(new Date(), "yyyyMMdd-HHmmss")}.${exportFormat}`;
       document.body.appendChild(link);
       link.click();
       link.remove();

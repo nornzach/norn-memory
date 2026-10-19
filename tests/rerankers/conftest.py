@@ -7,7 +7,7 @@ import pytest
 
 @pytest.fixture
 def mock_llm():
-    with patch("mem0.reranker.llm_reranker.LlmFactory") as mock_factory:
+    with patch("norn_m.reranker.llm_reranker.LlmFactory") as mock_factory:
         mock_llm_instance = MagicMock()
         mock_factory.create.return_value = mock_llm_instance
         yield mock_factory, mock_llm_instance
@@ -21,7 +21,7 @@ def mock_cohere(monkeypatch):
     fake_cohere.Client = MagicMock(return_value=fake_client)
     monkeypatch.setitem(sys.modules, "cohere", fake_cohere)
 
-    import mem0.reranker.cohere_reranker as cohere_reranker
+    import norn_m.reranker.cohere_reranker as cohere_reranker
 
     monkeypatch.setattr(cohere_reranker, "cohere", fake_cohere, raising=False)
     monkeypatch.setattr(cohere_reranker, "COHERE_AVAILABLE", True, raising=False)
@@ -36,7 +36,7 @@ def mock_zero_entropy(monkeypatch):
     fake_module.ZeroEntropy = MagicMock(return_value=fake_client)
     monkeypatch.setitem(sys.modules, "zeroentropy", fake_module)
 
-    import mem0.reranker.zero_entropy_reranker as zero_entropy_reranker
+    import norn_m.reranker.zero_entropy_reranker as zero_entropy_reranker
 
     monkeypatch.setattr(zero_entropy_reranker, "ZeroEntropy", fake_module.ZeroEntropy, raising=False)
     monkeypatch.setattr(zero_entropy_reranker, "ZERO_ENTROPY_AVAILABLE", True, raising=False)

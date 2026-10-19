@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.llms.together import TogetherLLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.llms.together import TogetherLLM
 
 
 @pytest.fixture
 def mock_together_client():
-    with patch("mem0.llms.together.Together") as mock_together:
+    with patch("norn_m.llms.together.Together") as mock_together:
         mock_client = Mock()
         mock_together.return_value = mock_client
         yield mock_client

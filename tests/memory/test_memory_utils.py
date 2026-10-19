@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from mem0.memory.utils import (
+from norn_m.memory.utils import (
     parse_messages,
     parse_vision_messages,
     remove_code_blocks,

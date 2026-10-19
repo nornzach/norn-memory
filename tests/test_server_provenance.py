@@ -36,7 +36,7 @@ TEST_ENV = {
 }
 ADMIN_KEY = "test-admin-key-for-pytest-0123456789"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
-CONNECTION = {"X-Mem0-Device": "Mac", "X-Mem0-Agent": "Claude-Code"}
+CONNECTION = {"X-Norn-M-Device": "Mac", "X-Norn-M-Agent": "Claude-Code"}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -49,7 +49,7 @@ def _server_env():
 def server():
     mock_memory = MagicMock()
     mock_memory.add.return_value = {"results": []}
-    with patch("mem0.Memory.from_config", return_value=mock_memory):
+    with patch("norn_m.Memory.from_config", return_value=mock_memory):
         import main
 
         main = importlib.reload(main)
@@ -94,7 +94,7 @@ def _memory(id_, **metadata):
 class TestCleaning:
     def test_grouping_fields_fold_case_and_whitespace(self):
         assert provenance.clean("device", "  Mac  Book ") == "mac book"
-        assert provenance.clean("project", "Mem0") == "mem0"
+        assert provenance.clean("project", "Norn-M") == "norn-m"
         assert provenance.clean("agent", "   ") is None
 
     def test_folder_keeps_case_and_drops_trailing_slashes(self):
@@ -127,12 +127,12 @@ class TestStamping:
         _tool(
             server,
             "add_memory",
-            {"text": "Uses pnpm here", "user_id": "zach", "project": "Mem0", "cwd": "/home/dev/norn-memory/"},
+            {"text": "Uses pnpm here", "user_id": "zach", "project": "Norn-M", "cwd": "/home/dev/norn-memory/"},
             headers=CONNECTION,
         )
 
         assert server.memory.add.call_args.kwargs["metadata"] == {
-            "project": "mem0",
+            "project": "norn-m",
             "cwd": "/home/dev/norn-memory",
             "device": "mac",
             "agent": "claude-code",
@@ -144,12 +144,12 @@ class TestStamping:
             server,
             "add_memory",
             {"text": "x", "user_id": "zach", "project": "api"},
-            headers={"X-Mem0-Project": "web"},
+            headers={"X-Norn-M-Project": "web"},
         )
         assert server.memory.add.call_args.kwargs["metadata"]["project"] == "api"
 
     def test_project_header_is_the_fallback(self, server):
-        _tool(server, "add_memory", {"text": "x", "user_id": "zach"}, headers={"X-Mem0-Project": "Web"})
+        _tool(server, "add_memory", {"text": "x", "user_id": "zach"}, headers={"X-Norn-M-Project": "Web"})
         assert server.memory.add.call_args.kwargs["metadata"]["project"] == "web"
 
     def test_callers_cannot_forge_the_key_label(self, server):
@@ -171,7 +171,7 @@ class TestStamping:
             server,
             "POST",
             "/memories",
-            headers={"X-Mem0-Device": "Hermes"},
+            headers={"X-Norn-M-Device": "Hermes"},
             json={
                 "messages": [{"role": "user", "content": "x"}],
                 "user_id": "zach",
@@ -191,7 +191,7 @@ class TestStamping:
             server,
             "POST",
             "/memories",
-            headers={"X-Mem0-Project": "header", "X-Mem0-Device": "Mac"},
+            headers={"X-Norn-M-Project": "header", "X-Norn-M-Device": "Mac"},
             json={
                 "messages": [{"role": "user", "content": "x"}],
                 "user_id": "zach",
@@ -210,11 +210,11 @@ class TestStamping:
         server.memory.update.return_value = {"message": "Memory updated successfully!"}
 
         resp = _rest(
-            server, "PUT", "/memories/m1", json={"metadata": {"project": " Mem0 ", "key_label": "forged", "x": 1}}
+            server, "PUT", "/memories/m1", json={"metadata": {"project": " Norn-M ", "key_label": "forged", "x": 1}}
         )
 
         assert resp.status_code == 200
-        assert server.memory.update.call_args.kwargs["metadata"] == {"project": "mem0", "x": 1}
+        assert server.memory.update.call_args.kwargs["metadata"] == {"project": "norn-m", "x": 1}
 
     def test_bad_values_are_rejected_before_anything_is_stored(self, server):
         result = _tool(server, "add_memory", {"text": "x", "user_id": "zach", "project": "a\nb"})
@@ -226,71 +226,71 @@ class TestLookup:
     def test_search_narrows_in_the_vector_store_then_keeps_only_the_folder(self, server):
         server.memory.search.return_value = {
             "results": [
-                _memory("inside", project="mem0", device="mac", cwd="/repo/server"),
-                _memory("lookalike", project="mem0", device="mac", cwd="/old/repo"),
-                _memory("exact", project="mem0", device="mac", cwd="/repo"),
+                _memory("inside", project="norn-m", device="mac", cwd="/repo/server"),
+                _memory("lookalike", project="norn-m", device="mac", cwd="/old/repo"),
+                _memory("exact", project="norn-m", device="mac", cwd="/repo"),
             ]
         }
 
         result = _tool(
             server,
             "search_memories",
-            {"query": "build", "user_id": "zach", "project": "Mem0", "device": "mac", "cwd": "/repo"},
+            {"query": "build", "user_id": "zach", "project": "Norn-M", "device": "mac", "cwd": "/repo"},
         )
 
         filters = server.memory.search.call_args.kwargs["filters"]
-        assert filters == {"user_id": "zach", "project": "mem0", "device": "mac", "cwd": {"contains": "/repo"}}
+        assert filters == {"user_id": "zach", "project": "norn-m", "device": "mac", "cwd": {"contains": "/repo"}}
         assert [m["id"] for m in result["structuredContent"]["results"]] == ["inside", "exact"]
 
     def test_rest_listing_for_a_user_filters_by_project(self, server):
-        server.memory.get_all.return_value = {"results": [_memory("m1", project="mem0")]}
+        server.memory.get_all.return_value = {"results": [_memory("m1", project="norn-m")]}
 
-        resp = _rest(server, "GET", "/memories", params={"user_id": "zach", "project": "MEM0", "agent": "omp"})
+        resp = _rest(server, "GET", "/memories", params={"user_id": "zach", "project": "NORN-M", "agent": "omp"})
 
         assert resp.status_code == 200
         assert server.memory.get_all.call_args.kwargs["filters"] == {
             "user_id": "zach",
-            "project": "mem0",
+            "project": "norn-m",
             "agent": "omp",
         }
 
     def test_admin_listing_filters_the_scan(self, server):
         rows = [
-            SimpleNamespace(id="a", payload={"data": "a", "user_id": "zach", "project": "mem0", "device": "mac"}),
-            SimpleNamespace(id="b", payload={"data": "b", "user_id": "zach", "project": "mem0", "device": "phone"}),
+            SimpleNamespace(id="a", payload={"data": "a", "user_id": "zach", "project": "norn-m", "device": "mac"}),
+            SimpleNamespace(id="b", payload={"data": "b", "user_id": "zach", "project": "norn-m", "device": "phone"}),
             SimpleNamespace(id="c", payload={"data": "c", "user_id": "zach", "project": "web", "device": "mac"}),
         ]
         server.memory.vector_store.list.return_value = [rows]
 
-        resp = _rest(server, "GET", "/memories", params={"project": "mem0", "device": "mac"})
+        resp = _rest(server, "GET", "/memories", params={"project": "norn-m", "device": "mac"})
 
         assert resp.status_code == 200
         assert [m["id"] for m in resp.json()["results"]] == ["a"]
-        assert resp.json()["results"][0]["metadata"] == {"project": "mem0", "device": "mac"}
+        assert resp.json()["results"][0]["metadata"] == {"project": "norn-m", "device": "mac"}
 
     def test_list_tool_passes_the_filters_through(self, server):
         server.memory.get_all.return_value = {"results": []}
 
-        _tool(server, "list_memories", {"user_id": "zach", "project": "mem0", "device": "windows"})
+        _tool(server, "list_memories", {"user_id": "zach", "project": "norn-m", "device": "windows"})
 
         assert server.memory.get_all.call_args.kwargs["filters"] == {
             "user_id": "zach",
-            "project": "mem0",
+            "project": "norn-m",
             "device": "windows",
         }
 
     def test_export_filters_and_adds_provenance_columns(self, server):
         rows = [
             SimpleNamespace(
-                id="a", payload={"data": "a", "user_id": "zach", "project": "mem0", "agent": "omp", "key_label": "k1"}
+                id="a", payload={"data": "a", "user_id": "zach", "project": "norn-m", "agent": "omp", "key_label": "k1"}
             ),
             SimpleNamespace(id="b", payload={"data": "b", "user_id": "zach", "project": "web"}),
         ]
         server.memory.vector_store.list.return_value = [rows]
 
-        resp = _rest(server, "GET", "/export", params={"format": "csv", "project": "mem0"})
+        resp = _rest(server, "GET", "/export", params={"format": "csv", "project": "norn-m"})
 
         assert resp.status_code == 200
         header, row = resp.text.strip().splitlines()
         assert header.split(",")[6:11] == ["device", "agent", "project", "cwd", "key_label"]
-        assert row.split(",")[6:11] == ["", "omp", "mem0", "", "k1"]
+        assert row.split(",")[6:11] == ["", "omp", "norn-m", "", "k1"]

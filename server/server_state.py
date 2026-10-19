@@ -4,7 +4,7 @@ import threading
 from copy import deepcopy
 from typing import Any, Callable, Dict
 
-from mem0 import Memory
+from norn_m import Memory
 
 _state_lock = threading.RLock()
 _current_config: Dict[str, Any] = {}
@@ -139,5 +139,5 @@ def get_current_config() -> Dict[str, Any]:
 def get_memory_instance() -> Memory:
     with _state_lock:
         if _memory_instance is None:
-            raise RuntimeError("Mem0 runtime has not been initialized.")
+            raise RuntimeError("Norn-M runtime has not been initialized.")
         return _memory_instance

@@ -2,8 +2,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.azure import AzureOpenAIConfig
-from mem0.llms.azure_openai import AzureOpenAILLM
+from norn_m.configs.llms.azure import AzureOpenAIConfig
+from norn_m.llms.azure_openai import AzureOpenAILLM
 
 MODEL = "gpt-4.1-nano-2025-04-14"  # or your custom deployment name
 TEMPERATURE = 0.7
@@ -13,7 +13,7 @@ TOP_P = 1.0
 
 @pytest.fixture
 def mock_openai_client():
-    with patch("mem0.llms.azure_openai.AzureOpenAI") as mock_openai:
+    with patch("norn_m.llms.azure_openai.AzureOpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -235,7 +235,7 @@ def test_azure_config_accepts_reasoning_effort():
 def test_is_reasoning_model_override_forces_reasoning_path(mock_openai_client):
     """Versioned Azure gpt-5.x deployments can opt in via is_reasoning_model=True.
 
-    Regression test for https://github.com/mem0ai/mem0/issues/5296 — the
+    Regression test for upstream issue #5296 — the
     name-based heuristic does not recognize dated deployment names like
     ``gpt-5.4-nano-2026-03-17``, so the call sent max_tokens and Azure replied
     400. The explicit override forces the reasoning-model parameter set, which
@@ -311,7 +311,7 @@ def test_generate_with_http_proxies(default_headers):
         azure_kwargs["default_headers"] = default_headers
 
     with (
-        patch("mem0.llms.azure_openai.AzureOpenAI") as mock_azure_openai,
+        patch("norn_m.llms.azure_openai.AzureOpenAI") as mock_azure_openai,
         patch("httpx.Client", new=mock_http_client),
     ):
         config = AzureOpenAIConfig(
@@ -320,7 +320,7 @@ def test_generate_with_http_proxies(default_headers):
             max_tokens=MAX_TOKENS,
             top_p=TOP_P,
             api_key="test",
-            http_client_proxies="http://testproxy.mem0.net:8000",
+            http_client_proxies="http://testproxy.norn_m.net:8000",
             azure_kwargs=azure_kwargs,
         )
 
@@ -335,7 +335,7 @@ def test_generate_with_http_proxies(default_headers):
             api_version=None,
             default_headers=default_headers,
         )
-        mock_http_client.assert_called_once_with(proxy="http://testproxy.mem0.net:8000")
+        mock_http_client.assert_called_once_with(proxy="http://testproxy.norn_m.net:8000")
 
 
 def test_init_with_api_key(monkeypatch):
@@ -359,7 +359,7 @@ def test_init_with_api_key(monkeypatch):
     config.azure_kwargs.default_headers = {"x-test": "header"}
     config.http_client = None
 
-    with patch("mem0.llms.azure_openai.AzureOpenAI") as mock_azure_openai:
+    with patch("norn_m.llms.azure_openai.AzureOpenAI") as mock_azure_openai:
         llm = AzureOpenAILLM(config)
         mock_azure_openai.assert_called_once_with(
             azure_deployment="test-deployment",
@@ -387,7 +387,7 @@ def test_init_with_env_vars(monkeypatch):
     config.azure_kwargs.default_headers = None
     config.http_client = None
 
-    with patch("mem0.llms.azure_openai.AzureOpenAI") as mock_azure_openai:
+    with patch("norn_m.llms.azure_openai.AzureOpenAI") as mock_azure_openai:
         llm = AzureOpenAILLM(config)
         mock_azure_openai.assert_called_once_with(
             azure_deployment="env-deployment",
@@ -414,9 +414,9 @@ def test_init_with_default_azure_credential(monkeypatch):
     config.http_client = None
 
     with (
-        patch("mem0.llms.azure_openai.DefaultAzureCredential") as mock_cred,
-        patch("mem0.llms.azure_openai.get_bearer_token_provider") as mock_token_provider,
-        patch("mem0.llms.azure_openai.AzureOpenAI") as mock_azure_openai,
+        patch("norn_m.llms.azure_openai.DefaultAzureCredential") as mock_cred,
+        patch("norn_m.llms.azure_openai.get_bearer_token_provider") as mock_token_provider,
+        patch("norn_m.llms.azure_openai.AzureOpenAI") as mock_azure_openai,
     ):
         mock_cred_instance = mock_cred.return_value
         mock_token_provider.return_value = "token-provider"
@@ -445,9 +445,9 @@ def test_init_with_placeholder_api_key(monkeypatch):
     config.http_client = None
 
     with (
-        patch("mem0.llms.azure_openai.DefaultAzureCredential") as mock_cred,
-        patch("mem0.llms.azure_openai.get_bearer_token_provider") as mock_token_provider,
-        patch("mem0.llms.azure_openai.AzureOpenAI") as mock_azure_openai,
+        patch("norn_m.llms.azure_openai.DefaultAzureCredential") as mock_cred,
+        patch("norn_m.llms.azure_openai.get_bearer_token_provider") as mock_token_provider,
+        patch("norn_m.llms.azure_openai.AzureOpenAI") as mock_azure_openai,
     ):
         mock_cred_instance = mock_cred.return_value
         mock_token_provider.return_value = "token-provider"

@@ -93,5 +93,5 @@ def export_memories(
     return Response(
         content=content,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="mem0-memories-{stamp}.{format}"'},
+        headers={"Content-Disposition": f'attachment; filename="norn-m-memories-{stamp}.{format}"'},
     )

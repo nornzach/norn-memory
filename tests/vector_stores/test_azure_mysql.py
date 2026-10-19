@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import ValidationError
 
-from mem0.configs.vector_stores.azure_mysql import AzureMySQLConfig
-from mem0.vector_stores.azure_mysql import AzureMySQL, OutputData
+from norn_m.configs.vector_stores.azure_mysql import AzureMySQLConfig
+from norn_m.vector_stores.azure_mysql import AzureMySQL, OutputData
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def mock_connection_pool():
 @pytest.fixture
 def azure_mysql_instance(mock_connection_pool):
     """Create an AzureMySQL instance with mocked connection pool."""
-    with patch('mem0.vector_stores.azure_mysql.PooledDB') as mock_pooled_db:
+    with patch('norn_m.vector_stores.azure_mysql.PooledDB') as mock_pooled_db:
         mock_pooled_db.return_value = mock_connection_pool
 
         instance = AzureMySQL(
@@ -58,7 +58,7 @@ def azure_mysql_instance(mock_connection_pool):
 
 def test_azure_mysql_init(mock_connection_pool):
     """Test AzureMySQL initialization."""
-    with patch('mem0.vector_stores.azure_mysql.PooledDB') as mock_pooled_db:
+    with patch('norn_m.vector_stores.azure_mysql.PooledDB') as mock_pooled_db:
         mock_pooled_db.return_value = mock_connection_pool
 
         instance = AzureMySQL(
@@ -240,7 +240,7 @@ def test_reset(azure_mysql_instance):
 @pytest.mark.skipif(True, reason="Requires Azure credentials")
 def test_azure_credential_authentication():
     """Test Azure DefaultAzureCredential authentication."""
-    with patch('mem0.vector_stores.azure_mysql.DefaultAzureCredential') as mock_cred:
+    with patch('norn_m.vector_stores.azure_mysql.DefaultAzureCredential') as mock_cred:
         mock_token = Mock()
         mock_token.token = "test_token"
         mock_cred.return_value.get_token.return_value = mock_token

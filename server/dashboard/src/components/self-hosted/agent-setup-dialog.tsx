@@ -20,7 +20,7 @@ import { useApiQuery } from "@/hooks/use-api-query";
 import { Entity } from "@/types/api";
 import { useI18n } from "@/i18n/provider";
 
-const KEY_PLACEHOLDER = "<PASTE_YOUR_MEM0_API_KEY>";
+const KEY_PLACEHOLDER = "<PASTE_YOUR_NORN_M_API_KEY>";
 const AGENT_PLACEHOLDER =
   "<your own short lowercase name, e.g. claude-code, omp, devin>";
 const DEVICE_SUGGESTIONS = [
@@ -81,9 +81,9 @@ export function buildAgentSetupPrompt(values: AgentSetupValues): string {
   const url = values.url.trim();
   const key = values.apiKey.trim() || KEY_PLACEHOLDER;
   const headers: Record<string, string> = { "X-API-Key": key };
-  if (values.userId.trim()) headers["X-Mem0-User-Id"] = values.userId.trim();
-  if (values.device.trim()) headers["X-Mem0-Device"] = values.device.trim();
-  headers["X-Mem0-Agent"] = values.agent.trim() || AGENT_PLACEHOLDER;
+  if (values.userId.trim()) headers["X-Norn-M-User-Id"] = values.userId.trim();
+  if (values.device.trim()) headers["X-Norn-M-Device"] = values.device.trim();
+  headers["X-Norn-M-Agent"] = values.agent.trim() || AGENT_PLACEHOLDER;
 
   const headerLines = Object.entries(headers)
     .map(([name, value]) => `  ${name}: ${value}`)
@@ -92,12 +92,12 @@ export function buildAgentSetupPrompt(values: AgentSetupValues): string {
     .map(([name, value]) => `--header "${name}: ${value}"`)
     .join(" ");
   const devinEntry = JSON.stringify(
-    { mem0: { url, transport: "http", headers } },
+    { "norn-m": { url, transport: "http", headers } },
     null,
     2,
   );
   const ompEntry = JSON.stringify(
-    { mem0: { type: "http", url, headers } },
+    { "norn-m": { type: "http", url, headers } },
     null,
     2,
   );
@@ -107,29 +107,29 @@ export function buildAgentSetupPrompt(values: AgentSetupValues): string {
     method: "tools/list",
   });
 
-  return `Connect yourself to my self-hosted Mem0 memory server over MCP, then check that it works.
+  return `Connect yourself to my self-hosted Norn-M memory server over MCP, then check that it works.
 
 ## Server
 - MCP endpoint (streamable HTTP): ${url}
 - Send these headers on every request:
 ${headerLines}
-${headers["X-Mem0-Agent"] === AGENT_PLACEHOLDER ? "  (Replace the X-Mem0-Agent placeholder with your own name.)\n" : ""}
+${headers["X-Norn-M-Agent"] === AGENT_PLACEHOLDER ? "  (Replace the X-Norn-M-Agent placeholder with your own name.)\n" : ""}
 ## Steps
 1. Check that the server is reachable and the key works. The reply should be JSON listing tools such as search_memories and exact_set:
    curl -s -X POST ${url} -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "X-API-Key: ${key}" -d '${listTools}'
    If it fails, stop and tell me: a connection error means the URL is wrong or the server is down, and 401 means the key is wrong.
-2. Register the server as "mem0" in your own MCP configuration, at user (global) scope so it works in every project. Use the method for the agent you are:
+2. Register the server as "norn-m" in your own MCP configuration, at user (global) scope so it works in every project. Use the method for the agent you are:
    - Claude Code: run
-     claude mcp add --transport http --scope user mem0 ${url} ${claudeHeaders}
-     If "mem0" already exists, run claude mcp remove mem0 --scope user first.
-   - Devin CLI: add this entry under "mcpServers" in ~/.config/devin/mcp_config.json, then run devin mcp get mem0:
+     claude mcp add --transport http --scope user norn-m ${url} ${claudeHeaders}
+     If "norn-m" already exists, run claude mcp remove norn-m --scope user first.
+   - Devin CLI: add this entry under "mcpServers" in ~/.config/devin/mcp_config.json, then run devin mcp get norn-m:
 ${indent(devinEntry, 6)}
    - omp (oh-my-pi): add this entry under "mcpServers" in ~/.omp/agent/mcp.json. Keep "type": "http", or omp treats it as a local command:
 ${indent(ompEntry, 6)}
-   - Any other agent: add a remote MCP server named "mem0" that uses streamable HTTP with the URL and headers above, wherever your agent keeps its MCP configuration. If you are not sure where that is, ask me instead of guessing.
+   - Any other agent: add a remote MCP server named "norn-m" that uses streamable HTTP with the URL and headers above, wherever your agent keeps its MCP configuration. If you are not sure where that is, ask me instead of guessing.
    When you edit a JSON config file, keep every server already in it and keep the file valid JSON. Create the file if it does not exist.
 3. Confirm the server is registered with your own tooling (for example claude mcp list), and tell me whether I need to restart you to load the new tools.
-4. Once the mem0 tools are loaded, call search_memories with the query "setup check" to confirm they work. Do not store anything during setup.
+4. Once the norn-m tools are loaded, call search_memories with the query "setup check" to confirm they work. Do not store anything during setup.
 
 ## Using the memory afterwards
 - Call search_memories before answering anything that depends on my preferences, history, projects or earlier decisions.

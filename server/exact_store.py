@@ -96,7 +96,7 @@ class RecordWrite(BaseModel):
     description: Optional[str] = Field(None, max_length=MAX_DESCRIPTION_LENGTH)
     tags: Optional[List[str]] = None
     fields: Optional[Dict[str, Any]] = None
-    # Where the write comes from (see provenance.py); X-Mem0-* headers fill in what is not given here.
+    # Where the write comes from (see provenance.py); X-Norn-M-* headers fill in what is not given here.
     project: Optional[str] = Field(None, description="Project this record belongs to, e.g. the repository name.")
     cwd: Optional[str] = Field(None, description="Working folder the record was written from.")
     device: Optional[str] = Field(None, description="Device, e.g. mac, windows, phone, web, hermes.")
@@ -187,7 +187,7 @@ def resolve_user(scope: Optional[KeyScope], user_id: Optional[str], *, write: bo
         if user_id:
             scope.check_ids({"user_id": user_id})
     if not user_id:
-        raise HTTPException(status_code=400, detail="user_id is required: pass it, or set the X-Mem0-User-Id header.")
+        raise HTTPException(status_code=400, detail="user_id is required: pass it, or set the X-Norn-M-User-Id header.")
     return user_id
 
 

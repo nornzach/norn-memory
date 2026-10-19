@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Callable, Dict, Optional
 
-from mem0.utils.factory import EmbedderFactory, LlmFactory
+from norn_m.utils.factory import EmbedderFactory, LlmFactory
 
 CHECK_TIMEOUT_SECONDS = 30
 MAX_ERROR_LENGTH = 300
@@ -55,7 +55,7 @@ def check_embedder(section: Dict[str, Any], expected_dims: Optional[int]) -> Dic
         error = (
             f"The model returns {dims}-dimensional vectors, but the vector store expects {expected_dims}. "
             "Pick a model with that size, set embedding dimensions if the API supports it, "
-            "or recreate the vector store with MEM0_DEFAULT_EMBEDDER_DIMS."
+            "or recreate the vector store with NORN_M_DEFAULT_EMBEDDER_DIMS."
         )
     return {
         "ok": error is None,

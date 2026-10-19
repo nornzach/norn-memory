@@ -15,7 +15,7 @@ Set OPENAI_API_KEY env var or configure an alternative LLM/embedder to use
 the full Memory pipeline; otherwise tests fall back to direct vector store
 operations with synthetic embeddings.
 
-Refs: https://github.com/mem0ai/mem0/issues/4453
+Refs: upstream issue #4453
 """
 
 import os
@@ -77,7 +77,7 @@ def _run_threshold_test(store, query, doc_vectors, payloads, ids):
     )
 
     # Step 3: Simulate threshold filtering as Memory.search() does it
-    # The check in mem0/memory/main.py is: if threshold is None or mem.score >= threshold
+    # The check in norn_m/memory/main.py is: if threshold is None or mem.score >= threshold
     mid_threshold = (scores[0] + scores[-1]) / 2 if len(scores) >= 2 else scores[0] * 0.5
 
     filtered = [r for r in results if r.score >= mid_threshold]
@@ -113,7 +113,7 @@ def _run_threshold_test(store, query, doc_vectors, payloads, ids):
 
 class TestChromaDBThreshold:
     def test_threshold_filtering(self, tmp_path):
-        from mem0.vector_stores.chroma import ChromaDB
+        from norn_m.vector_stores.chroma import ChromaDB
 
         store = ChromaDB(collection_name="test_threshold", path=str(tmp_path / "chroma"))
         query, doc_vectors = _make_vectors()
@@ -126,7 +126,7 @@ class TestChromaDBThreshold:
 
     def test_threshold_direction_not_inverted(self, tmp_path):
         """Regression test: before the fix, threshold filtering was inverted."""
-        from mem0.vector_stores.chroma import ChromaDB
+        from norn_m.vector_stores.chroma import ChromaDB
 
         store = ChromaDB(collection_name="test_inversion", path=str(tmp_path / "chroma2"))
         query, doc_vectors = _make_vectors()
@@ -153,7 +153,7 @@ class TestChromaDBThreshold:
 
 class TestFAISSEuclideanThreshold:
     def test_threshold_filtering(self, tmp_path):
-        from mem0.vector_stores.faiss import FAISS
+        from norn_m.vector_stores.faiss import FAISS
 
         store = FAISS(
             collection_name="test_threshold",
@@ -171,7 +171,7 @@ class TestFAISSEuclideanThreshold:
 
 class TestFAISSCosineThreshold:
     def test_threshold_filtering(self, tmp_path):
-        from mem0.vector_stores.faiss import FAISS
+        from norn_m.vector_stores.faiss import FAISS
 
         store = FAISS(
             collection_name="test_threshold",
@@ -196,9 +196,9 @@ class TestFAISSCosineThreshold:
 
 PGVECTOR_HOST = os.environ.get("PGVECTOR_HOST", "localhost")
 PGVECTOR_PORT = int(os.environ.get("PGVECTOR_PORT", "5432"))
-PGVECTOR_USER = os.environ.get("PGVECTOR_USER", "mem0")
-PGVECTOR_PASS = os.environ.get("PGVECTOR_PASSWORD", "mem0test")
-PGVECTOR_DB = os.environ.get("PGVECTOR_DB", "mem0_test")
+PGVECTOR_USER = os.environ.get("PGVECTOR_USER", "norn_m")
+PGVECTOR_PASS = os.environ.get("PGVECTOR_PASSWORD", "norn_mtest")
+PGVECTOR_DB = os.environ.get("PGVECTOR_DB", "norn_m_test")
 
 
 def _pgvector_reachable():
@@ -222,7 +222,7 @@ def _pgvector_reachable():
 )
 class TestPGVectorThreshold:
     def test_threshold_filtering(self):
-        from mem0.vector_stores.pgvector import PGVector
+        from norn_m.vector_stores.pgvector import PGVector
 
         collection = f"test_thr_{uuid.uuid4().hex[:8]}"
         store = PGVector(
@@ -230,9 +230,9 @@ class TestPGVectorThreshold:
             embedding_model_dims=DIMS,
             host=PGVECTOR_HOST,
             port=PGVECTOR_PORT,
-            user=os.environ.get("PGVECTOR_USER", "mem0"),
-            password=os.environ.get("PGVECTOR_PASSWORD", "mem0test"),
-            dbname=os.environ.get("PGVECTOR_DB", "mem0_test"),
+            user=os.environ.get("PGVECTOR_USER", "norn_m"),
+            password=os.environ.get("PGVECTOR_PASSWORD", "norn_mtest"),
+            dbname=os.environ.get("PGVECTOR_DB", "norn_m_test"),
             diskann=False,
             hnsw=True,
         )
@@ -271,7 +271,7 @@ class TestRedisThreshold:
     def test_threshold_filtering(self):
         from datetime import datetime, timezone
 
-        from mem0.vector_stores.redis import RedisDB
+        from norn_m.vector_stores.redis import RedisDB
 
         collection = f"test_thr_{uuid.uuid4().hex[:8]}"
         store = RedisDB(
@@ -312,7 +312,7 @@ class TestValkeyThreshold:
     def test_threshold_filtering(self):
         from datetime import datetime, timezone
 
-        from mem0.vector_stores.valkey import ValkeyDB
+        from norn_m.vector_stores.valkey import ValkeyDB
 
         collection = f"test_thr_{uuid.uuid4().hex[:8]}"
         store = ValkeyDB(
@@ -347,7 +347,7 @@ MILVUS_PORT = int(os.environ.get("MILVUS_PORT", "19530"))
 )
 class TestMilvusL2Threshold:
     def test_threshold_filtering(self):
-        from mem0.vector_stores.milvus import MilvusDB
+        from norn_m.vector_stores.milvus import MilvusDB
 
         collection = f"test_l2_{uuid.uuid4().hex[:8]}"
         store = MilvusDB(
@@ -375,7 +375,7 @@ class TestMilvusL2Threshold:
 )
 class TestMilvusCosineThreshold:
     def test_threshold_filtering(self):
-        from mem0.vector_stores.milvus import MilvusDB
+        from norn_m.vector_stores.milvus import MilvusDB
 
         collection = f"test_cos_{uuid.uuid4().hex[:8]}"
         store = MilvusDB(
@@ -404,7 +404,7 @@ SUPABASE_CONN = os.environ.get("SUPABASE_CONN_STRING", "")
 @pytest.mark.skipif(not SUPABASE_CONN, reason="SUPABASE_CONN_STRING not set")
 class TestSupabaseThreshold:
     def test_threshold_filtering(self):
-        from mem0.vector_stores.supabase import Supabase
+        from norn_m.vector_stores.supabase import Supabase
 
         collection = f"test_thr_{uuid.uuid4().hex[:8]}"
         store = Supabase(
@@ -427,7 +427,7 @@ S3_BUCKET = os.environ.get("S3_VECTORS_BUCKET", "")
 @pytest.mark.skipif(not S3_BUCKET, reason="S3_VECTORS_BUCKET not set")
 class TestS3VectorsThreshold:
     def test_threshold_filtering(self):
-        from mem0.vector_stores.s3_vectors import S3Vectors
+        from norn_m.vector_stores.s3_vectors import S3Vectors
 
         collection = f"testthr{uuid.uuid4().hex[:8]}"
         region = os.environ.get("S3_VECTORS_REGION", "us-east-1")

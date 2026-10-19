@@ -14,7 +14,7 @@ def _ensure_spacy():
 
 class TestExtractEntities:
     def test_proper_nouns(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities("John Smith works at Google on machine learning projects")
         entity_texts = [e[1] for e in entities]
@@ -23,14 +23,14 @@ class TestExtractEntities:
         assert found_proper, f"Expected proper nouns, got {entities}"
 
     def test_quoted_text(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities('She is reading "The Great Gatsby" this week')
         entity_texts = [e[1] for e in entities]
         assert any("Great Gatsby" in t for t in entity_texts), f"Expected quoted text, got {entities}"
 
     def test_compound_nouns(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities("The machine learning engineer built a neural network")
         entity_texts = [e[1].lower() for e in entities]
@@ -40,13 +40,13 @@ class TestExtractEntities:
         assert has_compound, f"Expected compound nouns, got {entities}"
 
     def test_empty_string(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities("")
         assert entities == []
 
     def test_no_entities(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities("I like things and stuff")
         # Generic words should be filtered out
@@ -55,14 +55,14 @@ class TestExtractEntities:
         assert "stuff" not in entity_texts
 
     def test_deduplication(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities("Google is great. I love working at Google.")
         google_count = sum(1 for _, t in entities if "Google" in t)
         assert google_count <= 1, f"Expected dedup, got {entities}"
 
     def test_substring_dedup_respects_word_boundaries(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         # "Sam" is a mid-word substring of "Samsung", not a separate token, so it
         # must not be dropped as a substring of the longer entity.
@@ -72,7 +72,7 @@ class TestExtractEntities:
         assert any("Samsung" in t for t in entity_texts), f"Expected 'Samsung', got {entities}"
 
     def test_returns_tuples(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         entities = extract_entities("John Smith lives in New York City")
         for entity in entities:
@@ -82,13 +82,13 @@ class TestExtractEntities:
             assert isinstance(entity[1], str)
 
     def test_handles_names_lists_and_identifiers(self):
-        from mem0.utils.entity_extraction import extract_entities
+        from norn_m.utils.entity_extraction import extract_entities
 
         text = (
             "User reported top inbound integration pages: OpenClaw 25,443, "
             "Claude Code 8,916, Codex 2,573, Dify 656. "
             "User compared Cartesia and Deepgram. "
-            "The email field for Mem0 lives at person.properties.email. "
+            "The email field for Norn-M lives at person.properties.email. "
             "The qwen endpoint uses person.properties.email. "
             "Johnson & Johnson was mentioned. "
             "Glasses around my window. "
@@ -99,7 +99,7 @@ class TestExtractEntities:
         entity_texts = {entity_text for _, entity_text in entities}
         normalized = {entity_text.lower() for entity_text in entity_texts}
 
-        assert {"OpenClaw", "Claude Code", "Codex", "Dify", "Cartesia", "Deepgram", "Mem0"}.issubset(entity_texts)
+        assert {"OpenClaw", "Claude Code", "Codex", "Dify", "Cartesia", "Deepgram", "Norn-M"}.issubset(entity_texts)
         assert "person.properties.email" in entity_texts
         assert "qwen endpoint" in entity_texts
         assert "Johnson & Johnson" in entity_texts
@@ -112,7 +112,7 @@ class TestExtractEntities:
 
 class TestExtractEntitiesBatch:
     def test_batch_processing(self):
-        from mem0.utils.entity_extraction import extract_entities_batch
+        from norn_m.utils.entity_extraction import extract_entities_batch
 
         texts = [
             "John works at Google",
@@ -126,12 +126,12 @@ class TestExtractEntitiesBatch:
         assert isinstance(results[2], list)
 
     def test_empty_input(self):
-        from mem0.utils.entity_extraction import extract_entities_batch
+        from norn_m.utils.entity_extraction import extract_entities_batch
 
         assert extract_entities_batch([]) == []
 
     def test_consistency_with_single(self):
-        from mem0.utils.entity_extraction import extract_entities, extract_entities_batch
+        from norn_m.utils.entity_extraction import extract_entities, extract_entities_batch
 
         text = "John Smith works at Google headquarters"
         single = extract_entities(text)

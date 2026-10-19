@@ -4,7 +4,7 @@ import unittest
 import uuid
 from unittest.mock import MagicMock, patch
 
-from mem0.vector_stores.pgvector import (
+from norn_m.vector_stores.pgvector import (
     PGVector,
     _build_filter_conditions,
     _with_sslmode,
@@ -36,8 +36,8 @@ class TestPGVector(unittest.TestCase):
         self.test_payloads = [{"key": "value1"}, {"key": "value2"}]
         self.test_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     def test_init_with_individual_params_psycopg3(self, mock_psycopg_pool):
         """Test initialization with individual parameters using psycopg3."""
         mock_pool_instance = MagicMock()
@@ -70,8 +70,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.collection_name, "test_collection")
         self.assertEqual(pgvector.embedding_model_dims, 3)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     def test_init_does_not_block_on_unreachable_host_psycopg3(self, mock_psycopg_pool):
         """Regression test for issue #3950.
 
@@ -111,8 +111,8 @@ class TestPGVector(unittest.TestCase):
         mock_pool_instance.connection.assert_not_called()
         self.assertFalse(pv._collection_ensured)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     def test_init_with_individual_params_psycopg2(self, mock_pcycopg2_pool):
         """Test initialization with individual parameters using psycopg2."""
         mock_pcycopg2_pool.return_value = self.mock_pool_psycopg2
@@ -141,8 +141,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.collection_name, "test_collection")
         self.assertEqual(pgvector.embedding_model_dims, 3)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_create_col_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test collection creation with psycopg3."""
@@ -184,8 +184,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.collection_name, "test_collection")
         self.assertEqual(pgvector.embedding_model_dims, 3)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_create_col_psycopg3_with_explicit_pool(self, mock_get_cursor, mock_connection_pool):
         """
@@ -230,8 +230,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.embedding_model_dims, 3)
         self.assertIs(pgvector.connection_pool, explicit_pool)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_create_col_psycopg2_with_explicit_pool(self, mock_get_cursor, mock_connection_pool):
         """
@@ -276,8 +276,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.embedding_model_dims, 3)
         self.assertIs(pgvector.connection_pool, explicit_pool)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_create_col_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test collection creation with psycopg2."""
@@ -316,8 +316,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.collection_name, "test_collection")
         self.assertEqual(pgvector.embedding_model_dims, 3)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_insert_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test vector insertion with psycopg3."""
@@ -361,8 +361,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(data_arg[0][0], self.test_ids[0])
         self.assertEqual(data_arg[1][0], self.test_ids[1])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_insert_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """
@@ -396,8 +396,8 @@ class TestPGVector(unittest.TestCase):
             'psycopg2.pool': mock_psycopg2_pool
         }):
             # Force reload of PGVector to pick up the mocked modules
-            if 'mem0.vector_stores.pgvector' in sys.modules:
-                importlib.reload(sys.modules['mem0.vector_stores.pgvector'])
+            if 'norn_m.vector_stores.pgvector' in sys.modules:
+                importlib.reload(sys.modules['norn_m.vector_stores.pgvector'])
 
             mock_connection_pool.return_value = self.mock_pool_psycopg
             mock_get_cursor.return_value.__enter__.return_value = self.mock_cursor
@@ -435,10 +435,10 @@ class TestPGVector(unittest.TestCase):
             self.assertEqual(data_arg[1][0], self.test_ids[1])
 
         # Restore the module after the sys.modules patch reverts
-        importlib.reload(sys.modules['mem0.vector_stores.pgvector'])
+        importlib.reload(sys.modules['norn_m.vector_stores.pgvector'])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test search with psycopg3."""
@@ -486,8 +486,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[1].id, self.test_ids[1])
         self.assertEqual(results[1].score, 0.8)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test search with psycopg2."""
@@ -535,8 +535,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[1].id, self.test_ids[1])
         self.assertEqual(results[1].score, 0.8)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_delete_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test delete with psycopg3."""
@@ -574,8 +574,8 @@ class TestPGVector(unittest.TestCase):
                        if "DELETE FROM" in str(call) and "test_collection" in str(call)]
         self.assertTrue(len(delete_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_delete_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test delete with psycopg2."""
@@ -613,8 +613,8 @@ class TestPGVector(unittest.TestCase):
                        if "DELETE FROM" in str(call) and "test_collection" in str(call)]
         self.assertTrue(len(delete_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_update_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test update with psycopg3."""
@@ -655,8 +655,8 @@ class TestPGVector(unittest.TestCase):
                        if "UPDATE" in str(call) and "test_collection" in str(call)]
         self.assertTrue(len(update_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_update_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test update with psycopg2."""
@@ -697,8 +697,8 @@ class TestPGVector(unittest.TestCase):
                        if "UPDATE" in str(call) and "test_collection" in str(call)]
         self.assertTrue(len(update_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_get_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test get with psycopg3."""
@@ -742,8 +742,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(result.id, self.test_ids[0])
         self.assertEqual(result.payload, {"key": "value1"})
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_get_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test get with psycopg2."""
@@ -787,8 +787,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(result.id, self.test_ids[0])
         self.assertEqual(result.payload, {"key": "value1"})
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_cols_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test list_cols with psycopg3."""
@@ -826,8 +826,8 @@ class TestPGVector(unittest.TestCase):
         # Verify result
         self.assertEqual(collections, ["test_collection", "other_table"])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_cols_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test list_cols with psycopg2."""
@@ -868,8 +868,8 @@ class TestPGVector(unittest.TestCase):
         # Verify result
         self.assertEqual(collections, ["test_collection", "other_table"])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_delete_col_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test delete_col with psycopg3."""
@@ -907,8 +907,8 @@ class TestPGVector(unittest.TestCase):
                        if "DROP TABLE IF EXISTS" in str(call) and "test_collection" in str(call)]
         self.assertTrue(len(delete_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_delete_col_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test delete_col with psycopg2."""
@@ -946,8 +946,8 @@ class TestPGVector(unittest.TestCase):
                        if "DROP TABLE IF EXISTS" in str(call) and "test_collection" in str(call)]
         self.assertTrue(len(delete_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_col_info_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test col_info with psycopg3."""
@@ -991,8 +991,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(info["count"], 100)
         self.assertEqual(info["size"], "1 MB")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_col_info_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test col_info with psycopg2."""
@@ -1036,8 +1036,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(info["count"], 100)
         self.assertEqual(info["size"], "1 MB")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test list with psycopg3."""
@@ -1084,8 +1084,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].id, self.test_ids[0])
         self.assertEqual(results[0][1].id, self.test_ids[1])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test list with psycopg2."""
@@ -1132,8 +1132,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].id, self.test_ids[0])
         self.assertEqual(results[0][1].id, self.test_ids[1])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_with_filters_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test search with filters using psycopg3."""
@@ -1182,8 +1182,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0].payload["agent_id"], "agent1")
         self.assertEqual(results[0].payload["run_id"], "run1")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_with_filters_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test search with filters using psycopg2."""
@@ -1232,8 +1232,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0].payload["agent_id"], "agent1")
         self.assertEqual(results[0].payload["run_id"], "run1")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_with_single_filter_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test search with single filter using psycopg3."""
@@ -1280,8 +1280,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0].score, 0.9)
         self.assertEqual(results[0].payload["user_id"], "alice")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_with_single_filter_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test search with single filter using psycopg2."""
@@ -1328,8 +1328,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0].score, 0.9)
         self.assertEqual(results[0].payload["user_id"], "alice")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_with_no_filters_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test search with no filters using psycopg3."""
@@ -1377,8 +1377,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[1].id, self.test_ids[1])
         self.assertEqual(results[1].score, 0.8)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_search_with_no_filters_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test search with no filters using psycopg2."""
@@ -1426,8 +1426,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[1].id, self.test_ids[1])
         self.assertEqual(results[1].score, 0.8)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_with_filters_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test list with filters using psycopg3."""
@@ -1475,8 +1475,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].payload["user_id"], "alice")
         self.assertEqual(results[0][0].payload["agent_id"], "agent1")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_with_filters_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test list with filters using psycopg2."""
@@ -1524,8 +1524,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].payload["user_id"], "alice")
         self.assertEqual(results[0][0].payload["agent_id"], "agent1")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_with_single_filter_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test list with single filter using psycopg3."""
@@ -1572,8 +1572,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].id, self.test_ids[0])
         self.assertEqual(results[0][0].payload["user_id"], "alice")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_with_single_filter_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test list with single filter using psycopg2."""
@@ -1620,8 +1620,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].id, self.test_ids[0])
         self.assertEqual(results[0][0].payload["user_id"], "alice")
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_with_no_filters_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test list with no filters using psycopg3."""
@@ -1668,8 +1668,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].id, self.test_ids[0])
         self.assertEqual(results[0][1].id, self.test_ids[1])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_list_with_no_filters_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test list with no filters using psycopg2."""
@@ -1716,8 +1716,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(results[0][0].id, self.test_ids[0])
         self.assertEqual(results[0][1].id, self.test_ids[1])
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_reset_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test reset with psycopg3."""
@@ -1758,8 +1758,8 @@ class TestPGVector(unittest.TestCase):
         self.assertTrue(len(drop_calls) > 0)
         self.assertTrue(len(create_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_reset_psycopg2(self, mock_get_cursor, mock_connection_pool):
         """Test reset with psycopg2."""
@@ -1801,10 +1801,10 @@ class TestPGVector(unittest.TestCase):
         self.assertTrue(len(create_calls) > 0)
 
     # Enhanced Tests for JSON Serialization
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
-    @patch('mem0.vector_stores.pgvector.Json')
+    @patch('norn_m.vector_stores.pgvector.Json')
     def test_update_payload_psycopg3_json_handling(self, mock_json, mock_get_cursor, mock_connection_pool):
         """Test that psycopg3 update uses Json() wrapper for payload serialization."""
         # Set up mock pool and cursor
@@ -1842,10 +1842,10 @@ class TestPGVector(unittest.TestCase):
                        if "UPDATE" in str(call) and "test_collection" in str(call) and "SET payload" in str(call)]
         self.assertTrue(len(update_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
-    @patch('mem0.vector_stores.pgvector.Json')
+    @patch('norn_m.vector_stores.pgvector.Json')
     def test_update_payload_psycopg2_json_handling(self, mock_json, mock_get_cursor, mock_connection_pool):
         """Test that psycopg2 update uses psycopg2.extras.Json() wrapper for payload serialization."""
         # Set up mock pool and cursor
@@ -1883,8 +1883,8 @@ class TestPGVector(unittest.TestCase):
                        if "UPDATE" in str(call) and "test_collection" in str(call) and "SET payload" in str(call)]
         self.assertTrue(len(update_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     def test_transaction_rollback_on_error_psycopg2(self, mock_connection_pool):
         """Test that psycopg2 properly rolls back transactions on errors."""
         mock_pool = MagicMock()
@@ -1928,8 +1928,8 @@ class TestPGVector(unittest.TestCase):
         # Verify connection was returned to pool
         mock_pool.putconn.assert_called_with(mock_conn)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     def test_commit_on_success_psycopg2(self, mock_connection_pool):
         """Test that psycopg2 properly commits transactions on success."""
         mock_pool = MagicMock()
@@ -1966,8 +1966,8 @@ class TestPGVector(unittest.TestCase):
         mock_pool.putconn.assert_called_with(mock_conn)
 
     # Enhanced Tests for Error Handling
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_pool_connection_error_handling(self, mock_get_cursor, mock_connection_pool):
         """Test handling of connection pool errors."""
@@ -2006,8 +2006,8 @@ class TestPGVector(unittest.TestCase):
         self.assertIn("Connection pool exhausted", str(context.exception))
 
     # Enhanced Tests for Vector and Payload Update Combinations
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_update_vector_only_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test updating only vector without payload."""
@@ -2047,8 +2047,8 @@ class TestPGVector(unittest.TestCase):
         self.assertTrue(len(vector_update_calls) > 0)
         self.assertEqual(len(payload_update_calls), 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_update_both_vector_and_payload_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test updating both vector and payload."""
@@ -2089,8 +2089,8 @@ class TestPGVector(unittest.TestCase):
         self.assertTrue(len(vector_update_calls) > 0)
         self.assertTrue(len(payload_update_calls) > 0)
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_update_empty_payload_still_persisted(self, mock_get_cursor, mock_connection_pool):
         """Test that an empty dict payload is persisted (not skipped by truthiness)."""
@@ -2123,8 +2123,8 @@ class TestPGVector(unittest.TestCase):
         self.assertTrue(len(payload_update_calls) > 0, "Empty payload {} should still trigger UPDATE")
 
     # Enhanced Tests for Connection String Handling
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     def test_connection_string_with_sslmode_psycopg3(self, mock_connection_pool):
         """Test connection string handling with SSL mode."""
         mock_pool = MagicMock()
@@ -2192,8 +2192,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(connection_string, "dbname=test user=postgres sslmode=require")
 
     # Enhanced Test for Index Creation with DiskANN
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_create_col_with_diskann_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test collection creation with DiskANN index."""
@@ -2233,8 +2233,8 @@ class TestPGVector(unittest.TestCase):
         self.assertEqual(pgvector.embedding_model_dims, 3)
         
 
-    @patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3)
-    @patch('mem0.vector_stores.pgvector.ConnectionPool')
+    @patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3)
+    @patch('norn_m.vector_stores.pgvector.ConnectionPool')
     @patch.object(PGVector, '_get_cursor')
     def test_create_col_with_hnsw_psycopg3(self, mock_get_cursor, mock_connection_pool):
         """Test collection creation with HNSW index."""
@@ -2274,8 +2274,8 @@ class TestPGVector(unittest.TestCase):
     # Enhanced Test for Pool Cleanup
     def test_pool_cleanup_psycopg3(self):
         """Test that psycopg3 pool is properly closed on object deletion."""
-        with patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 3), \
-             patch('mem0.vector_stores.pgvector.ConnectionPool') as mock_connection_pool:
+        with patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 3), \
+             patch('norn_m.vector_stores.pgvector.ConnectionPool') as mock_connection_pool:
             
             mock_pool = MagicMock()
             mock_connection_pool.return_value = mock_pool
@@ -2303,8 +2303,8 @@ class TestPGVector(unittest.TestCase):
 
     def test_pool_cleanup_psycopg2(self):
         """Test that psycopg2 pool is properly closed on object deletion."""
-        with patch('mem0.vector_stores.pgvector.PSYCOPG_VERSION', 2), \
-             patch('mem0.vector_stores.pgvector.ConnectionPool') as mock_connection_pool:
+        with patch('norn_m.vector_stores.pgvector.PSYCOPG_VERSION', 2), \
+             patch('norn_m.vector_stores.pgvector.ConnectionPool') as mock_connection_pool:
             
             mock_pool = MagicMock()
             mock_connection_pool.return_value = mock_pool

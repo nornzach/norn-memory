@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from mem0.memory.main import Memory
+from norn_m.memory.main import Memory
 
 
 def test_memory_configuration_without_env_vars():

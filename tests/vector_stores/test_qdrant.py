@@ -23,7 +23,7 @@ from qdrant_client.models import (
     VectorParams,
 )
 
-from mem0.vector_stores.qdrant import Qdrant
+from norn_m.vector_stores.qdrant import Qdrant
 
 
 class TestQdrant(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestQdrant(unittest.TestCase):
                 f.write("keep")
             mock_client = MagicMock()
             mock_client.get_collections.return_value = MagicMock(collections=[])
-            with patch("mem0.vector_stores.qdrant.QdrantClient", return_value=mock_client):
+            with patch("norn_m.vector_stores.qdrant.QdrantClient", return_value=mock_client):
                 Qdrant(
                     collection_name="c",
                     embedding_model_dims=128,
@@ -1051,17 +1051,17 @@ class TestQdrantDatetimeRangeFilters(unittest.TestCase):
         self.assertIn(Range, types)
 
     def test_missing_fastembed_warns_with_extras_install_hint(self):
-        """When fastembed is missing, the BM25 warning must point at the mem0 optional group
-        that actually provides it (`mem0ai[extras]`), not the bare `fastembed` package -
+        """When fastembed is missing, the BM25 warning must point at the norn_m optional group
+        that actually provides it (`norn-m[extras]`), not the bare `fastembed` package -
         fastembed is declared under [extras], so that is the discoverable install path."""
         self.qdrant._bm25_encoder = None
         # Setting the module to None in sys.modules makes `from fastembed import ...` raise ImportError.
         with patch.dict("sys.modules", {"fastembed": None}):
-            with self.assertLogs("mem0.vector_stores.qdrant", level="WARNING") as cm:
+            with self.assertLogs("norn_m.vector_stores.qdrant", level="WARNING") as cm:
                 result = self.qdrant._get_bm25_encoder()
         self.assertIsNone(result)  # encoder unavailable -> None
         self.assertIs(self.qdrant._bm25_encoder, False)  # sentinel: tried and failed, do not retry
         joined = "\n".join(cm.output)
-        self.assertIn("mem0ai[extras]", joined)  # points at the right install
+        self.assertIn("norn-m[extras]", joined)  # points at the right install
         self.assertNotIn("pip install fastembed", joined)  # not the bare package
         self.assertNotIn("\u2014", joined)  # no em-dash

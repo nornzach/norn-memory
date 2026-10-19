@@ -1,6 +1,6 @@
-from mem0.configs.rerankers.base import BaseRerankerConfig
-from mem0.configs.rerankers.llm import LLMRerankerConfig
-from mem0.reranker.llm_reranker import LLMReranker
+from norn_m.configs.rerankers.base import BaseRerankerConfig
+from norn_m.configs.rerankers.llm import LLMRerankerConfig
+from norn_m.reranker.llm_reranker import LLMReranker
 
 
 class TestLLMRerankerConfig:

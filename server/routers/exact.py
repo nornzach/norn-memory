@@ -16,7 +16,7 @@ from scopes import KeyScope
 
 router = APIRouter(prefix="/exact", tags=["exact"])
 
-USER_HEADER = "X-Mem0-User-Id"
+USER_HEADER = "X-Norn-M-User-Id"
 
 
 @router.get("/records", summary="Search or list exact records")
@@ -114,6 +114,6 @@ def put_batch(
     scope: Optional[KeyScope] = Depends(get_key_scope),
 ):
     """Up to 1000 records in one transaction, for imports (a password manager export, a server inventory).
-    Each record's own project/cwd/device/agent wins over the X-Mem0-* headers."""
+    Each record's own project/cwd/device/agent wins over the X-Norn-M-* headers."""
     uid = exact_store.resolve_user(scope, body.user_id or x_user_id, write=True)
     return exact_store.put_many(uid, body.records, merge=body.merge, source=provenance.from_request(request))

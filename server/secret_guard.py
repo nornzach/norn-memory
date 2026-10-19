@@ -4,7 +4,7 @@ Memory text goes through the configured LLM for fact extraction, categorization 
 which may rewrite or drop it, and through the embedder. A password or API key has to come back
 character for character, so writes to fuzzy memory that look like they contain one are rejected
 with directions to the exact-record store (exact_store.py), which keeps values verbatim and never
-sends them to a model. Set MEM0_ALLOW_SECRETS=true to turn the check off.
+sends them to a model. Set NORN_M_ALLOW_SECRETS=true to turn the check off.
 """
 
 import math
@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 from fastapi import HTTPException
 
-ALLOW_SECRETS_ENV = "MEM0_ALLOW_SECRETS"
+ALLOW_SECRETS_ENV = "NORN_M_ALLOW_SECRETS"
 
 # (label, pattern). Labels are shown to the caller; matched values never are.
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -30,7 +30,7 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{30,}")),
     ("Groq API key", re.compile(r"\bgsk_[A-Za-z0-9]{20,}")),
     ("xAI API key", re.compile(r"\bxai-[A-Za-z0-9]{20,}")),
-    ("Mem0 API key", re.compile(r"\b(?:m0sk_[A-Za-z0-9_-]{20,}|m0-[A-Za-z0-9]{30,})")),
+    ("Norn-M API key", re.compile(r"\b(?:(?:nmsk|m0sk)_[A-Za-z0-9_-]{20,}|m0-[A-Za-z0-9]{30,})")),
     ("JSON Web Token", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("bearer token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}")),
     ("password in a URL", re.compile(r"\b[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]{3,}@")),

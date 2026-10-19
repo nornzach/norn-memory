@@ -33,7 +33,7 @@ TEST_ENV = {
     "OPENAI_API_KEY": "fake-key",
     "ADMIN_API_KEY": "",
     "AUTH_DISABLED": "false",
-    "MEM0_TELEMETRY": "false",
+    "NORN_M_TELEMETRY": "false",
 }
 
 
@@ -250,7 +250,7 @@ class TestNormalizePath:
 @pytest.fixture
 def app_client():
     mock_memory = MagicMock()
-    with patch("mem0.Memory.from_config", return_value=mock_memory):
+    with patch("norn_m.Memory.from_config", return_value=mock_memory):
         import main
 
         main = importlib.reload(main)
@@ -381,7 +381,7 @@ def _fake_embedder(dims):
 
 @pytest.fixture
 def config_client():
-    with patch("mem0.Memory.from_config", return_value=MagicMock()):
+    with patch("norn_m.Memory.from_config", return_value=MagicMock()):
         import main
 
         main = importlib.reload(main)

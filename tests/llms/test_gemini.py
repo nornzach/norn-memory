@@ -3,14 +3,14 @@ from unittest.mock import Mock, patch
 import pytest
 from google.genai import types
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.gemini import GeminiConfig
-from mem0.llms.gemini import GeminiLLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.gemini import GeminiConfig
+from norn_m.llms.gemini import GeminiLLM
 
 
 @pytest.fixture
 def mock_gemini_client():
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         mock_client = Mock()
         mock_client_class.return_value = mock_client
         yield mock_client
@@ -239,7 +239,7 @@ def test_init_default_path_uses_api_key(monkeypatch):
     """Default (non-Vertex) path stays backward compatible: client built with api_key, never vertexai."""
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
     monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM(GeminiConfig(model="gemini-2.0-flash"))
     mock_client_class.assert_called_once_with(api_key="test-key")
 
@@ -248,7 +248,7 @@ def test_init_backward_compat_with_base_config(monkeypatch):
     """A legacy BaseLlmConfig still works and uses the API-key path (no missing-attr error)."""
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
     monkeypatch.setenv("GOOGLE_API_KEY", "legacy-key")
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM(BaseLlmConfig(model="gemini-2.0-flash"))
     mock_client_class.assert_called_once_with(api_key="legacy-key")
 
@@ -256,7 +256,7 @@ def test_init_backward_compat_with_base_config(monkeypatch):
 def test_init_vertexai_via_explicit_config(monkeypatch):
     """vertexai=True in GeminiConfig routes to the Vertex AI client with project/location, no api_key."""
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM(GeminiConfig(vertexai=True, project="my-project", location="europe-west1"))
     mock_client_class.assert_called_once_with(vertexai=True, project="my-project", location="europe-west1")
 
@@ -264,7 +264,7 @@ def test_init_vertexai_via_explicit_config(monkeypatch):
 def test_init_vertexai_via_dict_config(monkeypatch):
     """The factory hands GeminiLLM a dict; the vertexai key still routes to the Vertex client."""
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM({"vertexai": True, "project": "p", "location": "us-central1"})
     mock_client_class.assert_called_once_with(vertexai=True, project="p", location="us-central1")
 
@@ -274,7 +274,7 @@ def test_init_vertexai_via_env_vars(monkeypatch):
     monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "env-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM(GeminiConfig())
     mock_client_class.assert_called_once_with(vertexai=True, project="env-project", location="asia-south1")
 
@@ -283,7 +283,7 @@ def test_init_vertexai_location_defaults_to_us_central1(monkeypatch):
     """When Vertex is on but no location is supplied, it defaults to us-central1."""
     monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
     monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM(GeminiConfig(project="p"))
     mock_client_class.assert_called_once_with(vertexai=True, project="p", location="us-central1")
 
@@ -295,6 +295,6 @@ def test_init_base_config_respects_vertexai_env(monkeypatch):
     monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "env-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-west1")
-    with patch("mem0.llms.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.llms.gemini.genai.Client") as mock_client_class:
         GeminiLLM(BaseLlmConfig(model="gemini-2.0-flash", api_key="ignored-key"))
     mock_client_class.assert_called_once_with(vertexai=True, project="env-project", location="us-west1")

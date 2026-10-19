@@ -3,14 +3,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.deepseek import DeepSeekConfig
-from mem0.llms.deepseek import DeepSeekLLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.deepseek import DeepSeekConfig
+from norn_m.llms.deepseek import DeepSeekLLM
 
 
 @pytest.fixture
 def mock_deepseek_client():
-    with patch("mem0.llms.deepseek.OpenAI") as mock_openai:
+    with patch("norn_m.llms.deepseek.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client

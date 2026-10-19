@@ -306,7 +306,7 @@ export default function WebhooksPage() {
                   id="webhook-url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://your-app.com/webhooks/mem0"
+                  placeholder="https://your-app.com/webhooks/norn_m"
                 />
               </div>
               <div className="space-y-2">

@@ -2,8 +2,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.llms.sarvam import SarvamLLM
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.llms.sarvam import SarvamLLM
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def _mock_post(content="Hello there!"):
 
 
 def test_generate_response_returns_content(sarvam_llm):
-    with patch("mem0.llms.sarvam.requests.post", return_value=_mock_post("Hi!")) as mock_post:
+    with patch("norn_m.llms.sarvam.requests.post", return_value=_mock_post("Hi!")) as mock_post:
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Hello, how are you?"},
@@ -37,7 +37,7 @@ def test_generate_response_returns_content(sarvam_llm):
 def test_generate_response_forwards_extra_kwargs(sarvam_llm):
     """Per the LLMBase contract, extra provider-specific kwargs must be accepted and
     forwarded into the Sarvam request payload."""
-    with patch("mem0.llms.sarvam.requests.post", return_value=_mock_post("Hi!")) as mock_post:
+    with patch("norn_m.llms.sarvam.requests.post", return_value=_mock_post("Hi!")) as mock_post:
         messages = [{"role": "user", "content": "Hello"}]
         response = sarvam_llm.generate_response(messages, frequency_penalty=0.5)
 

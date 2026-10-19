@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from mem0.memory.main import _is_sensitive_field, _safe_deepcopy_config
+from norn_m.memory.main import _is_sensitive_field, _safe_deepcopy_config
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ class TestEdgeCases:
 
 
 class TestRealWorldFieldCoverage:
-    """Verify behavior for actual field names from mem0 vector store configs."""
+    """Verify behavior for actual field names from norn_m vector store configs."""
 
     @pytest.mark.parametrize("field,expected", [
         # OpenSearch

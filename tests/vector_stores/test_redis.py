@@ -15,13 +15,13 @@ import pytz
 
 def _make_redis_db():
     """Create a RedisDB instance with mocked internals, bypassing __init__
-    to avoid the redis module name collision with mem0.vector_stores.redis."""
-    from mem0.vector_stores.redis import RedisDB
+    to avoid the redis module name collision with norn_m.vector_stores.redis."""
+    from norn_m.vector_stores.redis import RedisDB
 
     db = RedisDB.__new__(RedisDB)
     mock_index = MagicMock()
     db.index = mock_index
-    db.schema = {"index": {"prefix": "mem0:test"}}
+    db.schema = {"index": {"prefix": "norn_m:test"}}
     return db, mock_index
 
 
@@ -121,7 +121,7 @@ def test_create_col_keeps_distinct_dims_across_instances():
     shallow copy, so the shared "embedding" field dict was mutated in place and
     the second create_col() clobbered the first one's dims (and the module
     global)."""
-    import mem0.vector_stores.redis as redis_module
+    import norn_m.vector_stores.redis as redis_module
 
     db, _ = _make_redis_db()
     db.client = MagicMock()
@@ -147,8 +147,8 @@ def test_init_keeps_distinct_dims_from_module_global():
     mutating the shared module-level DEFAULT_FIELDS. The create_col test above
     covers the other deepcopy site; all other tests build RedisDB via __new__
     and so skip __init__, leaving this call site otherwise uncovered."""
-    import mem0.vector_stores.redis as redis_module
-    from mem0.vector_stores.redis import RedisDB
+    import norn_m.vector_stores.redis as redis_module
+    from norn_m.vector_stores.redis import RedisDB
 
     captured = []
 
@@ -157,7 +157,7 @@ def test_init_keeps_distinct_dims_from_module_global():
         return MagicMock()
 
     with (
-        patch("mem0.vector_stores.redis.redis.Redis.from_url", return_value=MagicMock()),
+        patch("norn_m.vector_stores.redis.redis.Redis.from_url", return_value=MagicMock()),
         patch.object(redis_module.SearchIndex, "from_dict", side_effect=capture_schema),
     ):
         RedisDB("redis://localhost:6379", "col_384", 384)

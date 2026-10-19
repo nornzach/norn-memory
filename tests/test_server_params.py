@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mem0.exceptions import ValidationError as Mem0ValidationError
+from norn_m.exceptions import ValidationError as NornMValidationError
 
 pytest.importorskip("fastapi", reason="fastapi not installed")
 
@@ -37,7 +37,7 @@ def _mock_memory():
     mock_instance.reset.return_value = None
 
     with patch.dict(os.environ, {"OPENAI_API_KEY": "fake-key", "ADMIN_API_KEY": ""}):
-        with patch("mem0.Memory.from_config", return_value=mock_instance):
+        with patch("norn_m.Memory.from_config", return_value=mock_instance):
             yield mock_instance
 
 
@@ -743,7 +743,7 @@ class TestSearchValidationErrors:
 # ===========================================================================
 
 class TestWriteHandlerErrorMapping:
-    """ValueError("... not found") -> 404, other ValueError / Mem0ValidationError
+    """ValueError("... not found") -> 404, other ValueError / NornMValidationError
     -> 400. A real outage still surfaces as 502 via upstream_error()."""
 
     def test_update_not_found_returns_404(self, client, mock_memory):
@@ -763,7 +763,7 @@ class TestWriteHandlerErrorMapping:
         assert resp.status_code == 400
 
     def test_add_validation_error_returns_400(self, client, mock_memory):
-        mock_memory.add.side_effect = Mem0ValidationError(
+        mock_memory.add.side_effect = NornMValidationError(
             message="messages must be str, dict, or list[dict]", error_code="VALIDATION_003"
         )
         resp = client.post("/memories", json={

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from mem0.configs.vector_stores.upstash_vector import UpstashVectorConfig
-from mem0.vector_stores.upstash_vector import UpstashVector, _validate_filter
+from norn_m.configs.vector_stores.upstash_vector import UpstashVectorConfig
+from norn_m.vector_stores.upstash_vector import UpstashVector, _validate_filter
 
 
 @dataclass
@@ -460,12 +460,12 @@ def test_env_var_only_config_builds_provider(monkeypatch):
     monkeypatch.setenv("UPSTASH_VECTOR_REST_URL", "https://example.upstash.io")
     monkeypatch.setenv("UPSTASH_VECTOR_REST_TOKEN", "tok_123")
 
-    dumped = UpstashVectorConfig(collection_name="mem0").model_dump()
+    dumped = UpstashVectorConfig(collection_name="norn_m").model_dump()
     assert dumped["url"] == "https://example.upstash.io"
     assert dumped["token"] == "tok_123"
 
     # Mirrors VectorStoreFactory.create: instance(**config.model_dump()).
-    with patch("mem0.vector_stores.upstash_vector.Index") as mock_index:
+    with patch("norn_m.vector_stores.upstash_vector.Index") as mock_index:
         UpstashVector(**dumped)
 
     mock_index.assert_called_once_with("https://example.upstash.io", "tok_123")

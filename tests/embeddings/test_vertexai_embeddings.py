@@ -2,12 +2,12 @@ from unittest.mock import ANY, Mock, patch
 
 import pytest
 
-from mem0.embeddings.vertexai import VertexAIEmbedding
+from norn_m.embeddings.vertexai import VertexAIEmbedding
 
 
 @pytest.fixture
 def mock_text_embedding_model():
-    with patch("mem0.embeddings.vertexai.TextEmbeddingModel") as mock_model:
+    with patch("norn_m.embeddings.vertexai.TextEmbeddingModel") as mock_model:
         mock_instance = Mock()
         mock_model.from_pretrained.return_value = mock_instance
         yield mock_instance
@@ -15,13 +15,13 @@ def mock_text_embedding_model():
 
 @pytest.fixture
 def mock_os_environ():
-    with patch("mem0.embeddings.vertexai.os.environ", {}) as mock_environ:
+    with patch("norn_m.embeddings.vertexai.os.environ", {}) as mock_environ:
         yield mock_environ
 
 
 @pytest.fixture
 def mock_config():
-    with patch("mem0.configs.embeddings.base.BaseEmbedderConfig") as mock_config:
+    with patch("norn_m.configs.embeddings.base.BaseEmbedderConfig") as mock_config:
         mock_config.return_value.vertex_credentials_json = "/path/to/credentials.json"
         yield mock_config
 
@@ -42,11 +42,11 @@ def mock_embedding_types():
 
 @pytest.fixture
 def mock_text_embedding_input():
-    with patch("mem0.embeddings.vertexai.TextEmbeddingInput") as mock_input:
+    with patch("norn_m.embeddings.vertexai.TextEmbeddingInput") as mock_input:
         yield mock_input
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_default_model(mock_text_embedding_model, mock_os_environ, mock_config, mock_text_embedding_input):
     mock_config.return_value.model = "gemini-embedding-001"
     mock_config.return_value.embedding_dims = 256
@@ -66,7 +66,7 @@ def test_embed_default_model(mock_text_embedding_model, mock_os_environ, mock_co
     )
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_custom_model(mock_text_embedding_model, mock_os_environ, mock_config, mock_text_embedding_input):
     mock_config.return_value.model = "custom-embedding-model"
     mock_config.return_value.embedding_dims = 512
@@ -88,7 +88,7 @@ def test_embed_custom_model(mock_text_embedding_model, mock_os_environ, mock_con
     assert result == [0.4, 0.5, 0.6]
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_with_memory_action(
     mock_text_embedding_model, mock_os_environ, mock_config, mock_embedding_types, mock_text_embedding_input
 ):
@@ -114,7 +114,7 @@ def test_embed_with_memory_action(
             )
 
 
-@patch("mem0.embeddings.vertexai.os")
+@patch("norn_m.embeddings.vertexai.os")
 def test_credentials_from_environment(mock_os, mock_text_embedding_model, mock_config):
     mock_config.vertex_credentials_json = None
     config = mock_config()
@@ -123,7 +123,7 @@ def test_credentials_from_environment(mock_os, mock_text_embedding_model, mock_c
     mock_os.environ.setitem.assert_not_called()
 
 
-@patch("mem0.embeddings.vertexai.os")
+@patch("norn_m.embeddings.vertexai.os")
 def test_missing_credentials(mock_os, mock_text_embedding_model, mock_config):
     mock_os.getenv.return_value = None
     mock_config.return_value.vertex_credentials_json = None
@@ -134,7 +134,7 @@ def test_missing_credentials(mock_os, mock_text_embedding_model, mock_config):
         VertexAIEmbedding(config)
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_with_different_dimensions(mock_text_embedding_model, mock_os_environ, mock_config):
     mock_config.return_value.embedding_dims = 1024
 
@@ -149,7 +149,7 @@ def test_embed_with_different_dimensions(mock_text_embedding_model, mock_os_envi
     assert result == [0.1] * 1024
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_invalid_memory_action(mock_text_embedding_model, mock_config):
     mock_config.return_value.model = "gemini-embedding-001"
     mock_config.return_value.embedding_dims = 256
@@ -161,7 +161,7 @@ def test_invalid_memory_action(mock_text_embedding_model, mock_config):
         embedder.embed("Hello world", memory_action="invalid_action")
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_single_call(mock_text_embedding_model, mock_os_environ, mock_config):
     mock_config.return_value.model = "gemini-embedding-001"
     mock_config.return_value.embedding_dims = 256
@@ -182,7 +182,7 @@ def test_embed_batch_single_call(mock_text_embedding_model, mock_os_environ, moc
     assert result == [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_empty_list(mock_text_embedding_model, mock_os_environ, mock_config):
     mock_config.return_value.model = "gemini-embedding-001"
     mock_config.return_value.embedding_dims = 256
@@ -196,7 +196,7 @@ def test_embed_batch_empty_list(mock_text_embedding_model, mock_os_environ, mock
     mock_text_embedding_model.from_pretrained.return_value.get_embeddings.assert_not_called()
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_count_mismatch_raises(mock_text_embedding_model, mock_os_environ, mock_config):
     mock_config.return_value.model = "gemini-embedding-001"
     mock_config.return_value.embedding_dims = 256
@@ -210,8 +210,8 @@ def test_embed_batch_count_mismatch_raises(mock_text_embedding_model, mock_os_en
         embedder.embed_batch(["first text", "second text"])
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingInput")
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingInput")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_default_memory_action_uses_add(
     mock_text_embedding_model, mock_text_embedding_input, mock_os_environ, mock_config
 ):
@@ -229,8 +229,8 @@ def test_embed_batch_default_memory_action_uses_add(
     mock_text_embedding_input.assert_called_once_with(text="some text", task_type="RETRIEVAL_DOCUMENT")
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingInput")
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingInput")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_none_memory_action_uses_default(
     mock_text_embedding_model, mock_text_embedding_input, mock_os_environ, mock_config
 ):
@@ -247,7 +247,7 @@ def test_embed_batch_none_memory_action_uses_default(
     mock_text_embedding_input.assert_called_once_with(text="some text", task_type="SEMANTIC_SIMILARITY")
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_invalid_memory_action_raises(mock_text_embedding_model, mock_os_environ, mock_config):
     mock_config.return_value.model = "gemini-embedding-001"
     mock_config.return_value.embedding_dims = 256
@@ -259,7 +259,7 @@ def test_embed_batch_invalid_memory_action_raises(mock_text_embedding_model, moc
         embedder.embed_batch(["some text"], memory_action="invalid_action")
 
 
-@patch("mem0.embeddings.vertexai.TextEmbeddingModel")
+@patch("norn_m.embeddings.vertexai.TextEmbeddingModel")
 def test_embed_batch_chunking_triggers_two_api_calls(mock_text_embedding_model, mock_os_environ, mock_config):
     """300 texts must produce exactly 2 get_embeddings calls (chunks of 250 and 50)."""
     mock_config.return_value.model = "gemini-embedding-001"

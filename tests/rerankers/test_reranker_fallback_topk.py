@@ -1,7 +1,7 @@
 """Regression tests pinning that the reranker fallback path still honors ``config.top_k``."""
 
-from mem0.configs.rerankers.cohere import CohereRerankerConfig
-from mem0.configs.rerankers.zero_entropy import ZeroEntropyRerankerConfig
+from norn_m.configs.rerankers.cohere import CohereRerankerConfig
+from norn_m.configs.rerankers.zero_entropy import ZeroEntropyRerankerConfig
 
 
 def _docs(n):

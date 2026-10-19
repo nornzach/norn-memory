@@ -69,7 +69,7 @@ import { useI18n } from "@/i18n/provider";
 const PAGE_SIZE = 50;
 const HISTORY_LIMIT = 50;
 const ALL_KINDS = "__all__";
-const USER_STORAGE_KEY = "mem0.exact.userId";
+const USER_STORAGE_KEY = "norn_m.exact.userId";
 // Masking is display only: values are stored and sent in plaintext by design.
 const SECRET_FIELD_RE =
   /pass|pwd|secret|token|api[-_ ]?key|private|credential|otp|seed|mnemonic|cvv|cvc|(^|[-_ ])pin($|[-_ ])/i;

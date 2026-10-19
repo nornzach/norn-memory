@@ -1,7 +1,7 @@
-name: mem0-dev
+name: norn-m-dev
 
 services:
-  mem0:
+  norn-m:
     build:
       context: ..
       dockerfile: server/dev.Dockerfile
@@ -10,21 +10,21 @@ services:
     env_file:
       - .env
     networks:
-      - mem0_network
+      - norn_m_network
     volumes:
       - ./history:/app/history
       - .:/app
-      - ../mem0:/sdk/mem0
+      - ../norn_m:/sdk/norn_m
     depends_on:
       postgres:
         condition: service_healthy
     command: >
-      sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app --reload-dir /sdk/mem0"
+      sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app --reload-dir /sdk/norn_m"
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
       - DASHBOARD_URL=http://localhost:${DASHBOARD_PORT:-3000}
-      - APP_DB_NAME=mem0_app
+      - APP_DB_NAME=norn_m_app
       - JWT_SECRET=${JWT_SECRET}
       - AUTH_DISABLED=${AUTH_DISABLED:-false}
 
@@ -33,7 +33,7 @@ services:
       restart: on-failure
       shm_size: "128mb"
       networks:
-        - mem0_network
+        - norn_m_network
       environment:
         - POSTGRES_USER=${POSTGRES_USER:-postgres}
         - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
@@ -48,18 +48,18 @@ services:
       ports:
         - "8432:5432"
 
-  mem0-dashboard:
+  norn-m-dashboard:
     build: ./dashboard
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
     networks:
-      - mem0_network
+      - norn_m_network
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8888
-      - API_INTERNAL_URL=http://mem0:8000
-      - NEXT_PUBLIC_INSTANCE_NAME=Mem0
+      - API_INTERNAL_URL=http://norn-m:8000
+      - NEXT_PUBLIC_INSTANCE_NAME=Norn-M
     depends_on:
-      mem0:
+      norn-m:
         condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
@@ -71,5 +71,5 @@ volumes:
   postgres_db:
 
 networks:
-  mem0_network:
+  norn_m_network:
     driver: bridge

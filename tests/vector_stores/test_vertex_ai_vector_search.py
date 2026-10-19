@@ -7,10 +7,10 @@ from google.cloud.aiplatform.matching_engine.matching_engine_index_endpoint impo
     Namespace,
 )
 
-from mem0.configs.vector_stores.vertex_ai_vector_search import (
+from norn_m.configs.vector_stores.vertex_ai_vector_search import (
     GoogleMatchingEngineConfig,
 )
-from mem0.vector_stores.vertex_ai_vector_search import GoogleMatchingEngine
+from norn_m.vector_stores.vertex_ai_vector_search import GoogleMatchingEngine
 
 
 @pytest.fixture
@@ -187,7 +187,7 @@ def test_debug_logs_never_carry_service_account_key(caplog):
         "service_account_json": {"type": "service_account", "private_key": private_key},
     }
 
-    with caplog.at_level(logging.DEBUG, logger="mem0.vector_stores.vertex_ai_vector_search"):
+    with caplog.at_level(logging.DEBUG, logger="norn_m.vector_stores.vertex_ai_vector_search"):
         # Fails later at credential load (no network, no valid key); the two
         # DEBUG statements under test run before that.
         with pytest.raises(Exception):

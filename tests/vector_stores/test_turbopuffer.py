@@ -7,7 +7,7 @@ pytest.importorskip("turbopuffer", reason="turbopuffer not installed")
 
 from turbopuffer.types import Row
 
-from mem0.vector_stores.turbopuffer import OutputData, TurbopufferDB
+from norn_m.vector_stores.turbopuffer import OutputData, TurbopufferDB
 
 
 def _make_row(id, dist=None, vector=None, **attributes):
@@ -21,7 +21,7 @@ def _make_row(id, dist=None, vector=None, **attributes):
 
 @pytest.fixture
 def mock_client():
-    with patch("mem0.vector_stores.turbopuffer.TurbopufferClient") as MockClient:
+    with patch("norn_m.vector_stores.turbopuffer.TurbopufferClient") as MockClient:
         client_instance = MagicMock()
         namespace_instance = MagicMock()
         client_instance.namespace.return_value = namespace_instance
@@ -83,7 +83,7 @@ class TestInit:
 
     def test_init_with_extra_params(self, mock_client):
         client_instance, _ = mock_client
-        with patch("mem0.vector_stores.turbopuffer.TurbopufferClient") as MockClient:
+        with patch("norn_m.vector_stores.turbopuffer.TurbopufferClient") as MockClient:
             MockClient.return_value = client_instance
             TurbopufferDB(
                 collection_name="test",
@@ -100,7 +100,7 @@ class TestInit:
 
     def test_init_default_region(self, mock_client):
         client_instance, _ = mock_client
-        with patch("mem0.vector_stores.turbopuffer.TurbopufferClient") as MockClient:
+        with patch("norn_m.vector_stores.turbopuffer.TurbopufferClient") as MockClient:
             MockClient.return_value = client_instance
             TurbopufferDB(
                 collection_name="test",
@@ -670,17 +670,17 @@ class TestReset:
 class TestConfig:
     def test_config_valid(self):
         with patch.dict("os.environ", {"TURBOPUFFER_API_KEY": "key"}):
-            from mem0.configs.vector_stores.turbopuffer import TurbopufferConfig
+            from norn_m.configs.vector_stores.turbopuffer import TurbopufferConfig
 
             config = TurbopufferConfig()
-            assert config.collection_name == "mem0"
+            assert config.collection_name == "norn_m"
             assert config.embedding_model_dims == 1536
             assert config.distance_metric == "cosine_distance"
             assert config.batch_size == 100
             assert config.region == "gcp-us-central1"
 
     def test_config_custom_values(self):
-        from mem0.configs.vector_stores.turbopuffer import TurbopufferConfig
+        from norn_m.configs.vector_stores.turbopuffer import TurbopufferConfig
 
         config = TurbopufferConfig(
             collection_name="custom",
@@ -698,13 +698,13 @@ class TestConfig:
         assert config.batch_size == 50
 
     def test_config_rejects_extra_fields(self):
-        from mem0.configs.vector_stores.turbopuffer import TurbopufferConfig
+        from norn_m.configs.vector_stores.turbopuffer import TurbopufferConfig
 
         with pytest.raises(ValueError, match="Extra fields not allowed"):
             TurbopufferConfig(api_key="key", unknown_field="value")
 
     def test_config_requires_api_key(self):
-        from mem0.configs.vector_stores.turbopuffer import TurbopufferConfig
+        from norn_m.configs.vector_stores.turbopuffer import TurbopufferConfig
 
         with patch.dict("os.environ", {}, clear=True):
             import os
@@ -713,7 +713,7 @@ class TestConfig:
                 TurbopufferConfig()
 
     def test_config_accepts_env_var(self):
-        from mem0.configs.vector_stores.turbopuffer import TurbopufferConfig
+        from norn_m.configs.vector_stores.turbopuffer import TurbopufferConfig
 
         with patch.dict("os.environ", {"TURBOPUFFER_API_KEY": "env_key"}):
             config = TurbopufferConfig()
@@ -725,13 +725,13 @@ class TestConfig:
 
 class TestFactoryRegistration:
     def test_vector_store_factory_has_turbopuffer(self):
-        from mem0.utils.factory import VectorStoreFactory
+        from norn_m.utils.factory import VectorStoreFactory
 
         assert "turbopuffer" in VectorStoreFactory.provider_to_class
-        assert VectorStoreFactory.provider_to_class["turbopuffer"] == "mem0.vector_stores.turbopuffer.TurbopufferDB"
+        assert VectorStoreFactory.provider_to_class["turbopuffer"] == "norn_m.vector_stores.turbopuffer.TurbopufferDB"
 
     def test_vector_store_config_has_turbopuffer(self):
-        from mem0.vector_stores.configs import VectorStoreConfig
+        from norn_m.vector_stores.configs import VectorStoreConfig
 
         config = VectorStoreConfig.__private_attributes__["_provider_configs"].default
         assert "turbopuffer" in config
@@ -739,7 +739,7 @@ class TestFactoryRegistration:
 
     def test_config_validation_pipeline(self):
         """Test that VectorStoreConfig correctly resolves turbopuffer config."""
-        from mem0.vector_stores.configs import VectorStoreConfig
+        from norn_m.vector_stores.configs import VectorStoreConfig
 
         with patch.dict("os.environ", {"TURBOPUFFER_API_KEY": "key"}):
             config = VectorStoreConfig(

@@ -3,15 +3,15 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.xai import XAIConfig
-from mem0.llms.xai import XAILLM
-from mem0.utils.factory import LlmFactory
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.xai import XAIConfig
+from norn_m.llms.xai import XAILLM
+from norn_m.utils.factory import LlmFactory
 
 
 @pytest.fixture
 def mock_xai_client():
-    with patch("mem0.llms.xai.OpenAI") as mock_openai:
+    with patch("norn_m.llms.xai.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -196,7 +196,7 @@ def test_generate_response_without_response_format(mock_xai_client):
 
 
 def test_factory_creates_xai_from_dict():
-    with patch("mem0.llms.xai.OpenAI") as mock_openai:
+    with patch("norn_m.llms.xai.OpenAI") as mock_openai:
         mock_openai.return_value = Mock()
         llm = LlmFactory.create(
             "xai",
@@ -209,7 +209,7 @@ def test_factory_creates_xai_from_dict():
 
 def test_factory_creates_xai_from_base_config():
     # Legacy callers still hand the factory a plain BaseLlmConfig
-    with patch("mem0.llms.xai.OpenAI") as mock_openai:
+    with patch("norn_m.llms.xai.OpenAI") as mock_openai:
         mock_openai.return_value = Mock()
         llm = LlmFactory.create("xai", BaseLlmConfig(model="grok-4.3", api_key="k"))
     assert isinstance(llm.config, XAIConfig)

@@ -2,9 +2,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mem0.configs.llms.aws_bedrock import AWSBedrockConfig
-from mem0.llms.aws_bedrock import AWSBedrockLLM, extract_provider
-from mem0.utils.factory import LlmFactory
+from norn_m.configs.llms.aws_bedrock import AWSBedrockConfig
+from norn_m.llms.aws_bedrock import AWSBedrockLLM, extract_provider
+from norn_m.utils.factory import LlmFactory
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -13,7 +13,7 @@ from mem0.utils.factory import LlmFactory
 @pytest.fixture
 def mock_boto3():
     """Patch boto3 so no real AWS calls are made during unit tests."""
-    with patch("mem0.llms.aws_bedrock.boto3") as mock_b3:
+    with patch("norn_m.llms.aws_bedrock.boto3") as mock_b3:
         runtime_client = MagicMock()
         bedrock_client = MagicMock()
         bedrock_client.list_foundation_models.return_value = {"modelSummaries": []}

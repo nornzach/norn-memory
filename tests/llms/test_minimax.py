@@ -3,15 +3,15 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.minimax import MinimaxConfig
-from mem0.llms.minimax import MiniMaxLLM
-from mem0.utils.factory import LlmFactory
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.minimax import MinimaxConfig
+from norn_m.llms.minimax import MiniMaxLLM
+from norn_m.utils.factory import LlmFactory
 
 
 @pytest.fixture
 def mock_minimax_client():
-    with patch("mem0.llms.minimax.OpenAI") as mock_openai:
+    with patch("norn_m.llms.minimax.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -71,7 +71,7 @@ def test_minimax_llm_env_api_key():
     """Uses MINIMAX_API_KEY env when api_key not in config."""
     os.environ["MINIMAX_API_KEY"] = "env-api-key"
     try:
-        with patch("mem0.llms.minimax.OpenAI") as mock_openai:
+        with patch("norn_m.llms.minimax.OpenAI") as mock_openai:
             mock_client = Mock()
             mock_openai.return_value = mock_client
             config = MinimaxConfig(model="MiniMax-M2.7", api_key=None)

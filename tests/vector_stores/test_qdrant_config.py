@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
-from mem0.configs.vector_stores.qdrant import QdrantConfig
-from mem0.vector_stores import qdrant as qdrant_module
+from norn_m.configs.vector_stores.qdrant import QdrantConfig
+from norn_m.vector_stores import qdrant as qdrant_module
 
 
 def test_qdrant_config_accepts_explicit_https_false():

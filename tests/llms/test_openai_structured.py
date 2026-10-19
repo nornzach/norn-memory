@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.openai import OpenAIConfig
-from mem0.llms.openai_structured import OpenAIStructuredLLM
+from norn_m.configs.llms.openai import OpenAIConfig
+from norn_m.llms.openai_structured import OpenAIStructuredLLM
 
 
 @pytest.fixture
 def mock_openai_client():
-    with patch("mem0.llms.openai_structured.OpenAI") as mock_openai:
+    with patch("norn_m.llms.openai_structured.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -56,7 +56,7 @@ def test_uses_openai_base_url_environment_variable(monkeypatch):
     monkeypatch.setenv("OPENAI_API_BASE", "https://legacy.example/v1")
     monkeypatch.setenv("OPENAI_BASE_URL", base_url)
 
-    with patch("mem0.llms.openai_structured.OpenAI") as mock_openai:
+    with patch("norn_m.llms.openai_structured.OpenAI") as mock_openai:
         OpenAIStructuredLLM(OpenAIConfig(api_key="test-api-key"))
 
     mock_openai.assert_called_once_with(api_key="test-api-key", base_url=base_url)

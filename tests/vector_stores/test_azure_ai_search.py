@@ -4,19 +4,19 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from azure.core.exceptions import HttpResponseError
 
-from mem0.configs.vector_stores.azure_ai_search import AzureAISearchConfig
+from norn_m.configs.vector_stores.azure_ai_search import AzureAISearchConfig
 
 # Import the AzureAISearch class and related models
-from mem0.vector_stores.azure_ai_search import AzureAISearch
+from norn_m.vector_stores.azure_ai_search import AzureAISearch
 
 
 # Fixture to patch SearchClient and SearchIndexClient and create an instance of AzureAISearch.
 @pytest.fixture
 def mock_clients():
     with (
-        patch("mem0.vector_stores.azure_ai_search.SearchClient") as MockSearchClient,
-        patch("mem0.vector_stores.azure_ai_search.SearchIndexClient") as MockIndexClient,
-        patch("mem0.vector_stores.azure_ai_search.AzureKeyCredential") as MockAzureKeyCredential,
+        patch("norn_m.vector_stores.azure_ai_search.SearchClient") as MockSearchClient,
+        patch("norn_m.vector_stores.azure_ai_search.SearchIndexClient") as MockIndexClient,
+        patch("norn_m.vector_stores.azure_ai_search.AzureKeyCredential") as MockAzureKeyCredential,
     ):
         # Create mocked instances for search and index clients.
         mock_search_client = MockSearchClient.return_value
@@ -77,7 +77,7 @@ def test_config_validation_valid():
     """Test valid configurations are accepted."""
     # Test minimal configuration
     config = AzureAISearchConfig(service_name="test-service", api_key="test-api-key", embedding_model_dims=768)
-    assert config.collection_name == "mem0"  # Default value
+    assert config.collection_name == "norn_m"  # Default value
     assert config.service_name == "test-service"
     assert config.api_key == "test-api-key"
     assert config.embedding_model_dims == 768
@@ -158,8 +158,8 @@ def test_initialization(mock_clients):
 
     # Verify client creation
     mock_azure_key_credential.assert_called_with("test-api-key")
-    assert "mem0" in mock_search_client._client._config.user_agent_policy.add_user_agent.call_args[0]
-    assert "mem0" in mock_index_client._client._config.user_agent_policy.add_user_agent.call_args[0]
+    assert "norn_m" in mock_search_client._client._config.user_agent_policy.add_user_agent.call_args[0]
+    assert "norn_m" in mock_index_client._client._config.user_agent_policy.add_user_agent.call_args[0]
 
     # Verify index creation was called
     mock_index_client.create_or_update_index.assert_called_once()
@@ -607,8 +607,8 @@ def test_init_with_valid_api_key(mock_clients):
     # Check that AzureKeyCredential was used
     mock_azure_key_credential.assert_called_with("test-api-key")
     # Check that user agent was set
-    mock_search_client._client._config.user_agent_policy.add_user_agent.assert_called_with("mem0")
-    mock_index_client._client._config.user_agent_policy.add_user_agent.assert_called_with("mem0")
+    mock_search_client._client._config.user_agent_policy.add_user_agent.assert_called_with("norn_m")
+    mock_index_client._client._config.user_agent_policy.add_user_agent.assert_called_with("norn_m")
     # Check that create_col was called if collection does not exist
     mock_index_client.create_or_update_index.assert_called_once()
 
@@ -618,7 +618,7 @@ def test_init_with_default_api_key_triggers_default_credential(monkeypatch, mock
     mock_search_client, mock_index_client, mock_azure_key_credential = mock_clients
 
     # Patch DefaultAzureCredential to a mock so we can check if it's called
-    with patch("mem0.vector_stores.azure_ai_search.DefaultAzureCredential") as mock_default_cred:
+    with patch("norn_m.vector_stores.azure_ai_search.DefaultAzureCredential") as mock_default_cred:
         # Test with api_key=None
         AzureAISearch(
             service_name="test-service",

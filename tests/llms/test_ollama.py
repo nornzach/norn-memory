@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.ollama import OllamaConfig
-from mem0.llms.ollama import OllamaLLM
+from norn_m.configs.llms.ollama import OllamaConfig
+from norn_m.llms.ollama import OllamaLLM
 
 
 @pytest.fixture
 def mock_ollama_client():
-    with patch("mem0.llms.ollama.Client") as mock_ollama:
+    with patch("norn_m.llms.ollama.Client") as mock_ollama:
         mock_client = Mock()
         mock_client.list.return_value = {"models": [{"name": "llama3.1:70b"}]}
         mock_ollama.return_value = mock_client

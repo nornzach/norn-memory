@@ -12,7 +12,7 @@ the fix is applied in both sync and async code paths.
 
 import pytest
 
-from mem0.memory.utils import ensure_json_instruction
+from norn_m.memory.utils import ensure_json_instruction
 
 
 class TestEnsureJsonInstruction:
@@ -161,7 +161,7 @@ class TestEnsureJsonInstruction:
 
     def test_default_prompts_already_contain_json(self):
         """Built-in prompts already contain 'json', so ensure_json_instruction is a no-op."""
-        from mem0.configs.prompts import (
+        from norn_m.configs.prompts import (
             FACT_RETRIEVAL_PROMPT,
             USER_MEMORY_EXTRACTION_PROMPT,
             AGENT_MEMORY_EXTRACTION_PROMPT,

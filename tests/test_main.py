@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.base import MemoryConfig
-from mem0.memory.main import Memory, _validate_and_trim_entity_id
+from norn_m.configs.base import MemoryConfig
+from norn_m.memory.main import Memory, _validate_and_trim_entity_id
 
 
 @pytest.fixture(autouse=True)
@@ -19,9 +19,9 @@ def mock_openai():
 @pytest.fixture
 def memory_instance():
     with (
-        patch("mem0.utils.factory.EmbedderFactory") as mock_embedder,
-        patch("mem0.memory.main.VectorStoreFactory") as mock_vector_store,
-        patch("mem0.utils.factory.LlmFactory") as mock_llm,
+        patch("norn_m.utils.factory.EmbedderFactory") as mock_embedder,
+        patch("norn_m.memory.main.VectorStoreFactory") as mock_vector_store,
+        patch("norn_m.utils.factory.LlmFactory") as mock_llm,
     ):
         mock_embedder.create.return_value = Mock()
         mock_vector_store.create.return_value = Mock()
@@ -35,9 +35,9 @@ def memory_instance():
 @pytest.fixture
 def memory_custom_instance():
     with (
-        patch("mem0.utils.factory.EmbedderFactory") as mock_embedder,
-        patch("mem0.memory.main.VectorStoreFactory") as mock_vector_store,
-        patch("mem0.utils.factory.LlmFactory") as mock_llm,
+        patch("norn_m.utils.factory.EmbedderFactory") as mock_embedder,
+        patch("norn_m.memory.main.VectorStoreFactory") as mock_vector_store,
+        patch("norn_m.utils.factory.LlmFactory") as mock_llm,
     ):
         mock_embedder.create.return_value = Mock()
         mock_vector_store.create.return_value = Mock()
@@ -116,8 +116,8 @@ def test_search(memory_instance):
     memory_instance.vector_store.keyword_search = Mock(return_value=None)  # No BM25
     memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-    with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test query"), \
-         patch("mem0.memory.main.extract_entities", return_value=[]):
+    with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test query"), \
+         patch("norn_m.memory.main.extract_entities", return_value=[]):
         result = memory_instance.search("test query", filters={"user_id": "test_user"})
 
     assert "results" in result
@@ -143,8 +143,8 @@ def test_search_hides_expired_memories_by_default(memory_instance):
     memory_instance.vector_store.keyword_search = Mock(return_value=None)
     memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-    with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test query"), \
-         patch("mem0.memory.main.extract_entities", return_value=[]):
+    with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test query"), \
+         patch("norn_m.memory.main.extract_entities", return_value=[]):
         result = memory_instance.search("test query", filters={"user_id": "test_user"})
 
     assert [memory["memory"] for memory in result["results"]] == ["Active memory"]
@@ -160,8 +160,8 @@ def test_search_can_show_expired_memories(memory_instance):
     memory_instance.vector_store.keyword_search = Mock(return_value=None)
     memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-    with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test query"), \
-         patch("mem0.memory.main.extract_entities", return_value=[]):
+    with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test query"), \
+         patch("norn_m.memory.main.extract_entities", return_value=[]):
         result = memory_instance.search("test query", filters={"user_id": "test_user"}, show_expired=True)
 
     assert [memory["memory"] for memory in result["results"]] == ["Expired memory", "Active memory"]
@@ -350,9 +350,9 @@ def test_get_all_can_show_expired_memories(memory_instance):
 def test_memory_creates_only_the_user_vector_store():
     """Memory must not create any collection besides the user's (no hidden telemetry store)."""
     with (
-        patch("mem0.utils.factory.EmbedderFactory") as mock_embedder,
-        patch("mem0.memory.main.VectorStoreFactory") as mock_vector_store,
-        patch("mem0.utils.factory.LlmFactory") as mock_llm,
+        patch("norn_m.utils.factory.EmbedderFactory") as mock_embedder,
+        patch("norn_m.memory.main.VectorStoreFactory") as mock_vector_store,
+        patch("norn_m.utils.factory.LlmFactory") as mock_llm,
     ):
         mock_embedder.create.return_value = Mock()
         mock_vector_store.create.return_value = Mock()
@@ -472,8 +472,8 @@ class TestSearchParamValidation:
         memory_instance.vector_store.keyword_search = Mock(return_value=None)
         memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-        with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test"), \
-             patch("mem0.memory.main.extract_entities", return_value=[]):
+        with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test"), \
+             patch("norn_m.memory.main.extract_entities", return_value=[]):
             memory_instance.search("  test  ", filters={"user_id": "test"})
 
         memory_instance.embedding_model.embed.assert_called_once_with("test", "search")
@@ -505,8 +505,8 @@ class TestSearchParamValidation:
         memory_instance.vector_store.keyword_search = Mock(return_value=None)
         memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-        with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test"), \
-             patch("mem0.memory.main.extract_entities", return_value=[]):
+        with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test"), \
+             patch("norn_m.memory.main.extract_entities", return_value=[]):
             result = memory_instance.search("test", filters={"user_id": "test"}, threshold=0)
 
         assert "results" in result
@@ -518,8 +518,8 @@ class TestSearchParamValidation:
         memory_instance.vector_store.keyword_search = Mock(return_value=None)
         memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-        with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test"), \
-             patch("mem0.memory.main.extract_entities", return_value=[]):
+        with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test"), \
+             patch("norn_m.memory.main.extract_entities", return_value=[]):
             result = memory_instance.search("test", filters={"user_id": "test"}, threshold=1.0)
 
         assert "results" in result
@@ -531,8 +531,8 @@ class TestSearchParamValidation:
         memory_instance.vector_store.keyword_search = Mock(return_value=None)
         memory_instance.embedding_model.embed = Mock(return_value=[0.1, 0.2, 0.3])
 
-        with patch("mem0.memory.main.lemmatize_for_bm25", return_value="test"), \
-             patch("mem0.memory.main.extract_entities", return_value=[]):
+        with patch("norn_m.memory.main.lemmatize_for_bm25", return_value="test"), \
+             patch("norn_m.memory.main.extract_entities", return_value=[]):
             result = memory_instance.search("test", filters={"user_id": "test"}, top_k=0)
 
         assert "results" in result

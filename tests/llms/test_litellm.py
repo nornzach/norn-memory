@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.llms import litellm
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.llms import litellm
 
 
 @pytest.fixture
 def mock_litellm():
-    with patch("mem0.llms.litellm.litellm") as mock_litellm:
+    with patch("norn_m.llms.litellm.litellm") as mock_litellm:
         yield mock_litellm
 
 

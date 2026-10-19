@@ -1,0 +1,8 @@
+Norn-M
+Copyright 2026 nornzach
+
+This product includes software derived from Mem0 (https://github.com/mem0ai/mem0),
+Copyright 2023 Taranjeet Singh, licensed under the Apache License,
+Version 2.0. The original code has been modified: telemetry and the hosted-platform
+client were removed, the package was renamed, and the server, dashboard and MCP
+endpoint were extended.

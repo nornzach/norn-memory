@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mem0.vector_stores.pinecone import PineconeDB
+from norn_m.vector_stores.pinecone import PineconeDB
 
 
 @pytest.fixture

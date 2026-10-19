@@ -1,7 +1,7 @@
 from unittest import mock
 from unittest.mock import Mock
 
-from mem0.llms.azure_openai_structured import SCOPE, AzureOpenAIStructuredLLM
+from norn_m.llms.azure_openai_structured import SCOPE, AzureOpenAIStructuredLLM
 
 
 class DummyAzureKwargs:
@@ -40,7 +40,7 @@ class DummyConfig:
         self.reasoning_effort = reasoning_effort
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_init_with_api_key(mock_azure_openai):
     config = DummyConfig(model="test-model", azure_kwargs=DummyAzureKwargs(api_key="real-key"))
     llm = AzureOpenAIStructuredLLM(config)
@@ -51,9 +51,9 @@ def test_init_with_api_key(mock_azure_openai):
     assert kwargs["azure_ad_token_provider"] is None
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
-@mock.patch("mem0.llms.azure_openai_structured.get_bearer_token_provider")
-@mock.patch("mem0.llms.azure_openai_structured.DefaultAzureCredential")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.get_bearer_token_provider")
+@mock.patch("norn_m.llms.azure_openai_structured.DefaultAzureCredential")
 def test_init_with_default_credential(mock_credential, mock_token_provider, mock_azure_openai):
     config = DummyConfig(model=None, azure_kwargs=DummyAzureKwargs(api_key=None))
     mock_token_provider.return_value = "token-provider"
@@ -69,7 +69,7 @@ def test_init_with_default_credential(mock_credential, mock_token_provider, mock
 
 
 def test_init_with_env_vars(monkeypatch, mocker):
-    mock_azure_openai = mocker.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+    mock_azure_openai = mocker.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
     monkeypatch.setenv("LLM_AZURE_DEPLOYMENT", "test-deployment")
     monkeypatch.setenv("LLM_AZURE_ENDPOINT", "https://test-endpoint.openai.azure.com")
     monkeypatch.setenv("LLM_AZURE_API_VERSION", "2024-06-01-preview")
@@ -83,13 +83,13 @@ def test_init_with_env_vars(monkeypatch, mocker):
     assert kwargs["api_version"] == "2024-06-01-preview"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_init_with_placeholder_api_key_uses_default_credential(
     mock_azure_openai,
 ):
     with (
-        mock.patch("mem0.llms.azure_openai_structured.DefaultAzureCredential") as mock_credential,
-        mock.patch("mem0.llms.azure_openai_structured.get_bearer_token_provider") as mock_token_provider,
+        mock.patch("norn_m.llms.azure_openai_structured.DefaultAzureCredential") as mock_credential,
+        mock.patch("norn_m.llms.azure_openai_structured.get_bearer_token_provider") as mock_token_provider,
     ):
         config = DummyConfig(model=None, azure_kwargs=DummyAzureKwargs(api_key="your-api-key"))
         mock_token_provider.return_value = "token-provider"
@@ -103,7 +103,7 @@ def test_init_with_placeholder_api_key_uses_default_credential(
         assert kwargs["azure_ad_token_provider"] == "token-provider"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_without_tools(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -121,7 +121,7 @@ def test_generate_response_without_tools(mock_azure_openai):
     assert response == "Hello there!"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_gpt5_uses_max_completion_tokens(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -140,7 +140,7 @@ def test_generate_response_gpt5_uses_max_completion_tokens(mock_azure_openai):
     assert "max_tokens" not in kwargs
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_legacy_model_uses_max_tokens(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -159,7 +159,7 @@ def test_generate_response_legacy_model_uses_max_tokens(mock_azure_openai):
     assert "max_completion_tokens" not in kwargs
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_with_tools(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -189,7 +189,7 @@ def test_generate_response_with_tools(mock_azure_openai):
     assert response["tool_calls"][0]["arguments"] == {"data": "sunny day"}
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_with_tools_no_tool_calls(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -213,7 +213,7 @@ def test_generate_response_with_tools_no_tool_calls(mock_azure_openai):
     assert response["tool_calls"] == []
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_reasoning_model_drops_sampling_params(mock_azure_openai):
     """Reasoning models (o1/o3/GPT-5) reject temperature/max_tokens/top_p."""
     mock_client = Mock()
@@ -240,7 +240,7 @@ def test_reasoning_model_drops_sampling_params(mock_azure_openai):
     assert call_kwargs["model"] == "o3-mini"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_regular_model_sends_sampling_params(mock_azure_openai):
     """Regular models still receive the standard sampling params."""
     mock_client = Mock()
@@ -266,7 +266,7 @@ def test_regular_model_sends_sampling_params(mock_azure_openai):
     assert call_kwargs["model"] == "gpt-4o"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_does_not_mutate_caller_messages(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -284,7 +284,7 @@ def test_generate_response_does_not_mutate_caller_messages(mock_azure_openai):
     assert messages[-1]["content"] == "my assistant helps me schedule meetings"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_rewrites_assistant_keyword_for_model_only(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client
@@ -304,7 +304,7 @@ def test_generate_response_rewrites_assistant_keyword_for_model_only(mock_azure_
     assert messages[-1]["content"] == "my assistant helps me"
 
 
-@mock.patch("mem0.llms.azure_openai_structured.AzureOpenAI")
+@mock.patch("norn_m.llms.azure_openai_structured.AzureOpenAI")
 def test_generate_response_handles_multimodal_content(mock_azure_openai):
     mock_client = Mock()
     mock_azure_openai.return_value = mock_client

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import dotenv
 import weaviate
 
-from mem0.vector_stores.weaviate import Weaviate
+from norn_m.vector_stores.weaviate import Weaviate
 
 
 class TestWeaviateDB(unittest.TestCase):
@@ -29,7 +29,7 @@ class TestWeaviateDB(unittest.TestCase):
         self.client_mock.collections.create.return_value = None
         self.client_mock.collections.delete.return_value = None
 
-        patcher = patch("mem0.vector_stores.weaviate.weaviate.connect_to_local", return_value=self.client_mock)
+        patcher = patch("norn_m.vector_stores.weaviate.weaviate.connect_to_local", return_value=self.client_mock)
         self.mock_weaviate = patcher.start()
         self.addCleanup(patcher.stop)
 

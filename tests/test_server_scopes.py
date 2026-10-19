@@ -31,8 +31,8 @@ TEST_ENV = {
     "OPENAI_API_KEY": "fake-key",
     "ADMIN_API_KEY": "",
     "AUTH_DISABLED": "false",
-    "MEM0_TELEMETRY": "false",
-    "MEM0_ALLOW_SECRETS": "",
+    "NORN_M_TELEMETRY": "false",
+    "NORN_M_ALLOW_SECRETS": "",
 }
 
 
@@ -151,7 +151,7 @@ class TestFindSecrets:
             (lambda: "ghp_" + secrets.token_hex(18), "GitHub token"),
             (lambda: "-----BEGIN OPENSSH " + "PRIVATE KEY-----\nb3BlbnNzaC1rZXk=", "private key"),
             (lambda: "Authorization: Bearer " + secrets.token_hex(20), "bearer token"),
-            (lambda: "postgres://mem0:" + secrets.token_hex(6) + "@db:5432/mem0", "password in a URL"),
+            (lambda: "postgres://norn_m:" + secrets.token_hex(6) + "@db:5432/norn_m", "password in a URL"),
             (lambda: "password=" + secrets.token_hex(6), "credential assignment"),
             (lambda: "the deploy token is " + _random_token(), "high-entropy token"),
         ],
@@ -165,10 +165,10 @@ class TestFindSecrets:
             "The staging DB password is in the team vault under staging/db",
             "deployed commit 3f2a9c1b7e4d5a6f8b9c0d1e2f3a4b5c6d7e8f90 to prod",
             "memory id 0b6f1c1e-3f7a-4d1c-9a43-6a1f2b3c4d5e",
-            "config lives at /usr/local/lib/python3.11/site-packages/mem0/configs/base.py",
+            "config lives at /usr/local/lib/python3.11/site-packages/norn_m/configs/base.py",
             "call get_memory_instance_with_DefaultConfig2 in tests",
             "the cluster is ProdClusterEastUS2Primary01Backup",
-            "https://github.com/mem0ai/mem0/blob/main/server/main.py",
+            "https://github.com/nornzach/norn-memory/blob/main/server/main.py",
             "My password is hunter2",
         ],
     )
@@ -185,7 +185,7 @@ class TestFindSecrets:
 def scoped_client():
     """App client whose caller scope is whatever the test puts in holder["scope"]."""
     mock_memory = MagicMock()
-    with patch("mem0.Memory.from_config", return_value=mock_memory):
+    with patch("norn_m.Memory.from_config", return_value=mock_memory):
         import main
 
         main = importlib.reload(main)
@@ -382,7 +382,7 @@ class TestSecretGuardEndpoints:
     def test_admin_opt_out(self, scoped_client):
         scoped_client.memory.add.return_value = {"results": []}
         body = {"messages": [{"role": "user", "content": f"key {_openai_key()}"}], "user_id": "phone"}
-        with patch.dict(os.environ, {"MEM0_ALLOW_SECRETS": "true"}):
+        with patch.dict(os.environ, {"NORN_M_ALLOW_SECRETS": "true"}):
             assert scoped_client.client.post("/memories", json=body).status_code == 200
 
 
@@ -393,7 +393,7 @@ class TestSecretGuardEndpoints:
 
 @pytest.fixture
 def router_client():
-    with patch("mem0.Memory.from_config", return_value=MagicMock()):
+    with patch("norn_m.Memory.from_config", return_value=MagicMock()):
         import main
 
         main = importlib.reload(main)

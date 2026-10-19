@@ -31,7 +31,7 @@ TEST_ENV = {
     "OPENAI_API_KEY": "fake-key",
     "ADMIN_API_KEY": "",
     "AUTH_DISABLED": "false",
-    "MEM0_TELEMETRY": "false",
+    "NORN_M_TELEMETRY": "false",
 }
 ADMIN_KEY = "test-admin-key-for-pytest-0123456789"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
@@ -46,7 +46,7 @@ def _server_env():
 @pytest.fixture
 def mcp_client():
     mock_memory = MagicMock()
-    with patch("mem0.Memory.from_config", return_value=mock_memory):
+    with patch("norn_m.Memory.from_config", return_value=mock_memory):
         import main
 
         main = importlib.reload(main)
@@ -99,7 +99,7 @@ class TestMcpProtocol:
 
         assert resp.status_code == 200
         result = resp.json()["result"]
-        assert result["serverInfo"]["name"] == "mem0"
+        assert result["serverInfo"]["name"] == "norn-m"
         assert "search_memories" in result["instructions"]
 
     def test_lists_the_memory_tools_with_descriptions_and_hints(self, mcp_client):
@@ -187,7 +187,7 @@ class TestSearchMemories:
         client, mocks = mcp_client
         mocks.memory.search.return_value = {"results": []}
 
-        _call_tool(client, "search_memories", {"query": "tea"}, headers={"X-Mem0-User-Id": "bob"})
+        _call_tool(client, "search_memories", {"query": "tea"}, headers={"X-Norn-M-User-Id": "bob"})
 
         assert mocks.memory.search.call_args.kwargs["filters"] == {"user_id": "bob"}
 
@@ -195,7 +195,7 @@ class TestSearchMemories:
         client, mocks = mcp_client
         mocks.memory.search.return_value = {"results": []}
 
-        _call_tool(client, "search_memories", {"query": "tea", "agent_id": "hermes"}, {"X-Mem0-User-Id": "bob"})
+        _call_tool(client, "search_memories", {"query": "tea", "agent_id": "hermes"}, {"X-Norn-M-User-Id": "bob"})
 
         assert mocks.memory.search.call_args.kwargs["filters"] == {"agent_id": "hermes"}
 
@@ -238,7 +238,7 @@ class TestAddMemory:
         client, mocks = mcp_client
         mocks.memory.add.return_value = {"results": []}
 
-        _call_tool(client, "add_memory", {"text": "I like green tea"}, headers={"X-Mem0-User-Id": "bob"})
+        _call_tool(client, "add_memory", {"text": "I like green tea"}, headers={"X-Norn-M-User-Id": "bob"})
 
         assert mocks.memory.add.call_args.kwargs["user_id"] == "bob"
 

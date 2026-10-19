@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mem0.configs.vector_stores.milvus import MetricType
-from mem0.vector_stores.milvus import MilvusDB
+from norn_m.configs.vector_stores.milvus import MetricType
+from norn_m.vector_stores.milvus import MilvusDB
 
 
 class TestMilvusDB:
@@ -22,7 +22,7 @@ class TestMilvusDB:
     @pytest.fixture
     def mock_milvus_client(self):
         """Mock MilvusClient to avoid requiring actual Milvus instance."""
-        with patch('mem0.vector_stores.milvus.MilvusClient') as mock_client:
+        with patch('norn_m.vector_stores.milvus.MilvusClient') as mock_client:
             mock_instance = MagicMock()
             mock_instance.has_collection.return_value = False
             mock_client.return_value = mock_instance

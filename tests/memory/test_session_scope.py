@@ -2,7 +2,7 @@ import itertools
 
 import pytest
 
-from mem0.memory.main import Memory, _build_session_scope, _escape_scope_value
+from norn_m.memory.main import Memory, _build_session_scope, _escape_scope_value
 
 DELIMITER_VALUES = [
     "u1",
@@ -98,15 +98,15 @@ class TestSessionScopeWiring:
     def memory(self, mocker):
         mock_embedder = mocker.MagicMock()
         mock_embedder.return_value.embed.return_value = [0.1, 0.2, 0.3]
-        mocker.patch("mem0.utils.factory.EmbedderFactory.create", mock_embedder)
+        mocker.patch("norn_m.utils.factory.EmbedderFactory.create", mock_embedder)
         mock_vector_store = mocker.MagicMock()
         mock_vector_store.return_value.search.return_value = []
         mocker.patch(
-            "mem0.utils.factory.VectorStoreFactory.create",
+            "norn_m.utils.factory.VectorStoreFactory.create",
             side_effect=[mock_vector_store.return_value, mocker.MagicMock()],
         )
-        mocker.patch("mem0.utils.factory.LlmFactory.create", mocker.MagicMock())
-        mocker.patch("mem0.memory.storage.SQLiteManager", mocker.MagicMock())
+        mocker.patch("norn_m.utils.factory.LlmFactory.create", mocker.MagicMock())
+        mocker.patch("norn_m.memory.storage.SQLiteManager", mocker.MagicMock())
 
         memory = Memory()
         memory.config = mocker.MagicMock()

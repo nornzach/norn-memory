@@ -13,7 +13,7 @@ vectors with known similarity ordering, then asserts scores are:
 Providers that need external services are skipped unless the service is
 reachable. FAISS and ChromaDB run in-memory and always execute.
 
-Refs: https://github.com/mem0ai/mem0/issues/4453
+Refs: upstream issue #4453
 """
 
 import os
@@ -84,7 +84,7 @@ class TestChromaDB:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors, tmp_path):
-        from mem0.vector_stores.chroma import ChromaDB
+        from norn_m.vector_stores.chroma import ChromaDB
 
         self.store = ChromaDB(collection_name="test_norm", path=str(tmp_path / "chroma"))
         self.store.insert(
@@ -113,7 +113,7 @@ class TestFAISSEuclidean:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors, tmp_path):
-        from mem0.vector_stores.faiss import FAISS
+        from norn_m.vector_stores.faiss import FAISS
 
         self.store = FAISS(
             collection_name="test_norm",
@@ -139,7 +139,7 @@ class TestFAISSCosine:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors, tmp_path):
-        from mem0.vector_stores.faiss import FAISS
+        from norn_m.vector_stores.faiss import FAISS
 
         self.store = FAISS(
             collection_name="test_norm",
@@ -179,9 +179,9 @@ def _tcp_reachable(host, port, timeout=2):
 
 PGVECTOR_HOST = os.environ.get("PGVECTOR_HOST", "localhost")
 PGVECTOR_PORT = int(os.environ.get("PGVECTOR_PORT", "5432"))
-PGVECTOR_USER = os.environ.get("PGVECTOR_USER", "mem0")
-PGVECTOR_PASS = os.environ.get("PGVECTOR_PASSWORD", "mem0test")
-PGVECTOR_DB = os.environ.get("PGVECTOR_DB", "mem0_test")
+PGVECTOR_USER = os.environ.get("PGVECTOR_USER", "norn_m")
+PGVECTOR_PASS = os.environ.get("PGVECTOR_PASSWORD", "norn_mtest")
+PGVECTOR_DB = os.environ.get("PGVECTOR_DB", "norn_m_test")
 
 
 def _pgvector_reachable():
@@ -208,7 +208,7 @@ class TestPGVector:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors):
-        from mem0.vector_stores.pgvector import PGVector
+        from norn_m.vector_stores.pgvector import PGVector
 
         self.collection = f"test_norm_{uuid.uuid4().hex[:8]}"
         self.store = PGVector(
@@ -264,7 +264,7 @@ class TestRedis:
     def setup(self, vectors):
         from datetime import datetime, timezone
 
-        from mem0.vector_stores.redis import RedisDB
+        from norn_m.vector_stores.redis import RedisDB
 
         self.collection = f"test_norm_{uuid.uuid4().hex[:8]}"
         self.store = RedisDB(
@@ -311,7 +311,7 @@ class TestValkey:
     def setup(self, vectors):
         from datetime import datetime, timezone
 
-        from mem0.vector_stores.valkey import ValkeyDB
+        from norn_m.vector_stores.valkey import ValkeyDB
 
         self.collection = f"test_norm_{uuid.uuid4().hex[:8]}"
         self.store = ValkeyDB(
@@ -356,7 +356,7 @@ class TestMilvusL2:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors):
-        from mem0.vector_stores.milvus import MilvusDB
+        from norn_m.vector_stores.milvus import MilvusDB
 
         self.collection = f"test_l2_{uuid.uuid4().hex[:8]}"
         self.store = MilvusDB(
@@ -387,7 +387,7 @@ class TestMilvusCosine:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors):
-        from mem0.vector_stores.milvus import MilvusDB
+        from norn_m.vector_stores.milvus import MilvusDB
 
         self.collection = f"test_cos_{uuid.uuid4().hex[:8]}"
         self.store = MilvusDB(
@@ -423,7 +423,7 @@ class TestSupabase:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors):
-        from mem0.vector_stores.supabase import Supabase
+        from norn_m.vector_stores.supabase import Supabase
 
         self.collection = f"test_norm_{uuid.uuid4().hex[:8]}"
         self.store = Supabase(
@@ -452,7 +452,7 @@ class TestS3Vectors:
 
     @pytest.fixture(autouse=True)
     def setup(self, vectors):
-        from mem0.vector_stores.s3_vectors import S3Vectors
+        from norn_m.vector_stores.s3_vectors import S3Vectors
 
         self.collection = f"testnorm{uuid.uuid4().hex[:8]}"
         region = os.environ.get("S3_VECTORS_REGION", "us-east-1")

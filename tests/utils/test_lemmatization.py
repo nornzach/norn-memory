@@ -13,7 +13,7 @@ def _ensure_spacy():
 
 class TestLemmatizeForBm25:
     def test_basic_lemmatization(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("The cats are running quickly")
         assert "cat" in result
@@ -22,7 +22,7 @@ class TestLemmatizeForBm25:
         assert "the" not in result.split()
 
     def test_verb_forms_normalized(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("she attended multiple meetings yesterday")
         assert "attend" in result or "attended" in result
@@ -30,7 +30,7 @@ class TestLemmatizeForBm25:
         # "multiple" is kept (not a spaCy stop word)
 
     def test_ing_preservation(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("attending the morning meeting")
         tokens = result.split()
@@ -38,13 +38,13 @@ class TestLemmatizeForBm25:
         assert "attending" in tokens or "attend" in tokens
 
     def test_empty_string(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("")
         assert result == ""
 
     def test_punctuation_removed(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("Hello, world! How are you?")
         assert "," not in result
@@ -52,14 +52,14 @@ class TestLemmatizeForBm25:
         assert "?" not in result
 
     def test_lowercased(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("PYTHON Programming LANGUAGE")
         for token in result.split():
             assert token == token.lower()
 
     def test_stop_words_removed(self):
-        from mem0.utils.lemmatization import lemmatize_for_bm25
+        from norn_m.utils.lemmatization import lemmatize_for_bm25
 
         result = lemmatize_for_bm25("this is a very simple test of the system")
         tokens = result.split()

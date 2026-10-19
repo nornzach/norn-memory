@@ -4,8 +4,8 @@ pytest.importorskip("langchain", reason="langchain is an optional extra")
 
 from langchain.embeddings.base import Embeddings  # noqa: E402
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig  # noqa: E402
-from mem0.embeddings.langchain import LangchainEmbedding  # noqa: E402
+from norn_m.configs.embeddings.base import BaseEmbedderConfig  # noqa: E402
+from norn_m.embeddings.langchain import LangchainEmbedding  # noqa: E402
 
 
 class DummyEmbeddings(Embeddings):

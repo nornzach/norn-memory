@@ -8,7 +8,7 @@ import faiss
 import numpy as np
 import pytest
 
-from mem0.vector_stores.faiss import (
+from norn_m.vector_stores.faiss import (
     FAISS,
     OutputData,
     SafeUnpickler,
@@ -531,8 +531,8 @@ class TestFAISSSecurityIntegration:
             mock_index.d = 128
             mock_index.ntotal = 0
 
-            with patch("mem0.vector_stores.faiss.faiss.IndexFlatL2", return_value=mock_index):
-                with patch("mem0.vector_stores.faiss.faiss.write_index"):
+            with patch("norn_m.vector_stores.faiss.faiss.IndexFlatL2", return_value=mock_index):
+                with patch("norn_m.vector_stores.faiss.faiss.write_index"):
                     faiss_store = FAISS(
                         collection_name="test_security",
                         path=os.path.join(temp_dir, "test_faiss"),
@@ -578,8 +578,8 @@ class TestFAISSSecurityIntegration:
             mock_index.d = 128
             mock_index.ntotal = 1
 
-            with patch("mem0.vector_stores.faiss.faiss.read_index", return_value=mock_index):
-                with patch("mem0.vector_stores.faiss.faiss.write_index"):
+            with patch("norn_m.vector_stores.faiss.faiss.read_index", return_value=mock_index):
+                with patch("norn_m.vector_stores.faiss.faiss.write_index"):
                     faiss_store = FAISS.__new__(FAISS)
                     faiss_store.collection_name = "test_pref"
                     faiss_store.path = faiss_path
@@ -614,7 +614,7 @@ class TestFAISSSecurityIntegration:
             mock_index = Mock()
             mock_index.ntotal = 1
 
-            with patch("mem0.vector_stores.faiss.faiss.read_index", return_value=mock_index):
+            with patch("norn_m.vector_stores.faiss.faiss.read_index", return_value=mock_index):
                 faiss_store = FAISS.__new__(FAISS)
                 faiss_store.collection_name = "malicious"
                 faiss_store.path = faiss_path
@@ -650,8 +650,8 @@ class TestFAISSSecurityIntegration:
             mock_index.d = 128
             mock_index.ntotal = 1
 
-            with patch("mem0.vector_stores.faiss.faiss.read_index", return_value=mock_index):
-                with patch("mem0.vector_stores.faiss.faiss.write_index"):
+            with patch("norn_m.vector_stores.faiss.faiss.read_index", return_value=mock_index):
+                with patch("norn_m.vector_stores.faiss.faiss.write_index"):
                     faiss_store = FAISS.__new__(FAISS)
                     faiss_store.collection_name = "legacy"
                     faiss_store.path = faiss_path

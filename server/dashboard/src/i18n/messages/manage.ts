@@ -76,7 +76,7 @@ const en = {
     add: "Add Webhook",
     emptyTitle: "No webhooks yet",
     emptyDescription:
-      "Add an endpoint to receive memory events. Each request carries an X-Mem0-Signature header you can verify with the signing secret.",
+      "Add an endpoint to receive memory events. Each request carries an X-Norn-M-Signature header you can verify with the signing secret.",
     addTitle: "Add webhook",
     addDescription:
       "The server POSTs JSON to this URL. From inside Docker, reach a service on your machine at host.docker.internal.",
@@ -84,7 +84,7 @@ const en = {
     eventsLabel: "Events",
     signingSecret: "Signing secret",
     verifyHint:
-      "Verify each request by computing HMAC-SHA256 of the raw body with this secret and comparing it to the X-Mem0-Signature header (sha256=<hex>).",
+      "Verify each request by computing HMAC-SHA256 of the raw body with this secret and comparing it to the X-Norn-M-Signature header (sha256=<hex>).",
     deleteTitle: "Delete webhook",
     deleteDescription: "This endpoint will stop receiving events immediately.",
   },
@@ -244,7 +244,7 @@ const zh: typeof en = {
     add: "添加 Webhook",
     emptyTitle: "暂无 Webhook",
     emptyDescription:
-      "添加一个接收地址来接收记忆事件。每个请求都带有 X-Mem0-Signature 请求头，可用签名密钥进行验证。",
+      "添加一个接收地址来接收记忆事件。每个请求都带有 X-Norn-M-Signature 请求头，可用签名密钥进行验证。",
     addTitle: "添加 Webhook",
     addDescription:
       "服务器会向此 URL 发送 JSON POST 请求。在 Docker 内访问本机服务，请使用 host.docker.internal。",
@@ -252,7 +252,7 @@ const zh: typeof en = {
     eventsLabel: "事件",
     signingSecret: "签名密钥",
     verifyHint:
-      "验证方法：用此密钥对原始请求体计算 HMAC-SHA256，并与 X-Mem0-Signature 请求头（sha256=<hex>）比对。",
+      "验证方法：用此密钥对原始请求体计算 HMAC-SHA256，并与 X-Norn-M-Signature 请求头（sha256=<hex>）比对。",
     deleteTitle: "删除 Webhook",
     deleteDescription: "该接收地址将立即停止接收事件。",
   },

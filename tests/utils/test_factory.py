@@ -1,10 +1,10 @@
 from unittest.mock import Mock, patch
 
-from mem0.configs.llms.anthropic import AnthropicConfig
-from mem0.configs.llms.aws_bedrock import AWSBedrockConfig
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.configs.llms.openai import OpenAIConfig
-from mem0.utils.factory import LlmFactory
+from norn_m.configs.llms.anthropic import AnthropicConfig
+from norn_m.configs.llms.aws_bedrock import AWSBedrockConfig
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.configs.llms.openai import OpenAIConfig
+from norn_m.utils.factory import LlmFactory
 
 
 def _capture_config(provider_name, config):
@@ -15,7 +15,7 @@ def _capture_config(provider_name, config):
         captured["config"] = built_config
         return Mock()
 
-    with patch("mem0.utils.factory.load_class", return_value=fake_llm_class):
+    with patch("norn_m.utils.factory.load_class", return_value=fake_llm_class):
         LlmFactory.create(provider_name, config)
 
     return captured["config"]
@@ -56,7 +56,7 @@ def test_base_to_provider_without_reasoning_fields_still_builds():
 def test_dict_config_not_mutated_by_kwargs():
     config = {"model": "gpt-4o-mini"}
 
-    with patch("mem0.utils.factory.load_class", return_value=Mock(return_value=Mock())):
+    with patch("norn_m.utils.factory.load_class", return_value=Mock(return_value=Mock())):
         LlmFactory.create("openai", config, api_key="secret")
 
     assert config == {"model": "gpt-4o-mini"}

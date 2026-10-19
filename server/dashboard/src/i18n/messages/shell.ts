@@ -1,10 +1,10 @@
 const en = {
   meta: {
-    dashboard: "Dashboard | Mem0",
-    login: "Mem0 - Log in",
-    loginDescription: "Log in to Mem0",
-    setup: "Setup | Mem0",
-    setupDescription: "Set up your Mem0 instance",
+    dashboard: "Dashboard | Norn-M",
+    login: "Norn-M - Log in",
+    loginDescription: "Log in to Norn-M",
+    setup: "Setup | Norn-M",
+    setupDescription: "Set up your Norn-M instance",
   },
   nav: {
     activity: "ACTIVITY",
@@ -31,11 +31,11 @@ const en = {
 
 const zh: typeof en = {
   meta: {
-    dashboard: "控制台 | Mem0",
-    login: "Mem0 - 登录",
-    loginDescription: "登录 Mem0",
-    setup: "初始化 | Mem0",
-    setupDescription: "初始化你的 Mem0 实例",
+    dashboard: "控制台 | Norn-M",
+    login: "Norn-M - 登录",
+    loginDescription: "登录 Norn-M",
+    setup: "初始化 | Norn-M",
+    setupDescription: "初始化你的 Norn-M 实例",
   },
   nav: {
     activity: "活动",

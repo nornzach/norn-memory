@@ -144,7 +144,7 @@ export default function ConfigurationPage() {
       <p className="text-xs text-onSurface-default-tertiary">
         {t.configuration.otherProviderBefore}
         <a
-          href="https://docs.mem0.ai/open-source/setup#supported-providers"
+          href="https://github.com/nornzach/norn-memory/blob/main/docs/configuration.md#providers"
           target="_blank"
           rel="noopener noreferrer"
           className="underline underline-offset-4 hover:text-onSurface-default-primary"

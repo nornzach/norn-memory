@@ -8,7 +8,7 @@ import math
 
 import pytest
 
-from mem0.reranker.huggingface_reranker import HuggingFaceReranker
+from norn_m.reranker.huggingface_reranker import HuggingFaceReranker
 
 
 def _sigmoid(x):

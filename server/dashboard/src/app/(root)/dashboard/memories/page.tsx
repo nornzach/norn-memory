@@ -289,7 +289,7 @@ export default function MemoriesPage() {
   -d '{"messages": [{"role": "user", "content": "I like hiking"}], "user_id": "alice"}'`}
           </pre>
           <a
-            href="https://docs.mem0.ai/open-source/features/rest-api#memory-operations"
+            href="https://github.com/nornzach/norn-memory/blob/main/docs/api.md#memories"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-onSurface-default-tertiary underline underline-offset-4 hover:text-onSurface-default-primary mt-2"

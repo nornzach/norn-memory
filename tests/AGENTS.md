@@ -1,24 +1,22 @@
-# Python SDK tests (`tests/`)
+# Tests (`tests/`)
 
-pytest suite for the `mem0/` package.
+pytest suite for the `norn_m/` library and the server.
 
 ## Commands
 
 ```bash
 make install_all    # optional deps; several tests need them
 make test           # pytest tests/
-make test-py-3.9    # pin a Python version (3.9 through 3.12)
 
 pytest tests/llms/test_openai.py::test_generate_response   # single test
 ```
 
+Server tests (`test_server_*.py`) put `server/` on `sys.path` and need the server's requirements. The exact-record tests need Postgres: set `NORN_M_TEST_POSTGRES_URL` to a scratch database, or they are skipped.
+
 ## Conventions
 
-- Files are named `test_<module>.py`.
-- Provider tests mirror the source tree: `tests/<category>/<provider_name>/`.
+- Files are named `test_<module>.py`; provider tests mirror the source tree.
 - pytest-mock for mocks, pytest-asyncio for the async surface.
-- Ruff line length **120**, matching `mem0/`. See [`../mem0/AGENTS.md`](../mem0/AGENTS.md).
-- Mock the provider SDK, never the code under test. A test that asserts the implementation back at itself is worse than no test.
+- Ruff line length **120**.
+- Mock the provider SDK, never the code under test.
 - Bug fixes need a regression test that fails without the fix. Write it first and watch it fail.
-
-Tests for other packages live with those packages: `mem0-ts/` (jest), `cli/python/tests/` (pytest), `cli/node/` (vitest), and each directory under `integrations/`.

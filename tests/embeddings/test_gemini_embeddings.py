@@ -2,13 +2,13 @@ from unittest.mock import ANY, patch
 
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.embeddings.gemini import GoogleGenAIEmbedding
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.embeddings.gemini import GoogleGenAIEmbedding
 
 
 @pytest.fixture
 def mock_genai():
-    with patch("mem0.embeddings.gemini.genai.Client") as mock_client_class:
+    with patch("norn_m.embeddings.gemini.genai.Client") as mock_client_class:
         mock_client = mock_client_class.return_value
         mock_client.models.embed_content.return_value = None
         yield mock_client.models.embed_content

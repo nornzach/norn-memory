@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.embeddings.azure_openai import AzureOpenAIEmbedding
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.embeddings.azure_openai import AzureOpenAIEmbedding
 
 
 @pytest.fixture
 def mock_openai_client():
-    with patch("mem0.embeddings.azure_openai.AzureOpenAI") as mock_openai:
+    with patch("norn_m.embeddings.azure_openai.AzureOpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client
@@ -77,9 +77,9 @@ def test_init_with_api_key(monkeypatch, base_embedder_config):
     base_embedder_config.azure_kwargs.default_headers = {"X-Test": "Header"}
 
     with (
-        patch("mem0.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai,
-        patch("mem0.embeddings.azure_openai.DefaultAzureCredential") as mock_cred,
-        patch("mem0.embeddings.azure_openai.get_bearer_token_provider") as mock_token_provider,
+        patch("norn_m.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai,
+        patch("norn_m.embeddings.azure_openai.DefaultAzureCredential") as mock_cred,
+        patch("norn_m.embeddings.azure_openai.get_bearer_token_provider") as mock_token_provider,
     ):
         AzureOpenAIEmbedding(base_embedder_config)
         mock_azure_openai.assert_called_once_with(
@@ -101,7 +101,7 @@ def test_init_with_env_vars(monkeypatch, base_embedder_config):
     monkeypatch.setenv("EMBEDDING_AZURE_ENDPOINT", "https://env.endpoint")
     monkeypatch.setenv("EMBEDDING_AZURE_API_VERSION", "2024-02-02")
 
-    with patch("mem0.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai:
+    with patch("norn_m.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai:
         AzureOpenAIEmbedding(base_embedder_config)
         mock_azure_openai.assert_called_once_with(
             azure_deployment="env-deployment",
@@ -117,9 +117,9 @@ def test_init_with_env_vars(monkeypatch, base_embedder_config):
 def test_init_with_default_azure_credential(monkeypatch, base_embedder_config):
     base_embedder_config.azure_kwargs.api_key = ""
     with (
-        patch("mem0.embeddings.azure_openai.DefaultAzureCredential") as mock_cred,
-        patch("mem0.embeddings.azure_openai.get_bearer_token_provider") as mock_token_provider,
-        patch("mem0.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai,
+        patch("norn_m.embeddings.azure_openai.DefaultAzureCredential") as mock_cred,
+        patch("norn_m.embeddings.azure_openai.get_bearer_token_provider") as mock_token_provider,
+        patch("norn_m.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai,
     ):
         mock_cred_instance = Mock()
         mock_cred.return_value = mock_cred_instance
@@ -143,9 +143,9 @@ def test_init_with_default_azure_credential(monkeypatch, base_embedder_config):
 def test_init_with_placeholder_api_key(monkeypatch, base_embedder_config):
     base_embedder_config.azure_kwargs.api_key = "your-api-key"
     with (
-        patch("mem0.embeddings.azure_openai.DefaultAzureCredential") as mock_cred,
-        patch("mem0.embeddings.azure_openai.get_bearer_token_provider") as mock_token_provider,
-        patch("mem0.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai,
+        patch("norn_m.embeddings.azure_openai.DefaultAzureCredential") as mock_cred,
+        patch("norn_m.embeddings.azure_openai.get_bearer_token_provider") as mock_token_provider,
+        patch("norn_m.embeddings.azure_openai.AzureOpenAI") as mock_azure_openai,
     ):
         mock_cred_instance = Mock()
         mock_cred.return_value = mock_cred_instance

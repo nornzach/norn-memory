@@ -4,14 +4,14 @@ import pytest
 
 pytest.importorskip("anthropic", reason="anthropic package not installed")
 
-from mem0.configs.llms.anthropic import AnthropicConfig
-from mem0.configs.llms.base import BaseLlmConfig
-from mem0.llms.anthropic import AnthropicLLM
+from norn_m.configs.llms.anthropic import AnthropicConfig
+from norn_m.configs.llms.base import BaseLlmConfig
+from norn_m.llms.anthropic import AnthropicLLM
 
 
 @pytest.fixture
 def mock_anthropic_client():
-    with patch("mem0.llms.anthropic.anthropic") as mock_anthropic:
+    with patch("norn_m.llms.anthropic.anthropic") as mock_anthropic:
         mock_client = Mock()
         mock_anthropic.Anthropic.return_value = mock_client
         yield mock_client
@@ -85,7 +85,7 @@ def test_both_set_prefers_temperature_over_top_p(mock_anthropic_client):
 
 def test_configured_base_url_is_passed_to_client():
     """A configured anthropic_base_url must reach the Anthropic client constructor."""
-    with patch("mem0.llms.anthropic.anthropic") as mock_anthropic:
+    with patch("norn_m.llms.anthropic.anthropic") as mock_anthropic:
         config = AnthropicConfig(
             model="claude-opus-4-6",
             api_key="test-key",
@@ -99,7 +99,7 @@ def test_configured_base_url_is_passed_to_client():
 def test_base_url_falls_back_to_env(monkeypatch):
     """When no base_url is configured, ANTHROPIC_BASE_URL is used."""
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://env.example.com")
-    with patch("mem0.llms.anthropic.anthropic") as mock_anthropic:
+    with patch("norn_m.llms.anthropic.anthropic") as mock_anthropic:
         config = AnthropicConfig(model="claude-opus-4-6", api_key="test-key")
         AnthropicLLM(config)
 
@@ -109,7 +109,7 @@ def test_base_url_falls_back_to_env(monkeypatch):
 def test_base_url_omitted_when_unset(monkeypatch):
     """With no base_url anywhere, base_url must not be forced to None on the client."""
     monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
-    with patch("mem0.llms.anthropic.anthropic") as mock_anthropic:
+    with patch("norn_m.llms.anthropic.anthropic") as mock_anthropic:
         config = AnthropicConfig(model="claude-opus-4-6", api_key="test-key")
         AnthropicLLM(config)
 

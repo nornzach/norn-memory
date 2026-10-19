@@ -5,13 +5,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.embeddings.ollama import OllamaEmbedding
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.embeddings.ollama import OllamaEmbedding
 
 
 @pytest.fixture
 def mock_ollama_client():
-    with patch("mem0.embeddings.ollama.Client") as mock_ollama:
+    with patch("norn_m.embeddings.ollama.Client") as mock_ollama:
         mock_client = Mock()
         mock_client.list.return_value = {"models": [{"name": "nomic-embed-text"}]}
         mock_ollama.return_value = mock_client
@@ -101,7 +101,7 @@ def test_embed_batch_count_mismatch_raises(mock_ollama_client):
 
 def test_missing_ollama_raises_actionable_import_error(monkeypatch):
     """Missing ollama raises a catchable ImportError naming the install command, never input()/sys.exit()."""
-    monkeypatch.delitem(sys.modules, "mem0.embeddings.ollama", raising=False)
+    monkeypatch.delitem(sys.modules, "norn_m.embeddings.ollama", raising=False)
     monkeypatch.delitem(sys.modules, "ollama", raising=False)
 
     real_import = builtins.__import__
@@ -115,7 +115,7 @@ def test_missing_ollama_raises_actionable_import_error(monkeypatch):
 
     with patch("builtins.input") as mock_input, patch("sys.exit") as mock_exit:
         with pytest.raises(ImportError, match="pip install ollama"):
-            importlib.import_module("mem0.embeddings.ollama")
+            importlib.import_module("norn_m.embeddings.ollama")
 
     mock_input.assert_not_called()
     mock_exit.assert_not_called()

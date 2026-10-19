@@ -34,10 +34,10 @@ logger = logging.getLogger(__name__)
 MCP_PATH = "/mcp"
 # Lets each agent's MCP config pin whose memory it reads and writes, so a tool call that names
 # no user_id, agent_id or run_id still lands in the right scope.
-DEFAULT_USER_HEADER = "X-Mem0-User-Id"
+DEFAULT_USER_HEADER = "X-Norn-M-User-Id"
 
 INSTRUCTIONS = (
-    "Long-term memory shared by every agent and device connected to this Mem0 server. "
+    "Long-term memory shared by every agent and device connected to this Norn-M server. "
     "Call search_memories before answering anything that depends on the user's preferences, history, "
     "projects or earlier decisions. Call add_memory when the user states a durable fact, preference or "
     "decision worth recalling in a later session; skip small talk and one-off details. "
@@ -454,7 +454,7 @@ def _record_write(**values: Any) -> "exact_store.RecordWrite":
 def mount(app: FastAPI, api: ModuleType) -> FastMCP:
     """Serve the memory tools at /mcp on `app`. `api` is the module holding the REST handlers (main)."""
     server = FastMCP(
-        "mem0",
+        "norn-m",
         instructions=INSTRUCTIONS,
         # Stateless JSON responses: any worker can answer any request, and simple clients need no SSE.
         stateless_http=True,

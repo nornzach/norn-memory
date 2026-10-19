@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.embeddings.base import BaseEmbedderConfig
-from mem0.embeddings.openai import OpenAIEmbedding
+from norn_m.configs.embeddings.base import BaseEmbedderConfig
+from norn_m.embeddings.openai import OpenAIEmbedding
 
 
 @pytest.fixture
 def mock_openai_client():
-    with patch("mem0.embeddings.openai.OpenAI") as mock_openai:
+    with patch("norn_m.embeddings.openai.OpenAI") as mock_openai:
         mock_client = Mock()
         mock_openai.return_value = mock_client
         yield mock_client

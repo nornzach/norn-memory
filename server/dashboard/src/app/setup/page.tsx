@@ -41,7 +41,7 @@ type BundledProviders = {
 };
 
 const SUPPORTED_PROVIDERS_URL =
-  "https://docs.mem0.ai/open-source/setup#supported-providers";
+  "https://github.com/nornzach/norn-memory/blob/main/docs/configuration.md#providers";
 
 export default function SetupPage() {
   const router = useRouter();

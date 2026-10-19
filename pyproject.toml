@@ -3,11 +3,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mem0ai"
+name = "norn-m"
 version = "2.2.1"
 description = "Long-term memory for AI Agents"
 authors = [
-    { name = "Mem0", email = "support@mem0.ai" }
+    { name = "nornzach" }
 ]
 readme = "README.md"
 license = "Apache-2.0"
@@ -90,16 +90,16 @@ pythonpath = ["."]
 
 [tool.hatch.build]
 include = [
-    "mem0/**/*.py",
+    "norn_m/**/*.py",
 ]
 exclude = [
     "**/*",
-    "!mem0/**/*.py",
+    "!norn_m/**/*.py",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["mem0"]
-only-include = ["mem0"]
+packages = ["norn_m"]
+only-include = ["norn_m"]
 
 [tool.hatch.envs.dev_py_3_10]
 python = "3.10"
@@ -160,11 +160,11 @@ line-length = 120
 select = ["E4", "E7", "E9", "F"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["mem0", "mem0_cli"]
+known-first-party = ["norn_m"]
 
 [tool.isort]
 profile = "black"
-known_first_party = ["mem0", "mem0_cli"]
+known_first_party = ["norn_m"]
 # isort scope kept aligned with [tool.ruff.lint.isort] above.
 # black-equivalent profile here matches the formatter behaviour ruff applies.
 # Plugin-version bumps need a touch here to fire required CI checks (path-filter trap).

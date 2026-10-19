@@ -2,13 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mem0.configs.llms.lmstudio import LMStudioConfig
-from mem0.llms.lmstudio import LMStudioLLM
+from norn_m.configs.llms.lmstudio import LMStudioConfig
+from norn_m.llms.lmstudio import LMStudioLLM
 
 
 @pytest.fixture
 def mock_lm_studio_client():
-    with patch("mem0.llms.lmstudio.OpenAI") as mock_openai:  # Corrected path
+    with patch("norn_m.llms.lmstudio.OpenAI") as mock_openai:  # Corrected path
         mock_client = Mock()
         mock_client.chat.completions.create.return_value = Mock(
             choices=[Mock(message=Mock(content="I'm doing well, thank you for asking!"))]

@@ -8,7 +8,7 @@ degrading to the original order / a neutral score.
 
 import logging
 
-from mem0.reranker.llm_reranker import LLMReranker
+from norn_m.reranker.llm_reranker import LLMReranker
 
 
 class TestRerankerFailureLogging:
@@ -19,7 +19,7 @@ class TestRerankerFailureLogging:
         reranker = LLMReranker({"provider": "openai"})
         docs = [{"memory": "alpha"}, {"memory": "beta"}]
 
-        with caplog.at_level(logging.WARNING, logger="mem0.reranker.llm_reranker"):
+        with caplog.at_level(logging.WARNING, logger="norn_m.reranker.llm_reranker"):
             result = reranker.rerank("q", docs)
 
         # Graceful degradation preserved: every doc still comes back, scored neutral.

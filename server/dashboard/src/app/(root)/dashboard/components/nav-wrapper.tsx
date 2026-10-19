@@ -26,7 +26,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import Link from "next/link";
-import { Building2 } from "lucide-react";
+import { NornMark } from "@/components/misc/norn-mark";
 import { LanguageSwitcher } from "@/components/misc/language-switcher";
 import { useI18n } from "@/i18n/provider";
 
@@ -38,7 +38,7 @@ export default function NavWrapper() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
 
-  const instanceName = process.env.NEXT_PUBLIC_INSTANCE_NAME || "Mem0";
+  const instanceName = process.env.NEXT_PUBLIC_INSTANCE_NAME || "Norn-M";
 
   const handleToggle = useCallback(() => {
     dispatch(toggleSidebar());
@@ -65,9 +65,7 @@ export default function NavWrapper() {
                 isSidebarCollapsed ? "justify-center" : "gap-2",
               )}
             >
-              <div className="flex items-center justify-center size-7 rounded-md bg-surface-default-tertiary shrink-0">
-                <Building2 className="size-4 text-onSurface-default-primary" />
-              </div>
+              <NornMark size={28} />
               {!isSidebarCollapsed && (
                 <span className="typo-body-xs text-onSurface-default-primary truncate text-left flex-1 min-w-0">
                   {instanceName}
@@ -161,7 +159,7 @@ export default function NavWrapper() {
           <Tooltip>
             <TooltipTrigger asChild>
               <a
-                href="https://docs.mem0.ai/open-source/overview"
+                href="https://github.com/nornzach/norn-memory#readme"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={t.nav.documentation}

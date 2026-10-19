@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from mem0.configs.vector_stores.supabase import IndexMeasure, IndexMethod
-from mem0.vector_stores.supabase import VECS_MAX_QUERY_LIMIT, Supabase
+from norn_m.configs.vector_stores.supabase import IndexMeasure, IndexMethod
+from norn_m.vector_stores.supabase import VECS_MAX_QUERY_LIMIT, Supabase
 
 
 @pytest.fixture
@@ -152,7 +152,7 @@ def test_col_info(supabase_instance, mock_collection):
 def test_search_clamps_top_k_to_vecs_limit(supabase_instance, mock_collection, caplog):
     mock_collection.query.return_value = []
 
-    with caplog.at_level(logging.WARNING, logger="mem0.vector_stores.supabase"):
+    with caplog.at_level(logging.WARNING, logger="norn_m.vector_stores.supabase"):
         supabase_instance.search(query="", vectors=[[0.1, 0.2, 0.3]], top_k=5000)
 
     mock_collection.query.assert_called_once_with(
@@ -176,7 +176,7 @@ def test_list_clamps_top_k_to_vecs_limit(supabase_instance, mock_collection, cap
     mock_collection.query.return_value = []
     mock_collection.fetch.return_value = []
 
-    with caplog.at_level(logging.WARNING, logger="mem0.vector_stores.supabase"):
+    with caplog.at_level(logging.WARNING, logger="norn_m.vector_stores.supabase"):
         supabase_instance.list(top_k=5000)
 
     _, kwargs = mock_collection.query.call_args

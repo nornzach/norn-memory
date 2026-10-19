@@ -8,19 +8,19 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from mem0.memory.main import AsyncMemory, Memory
+from norn_m.memory.main import AsyncMemory, Memory
 
 
 def test_importing_the_sdk_loads_no_analytics_client():
     code = (
-        "import sys; import mem0; from mem0 import Memory, AsyncMemory, MemoryClient; "
-        "print(sorted(m for m in ('posthog', 'mem0.memory.telemetry', 'mem0.memory.notices') if m in sys.modules))"
+        "import sys; import norn_m; from norn_m import Memory, AsyncMemory; "
+        "print(sorted(m for m in ('posthog', 'norn_m.memory.telemetry', 'norn_m.memory.notices') if m in sys.modules))"
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
     assert out.strip() == "[]"
 
 
-@pytest.mark.parametrize("module", ["mem0.memory.telemetry", "mem0.memory.notices", "mem0.memory.setup"])
+@pytest.mark.parametrize("module", ["norn_m.memory.telemetry", "norn_m.memory.notices", "norn_m.memory.setup"])
 def test_telemetry_modules_are_gone(module):
     import importlib.util
 

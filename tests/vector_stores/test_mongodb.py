@@ -2,11 +2,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mem0.vector_stores.mongodb import MongoDB
+from norn_m.vector_stores.mongodb import MongoDB
 
 
 @pytest.fixture
-@patch("mem0.vector_stores.mongodb.MongoClient")
+@patch("norn_m.vector_stores.mongodb.MongoClient")
 def mongo_vector_fixture(mock_mongo_client):
     mock_client = mock_mongo_client.return_value
     mock_db = mock_client["test_db"]

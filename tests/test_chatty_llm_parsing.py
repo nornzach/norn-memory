@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from mem0.memory.utils import extract_json, remove_code_blocks
+from norn_m.memory.utils import extract_json, remove_code_blocks
 
 
 # --- Test extract_json ---
