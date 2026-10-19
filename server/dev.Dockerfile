@@ -16,4 +16,4 @@ RUN pip install -r requirements.txt
 
 COPY server .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app", "--reload-dir", "/sdk/norn_m"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app", "--reload-dir", "/sdk/norn_m", "--timeout-graceful-shutdown", "5"]
