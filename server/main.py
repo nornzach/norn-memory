@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 import categorizer
@@ -487,16 +488,33 @@ def _keep_source(response: Any, source: Dict[str, str]) -> Any:
     return {**response, "results": [m for m in response["results"] if isinstance(m, dict) and matches(m)]}
 
 
+def _check_memory_id(memory_id: str) -> None:
+    """Memory ids are UUIDs, so anything else cannot exist; 404 before the vector store chokes on it."""
+    try:
+        uuid.UUID(memory_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Memory not found.")
+
+
+def _fetch_memory(memory_id: str) -> Dict[str, Any]:
+    """The memory with this id, or a 404."""
+    _check_memory_id(memory_id)
+    try:
+        memory = get_memory_instance().get(memory_id)
+    except Exception:
+        raise upstream_error()
+    if not isinstance(memory, dict):
+        raise HTTPException(status_code=404, detail="Memory not found.")
+    return memory
+
+
 def _require_visible(memory_id: str, scope: Optional[KeyScope]) -> Optional[Dict[str, Any]]:
     """For a scoped key, fetch the memory and 404 unless it is inside the scope.
     Unscoped callers skip the lookup and get None."""
     if scope is None:
         return None
-    try:
-        memory = get_memory_instance().get(memory_id)
-    except Exception:
-        raise upstream_error()
-    if not isinstance(memory, dict) or not scope.allows(memory):
+    memory = _fetch_memory(memory_id)
+    if not scope.allows(memory):
         raise HTTPException(status_code=404, detail="Memory not found.")
     return memory
 
@@ -613,6 +631,8 @@ def get_all_memories(
         return scope.filter_response(response, ids) if scope is not None else response
     except HTTPException:
         raise
+    except (ValueError, NornMValidationError) as e:
+        raise _client_error(e)
     except Exception:
         raise upstream_error()
 
@@ -622,10 +642,7 @@ def get_memory(memory_id: str, scope: Optional[KeyScope] = Depends(get_key_scope
     """Retrieve a specific memory by ID."""
     if scope is not None:
         return _require_visible(memory_id, scope)
-    try:
-        return get_memory_instance().get(memory_id)
-    except Exception:
-        raise upstream_error()
+    return _fetch_memory(memory_id)
 
 
 @app.post("/search", summary="Search memories")
@@ -685,6 +702,7 @@ def update_memory(
         _require_visible(memory_id, scope)
         if "metadata" in fields_set and "categories" in (updated_memory.metadata or {}):
             scope.check_write_categories(updated_memory.metadata["categories"])
+    _check_memory_id(memory_id)
     secret_guard.check(
         {k: v for k, v in {"text": updated_memory.text, "metadata": updated_memory.metadata}.items() if k in fields_set}
     )
@@ -732,6 +750,7 @@ def delete_memory(memory_id: str, scope: Optional[KeyScope] = Depends(get_key_sc
     if scope is not None:
         scope.require_write()
         _require_visible(memory_id, scope)
+    _check_memory_id(memory_id)
     try:
         get_memory_instance().delete(memory_id=memory_id)
     except (ValueError, NornMValidationError) as e:
@@ -755,6 +774,8 @@ def delete_all_memories(
     params = _scope(user_id, agent_id, run_id)
     try:
         get_memory_instance().delete_all(**params)
+    except (ValueError, NornMValidationError) as e:
+        raise _client_error(e)
     except Exception:
         raise upstream_error()
     webhooks.emit("memories.deleted_all", params)

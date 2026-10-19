@@ -37,6 +37,8 @@ TEST_ENV = {
 ADMIN_KEY = "test-admin-key-for-pytest-0123456789"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
 CONNECTION = {"X-Norn-M-Device": "Mac", "X-Norn-M-Agent": "Claude-Code"}
+# Memory ids are UUIDs; the server 404s anything else before it reaches the store.
+M1 = "11111111-1111-4111-8111-111111111111"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -210,7 +212,7 @@ class TestStamping:
         server.memory.update.return_value = {"message": "Memory updated successfully!"}
 
         resp = _rest(
-            server, "PUT", "/memories/m1", json={"metadata": {"project": " Norn-M ", "key_label": "forged", "x": 1}}
+            server, "PUT", f"/memories/{M1}", json={"metadata": {"project": " Norn-M ", "key_label": "forged", "x": 1}}
         )
 
         assert resp.status_code == 200

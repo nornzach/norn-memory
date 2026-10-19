@@ -34,6 +34,8 @@ TEST_ENV = {
     "NORN_M_TELEMETRY": "false",
     "NORN_M_ALLOW_SECRETS": "",
 }
+# Memory ids are UUIDs; the server 404s anything else before it reaches the store.
+M1 = "11111111-1111-4111-8111-111111111111"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -77,18 +79,18 @@ class TestKeyScope:
     def test_read_only_alone_is_a_restriction(self):
         scope = _scope(access="read")
         assert scope.read_only and not scope.restricts_entities
-        assert scope.allows(_mem("m1", user_id="anyone"))
+        assert scope.allows(_mem(M1, user_id="anyone"))
 
     def test_allowlists_are_anded_across_fields(self):
         scope = _scope(user_ids=["phone"], agent_ids=["claude", "codex"])
-        assert scope.allows(_mem("m1", user_id="phone", agent_id="codex"))
+        assert scope.allows(_mem(M1, user_id="phone", agent_id="codex"))
         assert not scope.allows(_mem("m2", user_id="phone", agent_id="other"))
         assert not scope.allows(_mem("m3", user_id="laptop", agent_id="claude"))
         assert not scope.allows(_mem("m4", agent_id="claude"))
 
     def test_categories_match_any_of_the_memorys_categories(self):
         scope = _scope(categories=["Ops"])
-        assert scope.allows(_mem("m1", categories=["Travel", "Ops"]))
+        assert scope.allows(_mem(M1, categories=["Travel", "Ops"]))
         assert scope.allows({"id": "raw", "categories": ["Ops"]})
         assert not scope.allows(_mem("m2", categories=["Travel"]))
         assert not scope.allows(_mem("m3"))
@@ -233,7 +235,7 @@ class TestAddMemoryScopes:
 
     def test_category_key_must_tag_with_its_categories_and_skip_inference(self, scoped_client):
         scoped_client.holder["scope"] = _scope(categories=["Ops"])
-        scoped_client.memory.add.return_value = {"results": [{"id": "m1", "memory": "x", "event": "ADD"}]}
+        scoped_client.memory.add.return_value = {"results": [{"id": M1, "memory": "x", "event": "ADD"}]}
         post = scoped_client.client.post
 
         assert post("/memories", json={**ADD_BODY, "infer": False}).status_code == 403
@@ -252,17 +254,17 @@ class TestAddMemoryScopes:
 class TestReadScopes:
     def test_get_returns_404_for_a_memory_outside_the_scope(self, scoped_client):
         scoped_client.holder["scope"] = _scope(user_ids=["phone"])
-        scoped_client.memory.get.return_value = _mem("m1", user_id="laptop")
-        assert scoped_client.client.get("/memories/m1").status_code == 404
-        assert scoped_client.client.get("/memories/m1/history").status_code == 404
+        scoped_client.memory.get.return_value = _mem(M1, user_id="laptop")
+        assert scoped_client.client.get(f"/memories/{M1}").status_code == 404
+        assert scoped_client.client.get(f"/memories/{M1}/history").status_code == 404
         scoped_client.memory.history.assert_not_called()
 
     def test_get_returns_an_in_scope_memory(self, scoped_client):
         scoped_client.holder["scope"] = _scope(user_ids=["phone"])
-        scoped_client.memory.get.return_value = _mem("m1", user_id="phone")
-        resp = scoped_client.client.get("/memories/m1")
+        scoped_client.memory.get.return_value = _mem(M1, user_id="phone")
+        resp = scoped_client.client.get(f"/memories/{M1}")
         assert resp.status_code == 200
-        assert resp.json()["id"] == "m1"
+        assert resp.json()["id"] == M1
 
     def test_list_defaults_to_the_keys_only_user_and_filters_results(self, scoped_client):
         scoped_client.holder["scope"] = _scope(user_ids=["phone"], agent_ids=["claude"])
@@ -306,9 +308,9 @@ class TestReadScopes:
         scoped_client.memory.search.assert_not_called()
 
     def test_unscoped_callers_are_unchanged(self, scoped_client):
-        scoped_client.memory.get.return_value = _mem("m1", user_id="laptop")
-        scoped_client.memory.search.return_value = {"results": [_mem("m1", "laptop")]}
-        assert scoped_client.client.get("/memories/m1").status_code == 200
+        scoped_client.memory.get.return_value = _mem(M1, user_id="laptop")
+        scoped_client.memory.search.return_value = {"results": [_mem(M1, "laptop")]}
+        assert scoped_client.client.get(f"/memories/{M1}").status_code == 200
         resp = scoped_client.client.post("/search", json={"query": "x", "filters": {"user_id": "laptop"}})
         assert len(resp.json()["results"]) == 1
 
@@ -316,27 +318,27 @@ class TestReadScopes:
 class TestWriteScopes:
     def test_read_only_key_cannot_update_or_delete(self, scoped_client):
         scoped_client.holder["scope"] = _scope(access="read")
-        scoped_client.memory.get.return_value = _mem("m1", user_id="phone")
-        assert scoped_client.client.put("/memories/m1", json={"text": "x"}).status_code == 403
-        assert scoped_client.client.delete("/memories/m1").status_code == 403
+        scoped_client.memory.get.return_value = _mem(M1, user_id="phone")
+        assert scoped_client.client.put(f"/memories/{M1}", json={"text": "x"}).status_code == 403
+        assert scoped_client.client.delete(f"/memories/{M1}").status_code == 403
         scoped_client.memory.update.assert_not_called()
         scoped_client.memory.delete.assert_not_called()
 
     def test_cannot_update_or_delete_outside_the_scope(self, scoped_client):
         scoped_client.holder["scope"] = _scope(user_ids=["phone"])
-        scoped_client.memory.get.return_value = _mem("m1", user_id="laptop")
-        assert scoped_client.client.put("/memories/m1", json={"text": "x"}).status_code == 404
-        assert scoped_client.client.delete("/memories/m1").status_code == 404
+        scoped_client.memory.get.return_value = _mem(M1, user_id="laptop")
+        assert scoped_client.client.put(f"/memories/{M1}", json={"text": "x"}).status_code == 404
+        assert scoped_client.client.delete(f"/memories/{M1}").status_code == 404
         scoped_client.memory.update.assert_not_called()
         scoped_client.memory.delete.assert_not_called()
 
     def test_category_key_keeps_its_categories_on_update(self, scoped_client):
         scoped_client.holder["scope"] = _scope(categories=["Ops"])
-        scoped_client.memory.get.return_value = _mem("m1", categories=["Ops"])
+        scoped_client.memory.get.return_value = _mem(M1, categories=["Ops"])
         scoped_client.memory.update.return_value = {"message": "ok"}
 
-        moved = scoped_client.client.put("/memories/m1", json={"metadata": {"categories": ["Travel"]}})
-        edited = scoped_client.client.put("/memories/m1", json={"text": "new text"})
+        moved = scoped_client.client.put(f"/memories/{M1}", json={"metadata": {"categories": ["Travel"]}})
+        edited = scoped_client.client.put(f"/memories/{M1}", json={"text": "new text"})
 
         assert moved.status_code == 403
         assert edited.status_code == 200
@@ -367,7 +369,7 @@ class TestSecretGuardEndpoints:
         assert scoped_client.client.post("/memories", json=body).status_code == 400
 
     def test_update_with_a_secret_is_rejected(self, scoped_client):
-        resp = scoped_client.client.put("/memories/m1", json={"text": "token " + _random_token()})
+        resp = scoped_client.client.put(f"/memories/{M1}", json={"text": "token " + _random_token()})
         assert resp.status_code == 400
         scoped_client.memory.update.assert_not_called()
 

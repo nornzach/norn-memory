@@ -35,6 +35,8 @@ TEST_ENV = {
 }
 ADMIN_KEY = "test-admin-key-for-pytest-0123456789"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
+# Memory ids are UUIDs; the server 404s anything else before it reaches the store.
+M1 = "11111111-1111-4111-8111-111111111111"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -169,7 +171,7 @@ class TestMcpAuth:
 class TestSearchMemories:
     def test_scope_is_merged_into_filters(self, mcp_client):
         client, mocks = mcp_client
-        mocks.memory.search.return_value = {"results": [{"id": "m1", "memory": "Likes green tea", "score": 0.9}]}
+        mocks.memory.search.return_value = {"results": [{"id": M1, "memory": "Likes green tea", "score": 0.9}]}
 
         result = _call_tool(
             client,
@@ -213,7 +215,7 @@ class TestAddMemory:
         client, mocks = mcp_client
         categorized = threading.Event()
         mocks.categorize.side_effect = lambda *_: categorized.set()
-        mocks.memory.add.return_value = {"results": [{"id": "m1", "memory": "Likes green tea", "event": "ADD"}]}
+        mocks.memory.add.return_value = {"results": [{"id": M1, "memory": "Likes green tea", "event": "ADD"}]}
 
         result = _call_tool(
             client,
@@ -232,7 +234,7 @@ class TestAddMemory:
         )
         assert mocks.emit_results.call_args.args[1] == {"user_id": "alice", "agent_id": "claude-code"}
         assert categorized.wait(5)
-        mocks.categorize.assert_called_once_with([("m1", "Likes green tea")])
+        mocks.categorize.assert_called_once_with([(M1, "Likes green tea")])
 
     def test_default_user_header_scopes_an_unscoped_add(self, mcp_client):
         client, mocks = mcp_client
@@ -254,12 +256,12 @@ class TestAddMemory:
 class TestGetListDelete:
     def test_get_memory(self, mcp_client):
         client, mocks = mcp_client
-        mocks.memory.get.return_value = {"id": "m1", "memory": "Likes green tea", "user_id": "alice"}
+        mocks.memory.get.return_value = {"id": M1, "memory": "Likes green tea", "user_id": "alice"}
 
-        result = _call_tool(client, "get_memory", {"memory_id": "m1"})
+        result = _call_tool(client, "get_memory", {"memory_id": M1})
 
         assert result["structuredContent"] == mocks.memory.get.return_value
-        mocks.memory.get.assert_called_once_with("m1")
+        mocks.memory.get.assert_called_once_with(M1)
 
     def test_missing_memory_is_a_tool_error(self, mcp_client):
         client, mocks = mcp_client
@@ -271,14 +273,14 @@ class TestGetListDelete:
         client, mocks = mcp_client
         mocks.memory.get_all.return_value = {
             "results": [
-                {"id": "m1", "memory": "Ships on Fridays", "metadata": {"categories": ["Work"]}},
+                {"id": M1, "memory": "Ships on Fridays", "metadata": {"categories": ["Work"]}},
                 {"id": "m2", "memory": "Likes green tea", "metadata": {"categories": ["Preferences"]}},
             ]
         }
 
         result = _call_tool(client, "list_memories", {"user_id": "alice", "category": "Work"})
 
-        assert [m["id"] for m in result["structuredContent"]["results"]] == ["m1"]
+        assert [m["id"] for m in result["structuredContent"]["results"]] == [M1]
         mocks.memory.get_all.assert_called_once_with(filters={"user_id": "alice"}, top_k=100, show_expired=False)
 
     def test_listing_every_scope_needs_an_admin(self, mcp_client):
@@ -294,18 +296,18 @@ class TestGetListDelete:
 
     def test_admin_can_list_every_scope(self, mcp_client):
         client, mocks = mcp_client
-        mocks.list_all.return_value = [{"id": "m1"}]
+        mocks.list_all.return_value = [{"id": M1}]
 
         result = _call_tool(client, "list_memories", {"limit": 5})
 
-        assert result["structuredContent"] == {"results": [{"id": "m1"}]}
+        assert result["structuredContent"] == {"results": [{"id": M1}]}
         mocks.list_all.assert_called_once_with(5, category=None, source={})
 
     def test_delete_memory_emits_the_webhook(self, mcp_client):
         client, mocks = mcp_client
 
-        result = _call_tool(client, "delete_memory", {"memory_id": "m1"})
+        result = _call_tool(client, "delete_memory", {"memory_id": M1})
 
-        assert result["structuredContent"] == {"id": "m1", "deleted": True}
-        mocks.memory.delete.assert_called_once_with(memory_id="m1")
-        mocks.emit.assert_called_once_with("memory.deleted", {"id": "m1"})
+        assert result["structuredContent"] == {"id": M1, "deleted": True}
+        mocks.memory.delete.assert_called_once_with(memory_id=M1)
+        mocks.emit.assert_called_once_with("memory.deleted", {"id": M1})
