@@ -1,0 +1,63 @@
+const en = {
+  meta: {
+    dashboard: "Dashboard | Mem0",
+    login: "Mem0 - Log in",
+    loginDescription: "Log in to Mem0",
+    setup: "Setup | Mem0",
+    setupDescription: "Set up your Mem0 instance",
+  },
+  nav: {
+    activity: "ACTIVITY",
+    manage: "MANAGE",
+    account: "ACCOUNT",
+    requests: "Requests",
+    memories: "Memories",
+    exact: "Exact records",
+    entities: "Entities",
+    categories: "Categories",
+    consolidation: "Consolidation",
+    webhooks: "Webhooks",
+    analytics: "Analytics",
+    export: "Export",
+    apiKeys: "API Keys",
+    configuration: "Configuration",
+    settings: "Settings",
+    logout: "Log out",
+    documentation: "Documentation",
+    expandSidebar: "Expand sidebar",
+    collapseSidebar: "Collapse sidebar",
+  },
+};
+
+const zh: typeof en = {
+  meta: {
+    dashboard: "控制台 | Mem0",
+    login: "Mem0 - 登录",
+    loginDescription: "登录 Mem0",
+    setup: "初始化 | Mem0",
+    setupDescription: "初始化你的 Mem0 实例",
+  },
+  nav: {
+    activity: "活动",
+    manage: "管理",
+    account: "账户",
+    requests: "请求",
+    memories: "记忆",
+    exact: "精确记录",
+    entities: "实体",
+    categories: "分类",
+    consolidation: "记忆整合",
+    webhooks: "Webhooks",
+    analytics: "数据分析",
+    export: "导出",
+    apiKeys: "API 密钥",
+    configuration: "配置",
+    settings: "设置",
+    logout: "退出登录",
+    documentation: "文档",
+    expandSidebar: "展开侧边栏",
+    collapseSidebar: "收起侧边栏",
+  },
+};
+
+export default { en, zh };

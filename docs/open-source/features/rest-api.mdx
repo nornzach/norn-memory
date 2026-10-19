@@ -1,0 +1,579 @@
+---
+title: REST API Server
+description: Reach every Mem0 OSS capability through a FastAPI-powered REST layer.
+icon: "code"
+---
+
+The Mem0 REST API server exposes every OSS memory operation over HTTP. Run it alongside your stack to add, search, update, and delete memories from any language that speaks REST.
+
+<Info>
+  **You’ll use this when…**
+  - Your services already talk to REST APIs and you want Mem0 to match that style.
+  - Teams on languages without the Mem0 SDK still need access to memories.
+  - You plan to explore or debug endpoints through the built-in OpenAPI page at `/docs`.
+</Info>
+
+<Warning>
+  **First time self-hosting, or upgrading from a pre-1.x build?** Start at [Self-Hosted Setup](/open-source/setup). It walks through the stack, the setup wizard, and the upgrade path for deployments that relied on open endpoints or `ADMIN_API_KEY`. This page covers the API surface and auth modes only.
+</Warning>
+
+<Warning>
+  **OSS vs Platform API paths:** The self-hosted OSS server does **not** use the `/v1/` prefix. For example, the endpoint is `POST /memories`, not `POST /v1/memories/`. The [API Reference](/api-reference) documents the hosted platform at `api.mem0.ai` which uses `/v1/` paths: those do not apply to the OSS server.
+</Warning>
+
+<Warning>
+  Enable API key authentication (see below) and HTTPS before exposing the server to anything beyond your internal network.
+</Warning>
+
+---
+
+## Feature
+
+- **CRUD endpoints:** Create, retrieve, search, update, delete, and reset memories by `user_id`, `agent_id`, or `run_id`.
+- **Authentication:** On by default. Dashboard sessions use JWTs; programmatic clients use per-user `X-API-Key` headers. Legacy `ADMIN_API_KEY` is still supported.
+- **Scoped API keys:** Limit a key to read-only access and to chosen `user_id`, `agent_id`, `run_id` values or categories. See [Scope an API key](#scope-an-api-key).
+- **Exact records:** Typed key → fields records (passwords, API keys, server logins, URLs, dates) stored and returned verbatim, never sent to an LLM, with deterministic keyword search. See [Exact records](#exact-records).
+- **Secret guard:** Writes to fuzzy memory that look like they contain credentials are rejected with directions to exact records, because memory text goes through the LLM. See [Keep secrets out of fuzzy memory](#keep-secrets-out-of-fuzzy-memory).
+- **Status health check:** Access base routes to confirm the server is online.
+- **OpenAPI explorer:** Visit `/docs` for interactive testing and schema reference.
+- **MCP endpoint:** Agents that speak the Model Context Protocol (Claude Code, Cursor, phone harnesses) connect to `/mcp` and get memory tools with the same auth. See [Connect agents over MCP](#connect-agents-over-mcp).
+
+---
+
+## Configure it
+
+### Run with Docker Compose (development)
+
+<Tabs>
+  <Tab title="Steps">
+1. Create `server/.env` with your keys:
+
+    ```bash
+    OPENAI_API_KEY=your-openai-api-key
+    JWT_SECRET=$(openssl rand -base64 48)
+    ```
+
+2. Bootstrap the stack in one command:
+
+    ```bash
+    cd server
+    make bootstrap    # starts Compose, creates an admin, issues the first API key
+    ```
+
+    Or to start the stack only and finish setup via the browser wizard at `http://localhost:3000`:
+
+    ```bash
+    cd server
+    docker compose up -d
+    ```
+
+3. API is at `http://localhost:8888`. Code edits auto-reload.
+  </Tab>
+</Tabs>
+
+<AccordionGroup>
+  <Accordion title="Other install paths">
+    **Run with Docker**
+
+```bash
+# from the repository root, so the image runs this repo's SDK
+docker build -t mem0-api-server -f server/Dockerfile .
+```
+
+    1. Create a `.env` file with `OPENAI_API_KEY` and `JWT_SECRET`.
+    2. Run the container:
+
+    ```bash
+    docker run -p 8000:8000 --env-file .env mem0-api-server
+    ```
+
+    3. Visit `http://localhost:8000`.
+
+    **Run directly (no Docker)**
+
+    <Warning>
+      This path skips Docker and assumes Postgres is already running and reachable at `POSTGRES_HOST:POSTGRES_PORT`. For a single-command local setup with Postgres included, use Docker Compose above.
+    </Warning>
+
+    ```bash
+    cd server
+    pip install -e ..                # the SDK from this repo, not PyPI
+    pip install -r requirements.txt
+    uvicorn main:app --reload
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  Compose publishes internal port 8000 as 8888 on the host. Raw Docker and raw uvicorn listen on 8000 unless remapped.
+</Note>
+
+<Note>
+  `JWT_SECRET` is required once auth is enabled: the server returns `500` on auth endpoints if it's unset. Generate one with `openssl rand -base64 48`. See [Self-Hosted Setup](/open-source/setup#configure-the-environment) for the full env var table.
+</Note>
+
+<Tip>
+  Use a process manager such as `systemd`, Supervisor, or PM2 when deploying the FastAPI server for production resilience.
+</Tip>
+
+<Note>
+  The REST server reads the same configuration you use locally, so you can point it at your preferred LLM, vector store, and reranker without changing code.
+</Note>
+
+---
+
+## Authentication
+
+Auth is on by default. Protected endpoints require either a JWT (from the dashboard login flow) or an `X-API-Key` header. The `/` redirect, `/docs`, and `/openapi.json` routes stay open so you can reach the OpenAPI explorer.
+
+| Mode | How to send it | When to use it |
+|---|---|---|
+| Bearer JWT | `Authorization: Bearer <access_token>` | Dashboard sessions; tokens come from `POST /auth/login` and refresh via `POST /auth/refresh` |
+| Per-user API key | `X-API-Key: m0sk_...` | Programmatic access scoped to a single dashboard user |
+| Legacy `ADMIN_API_KEY` | `X-API-Key: <env value>` | Back-compat for deployments that set the `ADMIN_API_KEY` env var |
+| `AUTH_DISABLED=true` | N/A | Local development only; bypasses auth entirely |
+
+The `/docs` OpenAPI explorer supports both auth modes. Click **Authorize** at the top of the page and paste either `Bearer <access_token>` (JWT) or your `X-API-Key` value. Protected endpoints return `401` until you authorize.
+
+### Log in and use a JWT
+
+Register the first admin (only works when no user exists yet), then log in:
+
+```bash
+# First admin only: returns 403 after the first admin is registered
+curl -X POST http://localhost:8888/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Admin", "email": "admin@example.com", "password": "strong-password"}'
+```
+
+```bash
+curl -X POST http://localhost:8888/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "your-password"}'
+```
+
+Use the returned `access_token` as a bearer token:
+
+```bash
+curl -X POST http://localhost:8888/memories \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "messages": [{"role": "user", "content": "I love pizza."}],
+    "user_id": "alice"
+  }'
+```
+
+When the access token expires, exchange the refresh token at `POST /auth/refresh`.
+
+### Create and use a per-user API key
+
+Create a key from the dashboard **API Keys** page, or call `POST /api-keys` with a JWT. The full `m0sk_...` value is returned **once** at creation time: store it securely.
+
+```bash
+curl -X POST http://localhost:8888/memories \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: m0sk_your_key_here" \
+  -d '{
+    "messages": [{"role": "user", "content": "I love pizza."}],
+    "user_id": "alice"
+  }'
+```
+
+Per-user keys inherit the creating user's role. List or revoke them via `GET /api-keys` and `DELETE /api-keys/{id}`.
+
+### Scope an API key
+
+A key without scopes can read and write every memory, so a key lost with a phone exposes everything. Give each device or agent its own scoped key instead. Set scopes in the **API Keys** dialog, or in the `POST /api-keys` body:
+
+```bash
+curl -X POST http://localhost:8888/api-keys \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -d '{
+    "label": "Pixel phone",
+    "access": "read_write",
+    "user_ids": ["alice"],
+    "agent_ids": ["phone-assistant"]
+  }'
+```
+
+| Field | Meaning |
+|-------|---------|
+| `access` | `read_write` (default) or `read`. Read-only keys can search, list, get and export memories, but not add, update or delete them |
+| `user_ids`, `agent_ids`, `run_ids` | The key sees only memories whose `user_id` / `agent_id` / `run_id` is in the list. An empty list means any value. Lists combine with AND |
+| `categories` | The key sees only memories tagged with at least one of these categories |
+
+How a scoped key behaves:
+
+- **Reads are filtered.** Results from `GET /memories`, `POST /search`, `GET /entities` and `GET /export` include only memories in scope. Asking for an ID outside the scope returns `403`, and a single memory outside it returns `404`.
+- **A single allowed value is filled in.** If a key allows exactly one `user_id`, requests that omit `user_id` use that value. With several allowed values, `GET /memories` without identifiers lists the whole scope.
+- **Writes stay inside the scope.** `POST /memories` must name an allowed value for every restricted field. `PUT` and `DELETE` only reach memories inside the scope.
+- **Category-limited keys must tag their writes.** Their writes must set `metadata.categories` to allowed categories and use `"infer": false`, because inference can update existing memories in other categories. Their edits keep the memory's categories rather than letting the LLM re-tag it.
+- **Admin and account endpoints are closed.** Scoped keys get `403` from `/api-keys`, `/auth/*`, `/configure`, `/generate-instructions`, `/reset`, `DELETE /memories`, `/requests`, `/categories`, `/webhooks` and `/analytics`. This stops a scoped key from creating an unscoped one. `/export` and `/consolidation` work within the scope when the key's owner is an admin. Category-limited keys cannot start consolidation runs.
+
+Keys created before scopes existed keep full access. Scopes cannot be edited after creation: create a new key and revoke the old one.
+
+### Keep secrets out of fuzzy memory
+
+Memory text goes through the configured LLM for fact extraction, categorization and consolidation, which may rewrite or drop it. `POST /memories` and `PUT /memories/{id}` therefore reject text or metadata that looks like a credential with a `400` that points to [exact records](#exact-records), where the value is stored verbatim. This covers provider API keys (OpenAI, Anthropic, Google, AWS, GitHub, Slack, Stripe, Hugging Face, Groq, xAI, Mem0), bearer tokens, JWTs, private keys, passwords in URLs, `password=` style assignments, and long high-entropy tokens. The error names the field and the kind of secret, never the value.
+
+Save the value as an exact record, and if you want it findable from memory too, add a note that names the record without the value:
+
+```json
+{"messages": [{"role": "user", "content": "The staging database password is in exact record db/staging."}], "user_id": "alice"}
+```
+
+The check is a heuristic. It ignores UUIDs, commit SHAs and ordinary identifiers, and can miss secrets that look like plain words or bare hex strings. An admin can turn it off by setting `MEM0_ALLOW_SECRETS=true`; the server then logs a warning at startup.
+
+### Legacy `ADMIN_API_KEY`
+
+Set the `ADMIN_API_KEY` environment variable and send it as `X-API-Key`. The request is treated as admin-level and is not tied to a dashboard user. This mode is kept for back-compat with older self-hosted deployments: prefer JWT or per-user keys for new setups.
+
+```bash
+ADMIN_API_KEY=your-long-admin-key
+```
+
+<Warning>
+  Setting `AUTH_DISABLED=true` makes every protected endpoint open: the server logs a warning at startup when it's enabled. The server also warns when `ADMIN_API_KEY` is shorter than 16 characters. Never enable `AUTH_DISABLED` in production, and always use a long `ADMIN_API_KEY` if you rely on the legacy fallback.
+</Warning>
+
+---
+
+## See it in action
+
+### Create and search memories via HTTP
+
+```bash
+curl -X POST http://localhost:8888/memories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "I love fresh vegetable pizza."}
+    ],
+    "user_id": "alice"
+  }'
+```
+
+<Info icon="check">
+  Expect a JSON response containing the new memory IDs and events (`ADD`, etc.).
+</Info>
+
+```bash
+curl -X POST http://localhost:8888/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "vegetable",
+    "user_id": "alice"
+  }'
+```
+
+Set `explain` to inspect the scoring signals used by OSS hybrid search:
+
+```bash
+curl -X POST http://localhost:8888/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "vegetable pizza",
+    "user_id": "alice",
+    "explain": true
+  }'
+```
+
+Each returned memory includes `score_details` only when explanation mode is enabled.
+
+### Explore with OpenAPI docs
+
+1. Navigate to `http://localhost:8888/docs` (Compose) or `http://localhost:8000/docs` (raw Docker / uvicorn).
+2. Pick an endpoint (e.g., `POST /search`).  
+3. Fill in parameters and click **Execute** to try requests in-browser.
+
+<Tip>
+  Export the generated `curl` snippets from the OpenAPI UI to bootstrap integration tests.
+</Tip>
+
+---
+
+## Connect agents over MCP
+
+The server also serves the [Model Context Protocol](https://modelcontextprotocol.io) at `/mcp` over the streamable HTTP transport. Claude Code, other MCP-capable agents, and phone harnesses can then share one memory without a custom client. The endpoint authenticates exactly like the REST API: send `X-API-Key` (a per-user key or `ADMIN_API_KEY`) or `Authorization: Bearer <access_token>`. A scoped key keeps its limits over MCP.
+
+| Tool | Arguments | REST equivalent |
+|------|-----------|-----------------|
+| `search_memories` | `query`, `user_id` / `agent_id` / `run_id`, `filters`, `top_k`, `project` / `device` / `agent` / `cwd` | `POST /search` |
+| `add_memory` | `text`, `user_id` / `agent_id` / `run_id`, `metadata`, `infer`, `project`, `cwd` | `POST /memories` |
+| `get_memory` | `memory_id` | `GET /memories/{memory_id}` |
+| `list_memories` | `user_id` / `agent_id` / `run_id`, `category`, `limit`, `project` / `device` / `agent` / `cwd` | `GET /memories` |
+| `delete_memory` | `memory_id` | `DELETE /memories/{memory_id}` |
+| `exact_set` | `key`, `fields`, `kind`, `title`, `description`, `tags`, `replace`, `if_version`, `user_id`, `project`, `cwd` | `PUT /exact/records/{key}` (merge by default) |
+| `exact_get` | `key`, `user_id` | `GET /exact/records/{key}` |
+| `exact_search` | `query`, `kind`, `tag`, `prefix`, `limit`, `user_id`, `project` / `device` / `agent` | `GET /exact/records` |
+| `exact_delete` | `key`, `user_id` | `DELETE /exact/records/{key}` |
+
+Each memory tool calls the same handler as its REST route, so validation, webhooks, and auto-categorization behave the same; the `exact_*` tools share their code with the `/exact` routes. Errors come back as MCP tool errors with the REST error message. `search_memories` also returns up to three exact records that match at least two thirds of the query's keywords, under `exact_records`, so an agent finds them without knowing to ask.
+
+### Claude Code
+
+```bash
+claude mcp add --transport http mem0 http://localhost:8888/mcp \
+  --header "X-API-Key: m0sk_your_key_here" \
+  --header "X-Mem0-User-Id: alice" \
+  --header "X-Mem0-Device: mac" \
+  --header "X-Mem0-Agent: claude-code"
+```
+
+Add `--scope user` to make the server available in every project. Run `claude mcp list` to confirm it connects.
+
+### Other MCP clients
+
+Most clients that support remote MCP servers accept a URL plus headers. The field names vary slightly between clients (some use `"type": "streamable-http"`):
+
+```json
+{
+  "mcpServers": {
+    "mem0": {
+      "type": "http",
+      "url": "http://localhost:8888/mcp",
+      "headers": {
+        "X-API-Key": "m0sk_your_key_here",
+        "X-Mem0-User-Id": "alice",
+        "X-Mem0-Device": "mac",
+        "X-Mem0-Agent": "omp"
+      }
+    }
+  }
+}
+```
+
+`X-Mem0-User-Id` is optional. When a tool call names no `user_id`, `agent_id`, or `run_id`, the server scopes it to this user, so every agent configured with the same value reads and writes the same memories. Without it, the agent has to pass an ID in each call.
+
+### Record where each memory came from
+
+Every memory and exact record stores its provenance, so you can later list, search, and export by project, device, or agent:
+
+| Field | Set by | Example |
+|-------|--------|---------|
+| `device` | The `X-Mem0-Device` header, once per agent config | `mac`, `windows`, `phone`, `web`, `hermes` |
+| `agent` | The `X-Mem0-Agent` header, once per agent config | `claude-code`, `omp`, `devin` |
+| `project` | The agent, per write (`project` argument); `X-Mem0-Project` is a fallback for an agent pinned to one project | `mem0` |
+| `cwd` | The agent, per write (`cwd` argument); `X-Mem0-Cwd` is the fallback | `/Users/alice/code/mem0` |
+| `key_label` | The server: the label of the API key that made the write. Callers cannot set it | `laptop` |
+
+`device`, `agent`, and `project` are stored lowercase, so `Mac` and `mac` group together. The MCP server's instructions ask agents to pass `project` and `cwd` when a memory belongs to the work at hand. Memories keep these fields in `metadata`, not in `agent_id`: `agent_id` is a scope that API keys can be limited to, while provenance only labels where a memory came from, so every agent configured with the same user still shares one memory. Editing a memory keeps its provenance. An exact record keeps each field from the last change that supplied it, and its version history keeps the earlier values.
+
+Filter with the same names: `project`, `device`, `agent`, and `cwd` (that folder and everything under it) on `GET /memories`, `POST /search`, `GET /export`, `GET /exact/records`, and the matching MCP tools. Memories written before provenance existed have none of these fields.
+
+To check the endpoint without a client, list the tools with `curl`:
+
+```bash
+curl -X POST http://localhost:8888/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "X-API-Key: m0sk_your_key_here" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
+```
+
+<Note>
+  The endpoint is stateless and answers with plain JSON, so it works behind a load balancer without session affinity. It needs the `mcp` Python package, which the server image installs from `server/requirements.txt`. Without it, the server starts normally, logs that MCP is disabled, and `/mcp` returns 404.
+</Note>
+
+<Warning>
+  Devices that reach the server over the internet, such as phones away from your LAN, should connect through HTTPS. Each agent should use its own API key, so you can revoke one without affecting the others.
+</Warning>
+
+---
+
+## Exact records
+
+Fuzzy memory is the right place for preferences, history and decisions, but an LLM sits between what you write and what is stored. Values that must come back character for character, such as passwords, API keys, account logins, server IPs, ports and paths, URLs, IDs and birthdays, go in **exact records** instead:
+
+- **Verbatim.** A record is a key plus typed fields, stored in Postgres exactly as sent. Nothing in it is sent to an LLM or embedder, categorized or consolidated.
+- **Keyed.** Keys are short paths such as `server/hk1`, `site/github.com` or `person/mom`. They are case-insensitive, spaces around `/` are ignored, and each `user_id` has its own keys.
+- **Deterministic search.** `GET /exact/records?q=...` matches every keyword as a substring of the key, title, tags, field names and values, and description (Chinese, Japanese and Korean text by two-character pieces), tolerates typos through trigram similarity, and always ranks the same way: exact key, key prefix, number of keywords matched, matches in the key or title, similarity, then most recently updated. Each result has a `match` block saying why it matched.
+- **Versioned.** Every update and delete keeps the previous state; `GET /exact/history/{key}` returns it.
+- **Plaintext.** Values are not encrypted at rest. Run the server on a network you trust.
+
+```bash
+curl -X PUT http://localhost:8888/exact/records/server/hk1 \
+  -H "X-API-Key: m0sk_your_key_here" -H "X-Mem0-User-Id: alice" -H "Content-Type: application/json" \
+  -d '{"kind": "server", "title": "HK1 Docker host", "tags": ["prod"],
+       "fields": {"ip": "203.0.113.7", "user": "root", "compose_dir": "/opt/stack"}}'
+
+curl "http://localhost:8888/exact/records?q=hk1%20ip" -H "X-API-Key: m0sk_your_key_here" -H "X-Mem0-User-Id: alice"
+```
+
+`PUT` replaces the record unless the body sets `"merge": true`, which changes only the fields given and removes fields set to `null`. Pass `"if_version": N` to write only if nobody changed the record since you read version `N` (`0` means "only if it does not exist"). `POST /exact/batch` writes up to 1000 records in one transaction, for imports such as a password manager export.
+
+The user comes from `user_id` (query or body) or the `X-Mem0-User-Id` header. A scoped API key limited by `user_id` alone can use its users' records, and a read-only key can only read them; a key limited to agents, runs or categories cannot use exact records, because records belong to a user only.
+
+## Endpoint reference
+
+The OSS REST server exposes the following endpoints. None use the `/v1/` prefix.
+
+### Memory operations
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/configure` | Set memory configuration. Rejects unbundled providers, and an embedder whose vectors don't fit the vector store, with a 400 |
+| `POST` | `/configure/test` | Admin only. Send one request to the LLM and one to the embedder as configured by the body, without saving. Returns `ok`, `error` and `latency_ms` for each, plus the embedding size |
+| `GET` | `/configure` | Get the current memory configuration |
+| `GET` | `/configure/providers` | List the LLM and embedder providers bundled in the container |
+| `POST` | `/memories` | Create memories |
+| `GET` | `/memories` | Get all memories (filter by `user_id`, `agent_id`, `run_id`, `category`, `project`, `device`, `agent`, or `cwd`) |
+| `GET` | `/memories/{memory_id}` | Get a specific memory |
+| `PUT` | `/memories/{memory_id}` | Update a memory |
+| `DELETE` | `/memories/{memory_id}` | Delete a specific memory |
+| `DELETE` | `/memories` | Delete all memories for an identifier |
+| `GET` | `/memories/{memory_id}/history` | Get memory history |
+| `POST` | `/search` | Search memories. Optional `project`, `device`, `agent`, and `cwd` narrow the results |
+| `POST` | `/reset` | Reset all memories |
+
+### Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/auth/setup-status` | Returns `{needsSetup: bool}`. Open, no auth required |
+| `POST` | `/auth/register` | Register the first admin. Registration closes after the first admin is created; additional accounts are provisioned by the existing admin. |
+| `POST` | `/auth/login` | Exchange email and password for access and refresh JWTs |
+| `POST` | `/auth/refresh` | Exchange a refresh token for a new access token |
+| `GET` | `/auth/me` | Get the current authenticated user (JWT required) |
+| `PATCH` | `/auth/me` | Update the caller's name or email. 409 if the new email is already in use |
+| `POST` | `/auth/change-password` | Change the caller's password. 401 if the current password is wrong; new password must be at least 8 characters |
+
+### API keys
+
+All `/api-keys` endpoints require a JWT or an unscoped API key. Scoped keys get `403`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api-keys` | List the caller's API keys |
+| `POST` | `/api-keys` | Create a new key, optionally with `access`, `user_ids`, `agent_ids`, `run_ids` and `categories` scopes; the full `m0sk_...` value is returned once |
+| `DELETE` | `/api-keys/{id}` | Revoke an API key |
+
+### Request logs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/requests?limit=N` | Recent API call log (JWT or admin key) |
+
+### Entities
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/entities` | Distinct `user_id` / `agent_id` / `run_id` values with memory counts |
+| `DELETE` | `/entities/{entity_type}/{entity_id}` | Cascade-delete all memories for an entity; `entity_type` is `user`, `agent`, or `run` |
+
+### Categories
+
+Admin only. The server tags each new or updated memory in the background: the configured LLM picks up to three of your categories, using each one's description, and the names are stored in the memory's `categories` field. Pass `metadata.categories` on `POST /memories` to set them yourself and skip the LLM call.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/categories` | List categories with their memory counts |
+| `POST` | `/categories` | Create a category: `{"name": "Health", "description": "..."}`. 409 if the name exists |
+| `PATCH` | `/categories/{id}` | Rename or re-describe a category. A rename updates every tagged memory |
+| `DELETE` | `/categories/{id}` | Delete a category and remove it from tagged memories |
+| `POST` | `/categories/backfill?retag_all=false` | Tag existing memories in the background (up to 500 per call). Untagged memories only, unless `retag_all=true` |
+
+### Webhooks
+
+Admin only.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/webhooks` | List webhooks with their last delivery status |
+| `POST` | `/webhooks` | Create a webhook: `{"url": "...", "events": [...]}`. The `whsec_...` signing secret is returned once |
+| `PATCH` | `/webhooks/{id}` | Change `url`, `events`, or `is_active` |
+| `DELETE` | `/webhooks/{id}` | Delete a webhook |
+| `POST` | `/webhooks/{id}/test` | Send a signed `ping` event now and return the receiver's status |
+
+Events: `memory.created`, `memory.updated`, `memory.deleted`, and `memories.deleted_all` (bulk deletes by user, agent, run, entity, or `/reset`). Each delivery is a JSON `POST` of `{"event", "data", "timestamp"}` with a 5-second timeout and no retries. Categories are assigned after the event is sent, so `memory.created` payloads don't include them.
+
+Verify a delivery by computing HMAC-SHA256 of the raw request body with the signing secret and comparing it to the `X-Mem0-Signature` header:
+
+```python
+import hashlib, hmac
+
+def is_valid(secret: str, body: bytes, header: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header)
+```
+
+<Note>
+  The server runs in Docker, so to reach a receiver on your own machine, use `http://host.docker.internal:<port>` rather than `localhost`.
+</Note>
+
+### Consolidation
+
+Admin only. `POST /memories` only ever adds rows, so restated and outdated facts pile up over time. A consolidation run finds memories in the same user/agent/run scope whose embeddings are at least `threshold` similar, asks the configured LLM about each group, and stores what it suggests as proposals. **Nothing changes until you apply a proposal:**
+
+- `merge`: the oldest memory in the group is rewritten with the combined text and the others are deleted.
+- `supersede`: the outdated memories are deleted and the current one is kept.
+
+Each proposal keeps the text of every memory it touches, so a deleted memory stays readable on the proposal. Applying a proposal fires the usual `memory.updated` and `memory.deleted` webhooks and re-tags merged memories. If any of its memories changed after the run, the proposal is marked `stale` and is not applied.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/consolidation/runs` | Start a run in the background: `{"user_id": "alice", "threshold": 0.8}`. All fields are optional (`threshold` defaults to 0.8; restatements usually score 0.85+, contradictions around 0.7); scans up to the 500 newest matching memories. 409 while another run is in progress |
+| `GET` | `/consolidation/runs` | Recent runs with their status and proposal counts by status |
+| `GET` | `/consolidation/runs/{id}` | A run and its proposals |
+| `POST` | `/consolidation/runs/{id}/apply` | Apply every pending proposal of a run; returns how many were applied, stale, or failed |
+| `DELETE` | `/consolidation/runs/{id}` | Delete a run and its proposals |
+| `POST` | `/consolidation/proposals/{id}/apply` | Apply one proposal |
+| `POST` | `/consolidation/proposals/{id}/dismiss` | Dismiss one proposal |
+
+### Exact records
+
+Available to any API key, within its scope. `{key}` may contain `/`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/exact/records` | Search with `q`, filter by `kind`, `tag`, key `prefix`, `project`, `device`, `agent`, or `cwd`; without `q`, list by key. `limit` (max 200) and `offset` |
+| `GET` | `/exact/records/{key}` | Get one record, 404 if it does not exist |
+| `PUT` | `/exact/records/{key}` | Create (201) or update (200): `kind`, `title`, `description`, `tags`, `fields`, `project`, `cwd`, plus `merge` and `if_version`. 409 on a version conflict |
+| `DELETE` | `/exact/records/{key}` | Delete a record; its last state stays in the history |
+| `GET` | `/exact/history/{key}` | The current record and its earlier versions, newest first |
+| `POST` | `/exact/batch` | Create or update up to 1000 records in one transaction: `{"records": [{"key": "...", ...}], "merge": false}` |
+
+### Analytics and export
+
+Admin only.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/analytics?range=7d` | Request totals, success rate, average and p95 latency, requests over time, per-endpoint breakdown, and memories per category. `range` is `24h`, `7d`, or `30d`. Counts API-key traffic only, like `/requests` |
+| `GET` | `/export?format=json` | Download memories as `json` or `csv`. Filter with `user_id`, `agent_id`, `run_id`, `category`, `project`, `device`, `agent`, or `cwd`. The CSV has a column for each provenance field |
+
+The `/auth/*`, `/api-keys`, `/requests`, `/entities`, `/categories`, `/consolidation`, `/webhooks`, `/analytics`, `/export`, and `/exact` routes are specific to the self-hosted server and primarily back the dashboard, but you can call them directly from your own tooling.
+
+---
+
+## Verify the feature is working
+
+- Hit the root route and `/docs` to confirm the server is reachable.
+- Run a full cycle: `POST /memories` → `GET /memories/{id}` → `DELETE /memories/{id}`.
+- Watch server logs for import errors or provider misconfigurations during startup.
+- Confirm environment variables (API keys, vector store credentials) load correctly when containers restart.
+
+---
+
+## Best practices
+
+1. **Keep auth on:** Auth is enabled by default. Never set `AUTH_DISABLED=true` in production. If you rely on `ADMIN_API_KEY`, use a long value (16+ chars) or prefer per-user API keys.
+2. **Use HTTPS:** Terminate TLS at your load balancer or reverse proxy.
+3. **Monitor uptime:** Track request rates, latency, and error codes per endpoint.
+4. **Version configs:** Keep environment files and Docker Compose definitions in source control.
+5. **Limit exposure:** Bind to private networks unless you explicitly need public access.
+6. **Scope every device key:** Give each phone, server and agent its own [scoped key](#scope-an-api-key), read-only where it only needs to recall.
+7. **Keep exact values exact:** Put credentials, addresses and other values that must not change in [exact records](#exact-records), and leave the [secret guard](#keep-secrets-out-of-fuzzy-memory) on so they don't end up in fuzzy memory.
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Configure OSS Components" icon="sliders" href="/open-source/configuration">
+    Fine-tune LLMs, vector stores, and rerankers that power the REST server.
+  </Card>
+  <Card title="Automate Agent Integrations" icon="plug" href="/cookbooks/integrations/agents-sdk-tool">
+    See how services call the REST endpoints as part of an automation pipeline.
+  </Card>
+</CardGroup>
