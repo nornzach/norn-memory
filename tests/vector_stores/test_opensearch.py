@@ -559,7 +559,9 @@ def test_memory_initialization_opensearch_aws_auth(
     assert memory is not None
     assert memory.config.vector_store.provider == "opensearch"
 
-    assert mock_vector_factory.call_count >= 2
+    # Only the memory store is built up front; the entity store is created on first use.
+    mock_vector_factory.assert_called_once()
+    assert mock_vector_factory.call_args.args[0] == "opensearch"
 
 
 class TestOpenSearchFilterValidation(unittest.TestCase):
