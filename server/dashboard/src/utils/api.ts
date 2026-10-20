@@ -21,19 +21,31 @@ const redirectToLogin = () => {
   }
 };
 
-const refreshAccessToken = async () => {
-  const refreshResponse = await fetch("/api/auth/refresh", {
-    method: "POST",
-    credentials: "include",
+let refreshing: Promise<string | null> | null = null;
+
+/**
+ * Exchanges the refresh cookie for a new access token. Refresh tokens are single-use, so
+ * concurrent callers share one request: a second exchange of the same token would fail and
+ * clear the cookie, signing the user out.
+ */
+export const refreshAccessToken = (): Promise<string | null> => {
+  refreshing ??= (async () => {
+    const refreshResponse = await fetch("/api/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!refreshResponse.ok) {
+      return null;
+    }
+
+    const data = await refreshResponse.json();
+    setAccessToken(data.access_token);
+    return data.access_token as string;
+  })().finally(() => {
+    refreshing = null;
   });
-
-  if (!refreshResponse.ok) {
-    return null;
-  }
-
-  const data = await refreshResponse.json();
-  setAccessToken(data.access_token);
-  return data.access_token as string;
+  return refreshing;
 };
 
 const createApi = (): AxiosInstance & {

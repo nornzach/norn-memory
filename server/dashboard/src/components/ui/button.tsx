@@ -5,42 +5,42 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 font-fustat font-semibold",
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground  hover:bg-primary/90",
-        destructive:
-          "bg-onSurface-danger-primary hover:bg-onSurface-danger-secondary dark:bg-onSurface-danger-secondary dark:hover:bg-onSurface-danger-primary text-white",
+        // The main call to action on a page or dialog.
+        default: "bg-action text-action-ink hover:bg-action-hover",
+        primary: "bg-action text-action-ink hover:bg-action-hover",
+        brand: "bg-brand text-white hover:bg-brand-hover dark:text-ink-inverse",
+        // Secondary actions next to the main one.
         outline:
-          "border border-memBorder-primary bg-surface-default-primary hover:bg-neutral-100 hover:text-neutral-800",
+          "border border-line-strong bg-panel text-ink hover:border-ink-3/40 hover:bg-subtle",
         secondary:
-          "bg-surface-default-fg-secondary text-onSurface-default-primary hover:bg-surface-default-fg-secondary-hover border border-memBorder-primary",
-        ghost: "hover:bg-accent/30 hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        grey: "bg-accent/30 text-accent-foreground hover:bg-accent/80",
-        primary:
-          "bg-onSurface-default-primary text-surface-default-primary hover:bg-onSurface-default-primary/80",
-        tertiary:
-          "bg-surface-default-tertiary text-onSurface-default-primary hover:bg-surface-default-tertiary-hover",
+          "border border-line bg-subtle text-ink hover:bg-subtle-hover",
         surfaceSecondary:
-          "bg-surface-default-secondary text-onSurface-default-primary hover:bg-surface-default-secondary-hover border border-memBorder-primary",
-        surfacePrimary:
-          "bg-surface-default-primary text-onSurface-default-primary hover:bg-surface-default-primary-hover",
-        transparent:
-          "bg-transparent text-onSurface-default-primary hover:bg-transparent/80 hover:text-white",
-        subtle:
-          "bg-transparent text-onSurface-default-primary hover:bg-surface-default-fg-secondary-hover border-0",
-        brand:
-          "bg-surface-default-brand text-onSurface-default-primary hover:bg-surface-default-brand-hover",
+          "border border-line bg-subtle text-ink hover:bg-subtle-hover",
+        surfacePrimary: "bg-panel text-ink hover:bg-subtle",
+        tertiary: "bg-subtle text-ink hover:bg-subtle-hover",
+        grey: "bg-subtle text-ink hover:bg-subtle-hover",
+        // Quiet actions: toolbars, table rows, icon buttons.
+        ghost: "text-ink-2 hover:bg-subtle hover:text-ink",
+        subtle: "text-ink-2 hover:bg-subtle hover:text-ink",
+        transparent: "text-ink-2 hover:bg-subtle hover:text-ink",
+        destructive:
+          "bg-danger text-white hover:bg-danger-hover dark:text-ink-inverse",
+        "destructive-ghost": "text-danger hover:bg-danger-soft",
+        link: "h-auto px-0 text-brand-text underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-lg px-8",
+        default: "h-9 px-3.5",
+        sm: "h-8 px-3 text-[13px]",
+        xs: "h-7 rounded-md px-2 text-xs",
+        lg: "h-10 px-5",
+        xl: "h-12 px-6 text-base",
         icon: "size-9",
-        xl: "h-16 rounded-md px-5 ",
-        xs: "h-[30px] px-3 text-[10px]",
+        "icon-sm": "size-8",
+        "icon-xs": "size-7 rounded-md",
       },
     },
     defaultVariants: {

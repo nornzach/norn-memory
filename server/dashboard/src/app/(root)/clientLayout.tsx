@@ -7,15 +7,9 @@ import { LinearProgress } from "@/components/ui/linearProgress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 
-export const SIDEBAR_WIDTH = 180;
-export const COLLAPSED_SIDEBAR_WIDTH = 64;
-export const COLLAPSED_SIDEBAR_PADDING = 16;
-export const COLLAPSED_SIDEBAR_WIDTH_WITHOUT_PADDING =
-  COLLAPSED_SIDEBAR_WIDTH - COLLAPSED_SIDEBAR_PADDING;
-
 function AuthLoadingState() {
   return (
-    <div className="flex h-screen w-screen flex-col items-center justify-center">
+    <div className="flex min-h-dvh w-full flex-col items-center justify-center bg-canvas">
       <ThemeAwareLogo />
       <LinearProgress value={66} className="mt-8 h-1 w-[180px]" />
     </div>

@@ -1,142 +1,79 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CategoriesDisplayProps {
   categories?: string[];
+  /** Show every chip (detail views) instead of the first few plus "+N". */
   showAllCategories?: boolean;
+  /** How many chips to show before collapsing into "+N". */
+  max?: number;
+  className?: string;
+}
+
+const TAG_COUNT = 8;
+
+// The same category always gets the same color (FNV-1a, spreads short names well).
+function hueFor(category: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < category.length; i++) {
+    hash ^= category.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `var(--tag-${((hash >>> 0) % TAG_COUNT) + 1})`;
+}
+
+/** Soft tinted pill; text is the hue nudged toward ink so it stays readable. */
+export function CategoryChip({ category }: { category: string }) {
+  const hue = hueFor(category);
+  return (
+    <span
+      className="inline-flex h-6 max-w-[180px] items-center rounded-full px-2.5 text-xs font-medium"
+      style={{
+        backgroundColor: `color-mix(in srgb, ${hue} var(--tag-fill), transparent)`,
+        color: `color-mix(in srgb, ${hue} 85%, var(--ink))`,
+      }}
+    >
+      <span className="truncate">{category}</span>
+    </span>
+  );
 }
 
 export function CategoriesDisplay({
   categories,
   showAllCategories,
+  max = 2,
+  className,
 }: CategoriesDisplayProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
-  const [isPositioned, setIsPositioned] = useState(false);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const all = categories ?? [];
+  if (all.length === 0) return null;
 
-  useEffect(() => {
-    if (isHovered && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPopoverPosition({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX,
-      });
-      setIsPositioned(true);
-    } else {
-      setIsPositioned(false);
-    }
-  }, [isHovered]);
-
-  const getCategoryColor = (category: string) => {
-    const colors = [
-      "bg-purple-500",
-      "bg-blue-500",
-      "bg-green-500",
-      "bg-yellow-500",
-      "bg-red-500",
-      "bg-indigo-500",
-      "bg-pink-500",
-      "bg-teal-500",
-      "bg-orange-500",
-      "bg-cyan-500",
-    ];
-
-    let hash = 0;
-    for (let i = 0; i < category.length; i++) {
-      hash = category.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
-
-  const allCategories = useMemo(() => {
-    return categories || [];
-  }, [categories]);
-
-  if (!allCategories || allCategories.length === 0) {
-    return <span></span>;
-  }
-
-  const firstCategory = allCategories[0];
-  const remainingCount = allCategories.length - 1;
-
-  const popoverContent = isHovered &&
-    isPositioned &&
-    allCategories.length > 1 && (
-      <div
-        style={{
-          position: "fixed",
-          top: `${popoverPosition.top}px`,
-          left: `${popoverPosition.left}px`,
-          zIndex: 999999,
-        }}
-        className={`p-3 bg-surface-default-tertiary border border-memBorder-primary rounded-lg shadow-xl flex flex-col gap-2.5 min-w-max opacity-100 visible`}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {/* Map over all categories to show everything in the popover */}
-        {allCategories.map((category, index) => (
-          <div
-            key={index}
-            className="inline-flex items-center gap-1.5 whitespace-nowrap bg-surface-default-fg-secondary border border-memBorder-primary rounded-md px-2 py-1 text-onSurface-default-secondary"
-          >
-            <div
-              className={`size-2 rounded-full ${getCategoryColor(category)}`}
-            />
-            <span className="typo-body-xs">{category}</span>
-          </div>
-        ))}
-      </div>
-    );
-
-  if (showAllCategories) {
-    return (
-      <div className="relative flex flex-wrap gap-2">
-        {allCategories.map((category, index) => (
-          <div
-            key={index}
-            className="inline-flex items-center gap-1.5 whitespace-nowrap bg-surface-default-fg-secondary border border-memBorder-primary rounded-md px-2 py-1 text-onSurface-default-secondary"
-          >
-            <div
-              className={`size-2 rounded-full ${getCategoryColor(category)}`}
-            />
-            <span className="typo-body-xs">{category}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const shown = showAllCategories ? all : all.slice(0, max);
+  const hidden = all.length - shown.length;
 
   return (
-    <div className="relative inline-block">
-      <div
-        ref={triggerRef}
-        className="flex items-center gap-1.5 cursor-pointer"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {/* Always show the first category */}
-        <div className="inline-flex items-center gap-1.5 whitespace-nowrap bg-surface-default-fg-secondary border border-memBorder-primary rounded-md px-2 py-1 text-onSurface-default-secondary">
-          <div
-            className={`size-2 rounded-full ${getCategoryColor(firstCategory)}`}
-          />
-          <span className="typo-body-xs">{firstCategory}</span>
-        </div>
-
-        {/* Show count badge if there are more categories */}
-        {remainingCount > 0 && (
-          <div className="flex items-center justify-center px-2 py-1.5 typo-body-xs text-onSurface-default-secondary bg-surface-default-fg-secondary border border-memBorder-primary rounded-md">
-            +{remainingCount}
-          </div>
-        )}
-      </div>
-
-      {/* Portal-rendered popover */}
-      {typeof window !== "undefined" &&
-        popoverContent &&
-        createPortal(popoverContent, document.body)}
+    <div className={cn("flex flex-wrap items-center gap-1", className)}>
+      {shown.map((category) => (
+        <CategoryChip key={category} category={category} />
+      ))}
+      {hidden > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              tabIndex={0}
+              className="inline-flex h-6 items-center rounded-full bg-subtle px-2 text-xs font-medium text-ink-3 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
+            >
+              +{hidden}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{all.slice(shown.length).join(", ")}</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 }

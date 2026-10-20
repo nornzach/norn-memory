@@ -23,8 +23,21 @@ const en = {
     },
     editLabel: (name: string) => `Edit ${name}`,
     deleteLabel: (name: string) => `Delete ${name}`,
-    tagExisting: "Tag existing memories",
-    add: "Add Category",
+    tagMenu: "Tag memories",
+    tagUntagged: "Tag untagged memories",
+    tagUntaggedHint: "Only memories that have never been tagged",
+    retagAll: "Re-tag all memories…",
+    retagAllHint: "Replace every memory's categories",
+    retagTitle: "Re-tag every memory?",
+    retagDescription:
+      "Each memory goes to your configured LLM again, one call per memory, and its categories are replaced with the ones it picks now, including categories set by hand. Use this after changing category names or descriptions.",
+    retagRuns: "It runs in the background; you can keep using the dashboard.",
+    retagConfirm: "Re-tag all memories",
+    add: "Add category",
+    viewMemoriesLabel: (name: string) => `View memories in ${name}`,
+    nameRequired: "Enter a name.",
+    howItWorks:
+      "The LLM reads each description when it tags a memory, so describe what belongs in the category, not just its name.",
     emptyTitle: "No categories yet",
     emptyDescription:
       "Add categories like Health, Preferences or Work. A short description helps the LLM tag memories accurately.",
@@ -33,7 +46,7 @@ const en = {
     editDescription:
       "Renaming updates every memory already tagged with this category.",
     addDescription:
-      "Applies to memories added from now on. Use “Tag existing memories” for older ones.",
+      "Applies to memories added from now on. Use “Tag memories” for older ones.",
     namePlaceholder: "e.g. Health",
     descriptionPlaceholder:
       "e.g. Medical conditions, allergies, fitness and diet",
@@ -73,7 +86,7 @@ const en = {
     toggleLabel: (url: string) => `Toggle ${url}`,
     testLabel: (url: string) => `Send test to ${url}`,
     deleteLabel: (url: string) => `Delete ${url}`,
-    add: "Add Webhook",
+    add: "Add webhook",
     emptyTitle: "No webhooks yet",
     emptyDescription:
       "Add an endpoint to receive memory events. Each request carries an X-Norn-M-Signature header you can verify with the signing secret.",
@@ -87,16 +100,85 @@ const en = {
       "Verify each request by computing HMAC-SHA256 of the raw body with this secret and comparing it to the X-Norn-M-Signature header (sha256=<hex>).",
     deleteTitle: "Delete webhook",
     deleteDescription: "This endpoint will stop receiving events immediately.",
+    edit: "Edit",
+    editLabel: (url: string) => `Edit ${url}`,
+    editTitle: "Edit webhook",
+    editDescription: "Change where events go and which ones are sent.",
+    saved: "Webhook saved",
+    sendTest: "Send test",
+    urlInvalid: "Enter a full http:// or https:// URL.",
+    eventsRequired: "Pick at least one event.",
+    paused: "Paused",
+    activeLabel: "Active",
   },
   exportPage: {
-    title: "Export",
-    subtitle: "Download your memories as JSON or CSV, optionally filtered.",
+    title: "Export & import",
+    subtitle:
+      "Download your memories as JSON or CSV, or bring a JSON export back in.",
+    importTitle: "Import",
+    importDescription:
+      "Load a JSON export from this or another Norn-M server. Memories are stored as written, with their owner, categories and source.",
+    chooseFile: "Choose a JSON export",
+    chooseAnother: "Choose another file",
+    fileSummary: (count: number, name: string) =>
+      `${count} ${count === 1 ? "memory" : "memories"} in ${name}`,
+    fileInvalid: "That file isn't a Norn-M JSON export",
+    fileEmpty: "No memories found in that file",
+    skipDuplicates: "Skip memories that already exist for the same owner",
+    importButton: (count: number) =>
+      `Import ${count} ${count === 1 ? "memory" : "memories"}`,
+    importing: (done: number, total: number) =>
+      `Importing… ${done} of ${total}`,
+    importDone: "Import finished",
+    importResult: (imported: number, skipped: number, failed: number) =>
+      [
+        `${imported} imported`,
+        skipped ? `${skipped} already there` : "",
+        failed ? `${failed} failed` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    importFailed: "Import stopped",
+    failedItem: (index: number, error: string) => `#${index + 1}: ${error}`,
     format: "Format",
     sampleOutput: "Sample output",
     exporting: "Exporting…",
     export: "Export memories",
     downloaded: "Export downloaded",
     failed: "Export failed",
+    whoTitle: "Whose memories",
+    sourceTitle: "Where they came from",
+    sourceHint: "Leave empty to include every project, device and agent.",
+    jsonHint: "One file with every field, best for re-importing or scripts.",
+    csvHint: "Opens in a spreadsheet. Categories are joined with ;",
+    projectPlaceholder: "e.g. billing-api",
+    devicePlaceholder: "e.g. mac",
+    agentPlaceholder: "e.g. claude-code",
+    exactTitle: "Exact records",
+    exactDescription:
+      "Back up passwords, keys, accounts and other exact records with their values, and restore them here or on another Norn-M server.",
+    exactExport: "Export exact records",
+    exactWarning:
+      "The file holds every value in plain text, the same as the records themselves. Keep it somewhere safe.",
+    exactChooseFile: "Choose an exact records export",
+    exactFileSummary: (count: number, users: number, name: string) =>
+      `${count} ${count === 1 ? "record" : "records"} for ${users} ${users === 1 ? "user" : "users"} in ${name}`,
+    exactFileInvalid: "That file isn't a Norn-M exact records export",
+    exactFileEmpty: "No exact records found in that file",
+    exactImportHint:
+      "Each record is restored as exported, under its own user. A record that already exists with the same key is replaced and keeps its history.",
+    exactImportButton: (count: number) =>
+      `Import ${count} ${count === 1 ? "record" : "records"}`,
+    exactImporting: (done: number, total: number) =>
+      `Importing… ${done} of ${total}`,
+    exactImportResult: (created: number, updated: number, unchanged: number) =>
+      [
+        `${created} created`,
+        updated ? `${updated} replaced` : "",
+        unchanged ? `${unchanged} unchanged` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
   },
   consolidation: {
     title: "Consolidation",
@@ -147,6 +229,7 @@ const en = {
     },
     pendingOf: (pending: number, total: number) => `${pending} of ${total}`,
     deleteRun: "Delete run",
+    runs: "Runs",
     run: "Run consolidation",
     emptyTitle: "No runs yet",
     emptyDescription:
@@ -198,15 +281,28 @@ const zh: typeof en = {
     },
     editLabel: (name) => `编辑 ${name}`,
     deleteLabel: (name) => `删除 ${name}`,
-    tagExisting: "为已有记忆打标签",
+    tagMenu: "打标签",
+    tagUntagged: "为未打标签的记忆打标签",
+    tagUntaggedHint: "只处理从未打过标签的记忆",
+    retagAll: "全部重新打标签…",
+    retagAllHint: "替换每条记忆的分类",
+    retagTitle: "为所有记忆重新打标签？",
+    retagDescription:
+      "每条记忆都会重新交给已配置的 LLM（每条一次调用），并用它现在选出的分类替换原有分类，手动设置的分类也会被替换。适合在修改分类名称或描述之后使用。",
+    retagRuns: "在后台运行，期间可以继续使用控制台。",
+    retagConfirm: "全部重新打标签",
     add: "添加分类",
+    viewMemoriesLabel: (name) => `查看「${name}」下的记忆`,
+    nameRequired: "请填写名称。",
+    howItWorks:
+      "LLM 打标签时会阅读每个分类的描述，所以请写清楚哪些内容属于这个分类，而不只是写个名字。",
     emptyTitle: "暂无分类",
     emptyDescription:
       "添加如“健康”“偏好”“工作”等分类。简短的描述能帮助 LLM 更准确地打标签。",
     editTitle: "编辑分类",
     addTitle: "添加分类",
     editDescription: "重命名会同步更新所有已打上该分类的记忆。",
-    addDescription: "仅对之后新增的记忆生效。旧记忆请使用“为已有记忆打标签”。",
+    addDescription: "仅对之后新增的记忆生效。旧记忆请使用“打标签”。",
     namePlaceholder: "例如：健康",
     descriptionPlaceholder: "例如：疾病、过敏、健身与饮食",
     deleteTitle: "删除分类",
@@ -255,16 +351,80 @@ const zh: typeof en = {
       "验证方法：用此密钥对原始请求体计算 HMAC-SHA256，并与 X-Norn-M-Signature 请求头（sha256=<hex>）比对。",
     deleteTitle: "删除 Webhook",
     deleteDescription: "该接收地址将立即停止接收事件。",
+    edit: "编辑",
+    editLabel: (url) => `编辑 ${url}`,
+    editTitle: "编辑 Webhook",
+    editDescription: "修改事件的接收地址和要发送的事件。",
+    saved: "Webhook 已保存",
+    sendTest: "发送测试",
+    urlInvalid: "请填写完整的 http:// 或 https:// 地址。",
+    eventsRequired: "请至少选择一个事件。",
+    paused: "已暂停",
+    activeLabel: "启用",
   },
   exportPage: {
-    title: "导出",
-    subtitle: "将记忆导出为 JSON 或 CSV，可按条件筛选。",
+    title: "导出与导入",
+    subtitle: "将记忆导出为 JSON 或 CSV，或把 JSON 导出文件重新导入。",
+    importTitle: "导入",
+    importDescription:
+      "载入本服务器或其他 Norn-M 服务器的 JSON 导出文件。记忆按原文保存，并保留所属对象、分类和来源。",
+    chooseFile: "选择 JSON 导出文件",
+    chooseAnother: "选择其他文件",
+    fileSummary: (count: number, name: string) =>
+      `${name} 中有 ${count} 条记忆`,
+    fileInvalid: "这不是 Norn-M 的 JSON 导出文件",
+    fileEmpty: "文件中没有记忆",
+    skipDuplicates: "跳过同一对象下已存在的记忆",
+    importButton: (count: number) => `导入 ${count} 条记忆`,
+    importing: (done: number, total: number) => `正在导入… ${done} / ${total}`,
+    importDone: "导入完成",
+    importResult: (imported: number, skipped: number, failed: number) =>
+      [
+        `已导入 ${imported} 条`,
+        skipped ? `${skipped} 条已存在` : "",
+        failed ? `${failed} 条失败` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    importFailed: "导入中断",
+    failedItem: (index: number, error: string) => `#${index + 1}：${error}`,
     format: "格式",
     sampleOutput: "输出示例",
     exporting: "导出中…",
     export: "导出记忆",
     downloaded: "导出文件已下载",
     failed: "导出失败",
+    whoTitle: "导出谁的记忆",
+    sourceTitle: "记忆来源",
+    sourceHint: "留空则包含所有项目、设备和 Agent。",
+    jsonHint: "单个文件，包含全部字段，适合重新导入或脚本处理。",
+    csvHint: "可用表格软件打开，多个分类以 ; 分隔。",
+    projectPlaceholder: "例如：billing-api",
+    devicePlaceholder: "例如：mac",
+    agentPlaceholder: "例如：claude-code",
+    exactTitle: "精确记录",
+    exactDescription:
+      "连同取值一起备份密码、密钥、账号等精确记录，并可恢复到本服务器或其他 Norn-M 服务器。",
+    exactExport: "导出精确记录",
+    exactWarning: "文件以明文保存所有取值，与记录本身一致。请妥善保管。",
+    exactChooseFile: "选择精确记录导出文件",
+    exactFileSummary: (count: number, users: number, name: string) =>
+      `${name} 中有 ${users} 个用户的 ${count} 条记录`,
+    exactFileInvalid: "这不是 Norn-M 的精确记录导出文件",
+    exactFileEmpty: "文件中没有精确记录",
+    exactImportHint:
+      "每条记录按导出时的内容恢复到原用户下。已存在的同名记录会被替换，并保留其历史版本。",
+    exactImportButton: (count: number) => `导入 ${count} 条记录`,
+    exactImporting: (done: number, total: number) =>
+      `正在导入… ${done} / ${total}`,
+    exactImportResult: (created: number, updated: number, unchanged: number) =>
+      [
+        `新建 ${created} 条`,
+        updated ? `替换 ${updated} 条` : "",
+        unchanged ? `${unchanged} 条无变化` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
   },
   consolidation: {
     title: "记忆整合",
@@ -311,6 +471,7 @@ const zh: typeof en = {
     },
     pendingOf: (pending, total) => `${pending} / ${total}`,
     deleteRun: "删除运行记录",
+    runs: "运行记录",
     run: "开始整合",
     emptyTitle: "暂无运行记录",
     emptyDescription:

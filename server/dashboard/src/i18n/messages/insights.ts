@@ -1,7 +1,11 @@
 const en = {
   settings: {
     title: "Settings",
+    subtitle: "Your account, password and how the dashboard looks.",
     profile: "Profile",
+    profileDescription: "The name and email you sign in with.",
+    passwordDescription: "Use at least 8 characters.",
+    appearanceDescription: "Saved in this browser only.",
     profileUpdated: "Profile updated",
     profileFailed: "Failed to update profile",
     saveProfile: "Save profile",
@@ -18,6 +22,36 @@ const en = {
     theme: "Theme",
     themes: { light: "Light", dark: "Dark", system: "System" },
     language: "Language",
+    memberSince: (date: string) => `Member since ${date}`,
+    lastSignIn: (when: string) => `Last signed in ${when}`,
+    roleAdmin: "Admin",
+    sessions: "Signed-in browsers",
+    sessionsDescription:
+      "Every browser where you're signed in to this dashboard.",
+    sessionsCount: (n: number) =>
+      n <= 1
+        ? "Only this browser is signed in."
+        : `${n} browsers are signed in, including this one.`,
+    signOutOthers: "Sign out other browsers",
+    signOutOthersHint:
+      "They lose access within 30 minutes, when their current sign-in expires.",
+    signedOutOthers: (n: number) =>
+      n === 0
+        ? "No other browsers were signed in"
+        : `Signed out ${n} other ${n === 1 ? "browser" : "browsers"}`,
+    signOutOthersFailed: "Couldn't sign out other browsers",
+    dangerZone: "Danger zone",
+    dangerDescription:
+      "Permanent. Export your memories first if you might want them back.",
+    deleteAll: "Delete all memories",
+    deleteAllDescription:
+      "Removes every memory for every user and agent, with its history. Exact records, API keys and settings stay.",
+    deleteAllConfirmTitle: "Delete every memory?",
+    deleteAllConfirmBody: (word: string) =>
+      `This can't be undone. Type ${word} to confirm.`,
+    deleteAllConfirmWord: "DELETE",
+    deleteAllDone: "All memories deleted",
+    deleteAllFailed: "Couldn't delete memories",
   },
   analytics: {
     title: "Analytics",
@@ -58,7 +92,11 @@ const en = {
 const zh: typeof en = {
   settings: {
     title: "设置",
+    subtitle: "管理你的账号、密码和控制台外观。",
     profile: "个人资料",
+    profileDescription: "用于登录的名称和邮箱。",
+    passwordDescription: "至少 8 个字符。",
+    appearanceDescription: "仅保存在当前浏览器中。",
     profileUpdated: "个人资料已更新",
     profileFailed: "更新个人资料失败",
     saveProfile: "保存资料",
@@ -75,6 +113,31 @@ const zh: typeof en = {
     theme: "主题",
     themes: { light: "浅色", dark: "深色", system: "跟随系统" },
     language: "语言",
+    memberSince: (date: string) => `${date} 加入`,
+    lastSignIn: (when: string) => `上次登录：${when}`,
+    roleAdmin: "管理员",
+    sessions: "已登录的浏览器",
+    sessionsDescription: "你登录了此控制台的所有浏览器。",
+    sessionsCount: (n: number) =>
+      n <= 1
+        ? "只有当前浏览器处于登录状态。"
+        : `共有 ${n} 个浏览器处于登录状态，包括当前浏览器。`,
+    signOutOthers: "退出其他浏览器",
+    signOutOthersHint: "它们会在 30 分钟内失去访问权限，即当前登录凭证过期时。",
+    signedOutOthers: (n: number) =>
+      n === 0 ? "没有其他已登录的浏览器" : `已退出 ${n} 个其他浏览器`,
+    signOutOthersFailed: "退出其他浏览器失败",
+    dangerZone: "危险操作",
+    dangerDescription: "操作不可撤销。如果之后可能还需要这些记忆，请先导出。",
+    deleteAll: "删除所有记忆",
+    deleteAllDescription:
+      "删除所有用户和智能体的全部记忆及其历史记录。精确记录、API 密钥和设置不受影响。",
+    deleteAllConfirmTitle: "删除所有记忆？",
+    deleteAllConfirmBody: (word: string) =>
+      `此操作无法撤销。输入 ${word} 以确认。`,
+    deleteAllConfirmWord: "DELETE",
+    deleteAllDone: "已删除所有记忆",
+    deleteAllFailed: "删除记忆失败",
   },
   analytics: {
     title: "数据分析",

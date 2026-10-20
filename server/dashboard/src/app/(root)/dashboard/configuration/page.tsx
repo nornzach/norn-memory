@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2, PlugZap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  PageHeader,
+  Panel,
+  PanelBody,
+  PanelHeader,
+} from "@/components/shared/page";
+import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { ProviderFields } from "@/components/self-hosted/provider-fields";
+import { InstructionsPanel } from "@/components/self-hosted/instructions-panel";
 import { getErrorMessage } from "@/lib/error-message";
 import { api } from "@/utils/api";
 import { MEMORY_ENDPOINTS } from "@/utils/api-endpoints";
@@ -113,73 +121,95 @@ export default function ConfigurationPage() {
     onChange: (patch: Partial<ProviderForm>) => updateForm(section, patch),
   });
 
-  return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold font-fustat">
-          {t.configuration.title}
-        </h1>
-        {isPrefilling && (
-          <p className="text-sm text-onSurface-default-tertiary">
-            {t.configuration.loading}
-          </p>
+  const actions = isAdmin && (
+    <>
+      <Button
+        variant="outline"
+        onClick={handleTest}
+        disabled={!canSubmit || isTesting || isSaving}
+      >
+        {isTesting ? (
+          <Loader2 className="animate-spin" aria-hidden />
+        ) : (
+          <PlugZap aria-hidden />
         )}
+        {isTesting ? t.configuration.testing : t.configuration.testConnection}
+      </Button>
+      <Button
+        onClick={handleSave}
+        disabled={!canSubmit || isSaving || isTesting}
+      >
+        {isSaving && <Loader2 className="animate-spin" aria-hidden />}
+        {isSaving ? t.common.saving : t.configuration.save}
+      </Button>
+    </>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title={t.configuration.title}
+        description={t.configuration.subtitle}
+        actions={actions}
+      />
+
+      {!isAdmin && (
+        <p className="mb-4 rounded-lg bg-info-soft px-4 py-3 text-sm text-info">
+          {t.configuration.readOnly}
+        </p>
+      )}
+
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2",
+          isPrefilling && "opacity-60",
+        )}
+        aria-busy={isPrefilling}
+      >
+        {(["llm", "embedder"] as const).map((section) => (
+          <Panel key={section}>
+            <PanelHeader
+              title={
+                section === "llm"
+                  ? t.configuration.llmProvider
+                  : t.configuration.embeddingModel
+              }
+              description={
+                section === "llm"
+                  ? t.configuration.llmDescription
+                  : t.configuration.embedderDescription
+              }
+            />
+            <PanelBody>
+              <ProviderFields {...sectionProps(section)} />
+            </PanelBody>
+          </Panel>
+        ))}
       </div>
 
-      {(["llm", "embedder"] as const).map((section) => (
-        <Card key={section} className="border-memBorder-primary">
-          <CardHeader>
-            <CardTitle className="text-sm">
-              {section === "llm"
-                ? t.configuration.llmProvider
-                : t.configuration.embeddingModel}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProviderFields {...sectionProps(section)} />
-          </CardContent>
-        </Card>
-      ))}
+      <InstructionsPanel
+        saved={config ? (config.custom_instructions ?? "") : undefined}
+        disabled={!isAdmin}
+        onSaved={refetch}
+      />
 
-      <p className="text-xs text-onSurface-default-tertiary">
-        {t.configuration.otherProviderBefore}
-        <a
-          href="https://github.com/nornzach/norn-memory/blob/main/docs/configuration.md#providers"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-4 hover:text-onSurface-default-primary"
-        >
-          {t.configuration.setupGuide}
-        </a>
-        {t.configuration.otherProviderAfter}
-      </p>
-
-      {isAdmin && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={handleTest}
-              disabled={!canSubmit || isTesting || isSaving}
-            >
-              {isTesting
-                ? t.configuration.testing
-                : t.configuration.testConnection}
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!canSubmit || isSaving || isTesting}
-            >
-              {isSaving ? t.common.saving : t.configuration.save}
-            </Button>
-          </div>
-          {!canSubmit && config && (
-            <p className="text-xs text-onSurface-default-tertiary">
-              {t.configuration.requiredFields}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
+      <div className="mt-4 space-y-2 text-xs text-ink-3">
+        {isAdmin && !canSubmit && config && (
+          <p className="text-warning">{t.configuration.requiredFields}</p>
+        )}
+        <p>
+          {t.configuration.otherProviderBefore}
+          <a
+            href="https://github.com/nornzach/norn-memory/blob/main/docs/configuration.md#providers"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-brand-text underline-offset-4 hover:underline"
+          >
+            {t.configuration.setupGuide}
+          </a>
+          {t.configuration.otherProviderAfter}
+        </p>
+      </div>
+    </>
   );
 }

@@ -30,12 +30,13 @@ export default async function SetupLayout({
       )}
       suppressHydrationWarning
     >
-      <body className="font-fustat" suppressHydrationWarning>
+      <body className="font-sans" suppressHydrationWarning>
         <I18nProvider initialLocale={locale}>
           <AuthProvider>
             <ThemeProvider
               attribute="class"
-              defaultTheme="light"
+              defaultTheme="system"
+              enableSystem
               disableTransitionOnChange
             >
               {children}

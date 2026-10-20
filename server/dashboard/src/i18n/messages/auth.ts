@@ -1,6 +1,9 @@
 const en = {
   login: {
     title: "Sign in to Norn-M",
+    subtitle: "Use the admin account created during setup.",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
     invalidEmail: "Enter a valid email address.",
     failed: "Login failed",
     signingIn: "Signing in…",
@@ -13,7 +16,7 @@ const en = {
     taglineDetail: "Runs on your own network. Nothing leaves it.",
   },
   setup: {
-    steps: ["Admin Account", "Providers", "API Key", "Use Case", "Quick Test"],
+    steps: ["Admin account", "Providers", "API key", "Use case", "Quick test"],
     stepTitles: [
       "Create your admin account",
       "Review provider configuration",
@@ -46,31 +49,32 @@ const en = {
     },
     namePlaceholder: "Your name",
     passwordPlaceholder: "Min 8 characters",
-    confirmPassword: "Confirm Password",
+    confirmPassword: "Confirm password",
     creating: "Creating…",
-    createAdmin: "Create Admin Account",
+    createAdmin: "Create admin account",
     noLlmKey:
       "No LLM provider API key is configured on the server. Paste one below to continue — it will be saved to the server and used for all memory operations.",
-    llmProvider: "LLM Provider",
+    llmProvider: "LLM provider",
     selectProvider: "Select provider",
     model: "Model",
-    llmApiKey: "LLM API Key",
+    llmApiKey: "LLM API key",
     keepExistingKey: "Leave blank to keep existing key",
     sharedKeyHint:
       "Also used for the embedder when it shares the same provider.",
     reuseLlmKey: "Leave blank to reuse the LLM key above",
-    embedderProvider: "Embedder Provider",
+    embedderProvider: "Embedder provider",
     otherProviderBefore:
       "Need a provider that doesn't speak the OpenAI API? Install its Python package and rebuild the image. See ",
     supportedProviders: "supported providers",
     otherProviderAfter: ".",
-    saveAndContinue: "Save & Continue",
+    saveAndContinue: "Save and continue",
     keyLabel: "Label for this key",
-    defaultKeyLabel: "My First Key",
+    defaultKeyLabel: "My first key",
     generating: "Generating…",
-    generateKey: "Generate API Key",
-    yourKey: "Your API Key",
-    saveKeyWarning: "Save this key. You will not see it again.",
+    generateKey: "Generate API key",
+    yourKey: "Your API key",
+    saveKeyWarning:
+      "You can show this key again any time on the API Keys page.",
     describeUseCase: "Describe your use case",
     useCasePlaceholder:
       "e.g. A personal assistant that remembers my preferences",
@@ -84,18 +88,33 @@ const en = {
     missingApiUrl:
       "NEXT_PUBLIC_API_URL is not set. Set it in .env and restart before running this test.",
     testing: "Testing…",
-    runTest: "Run Test",
+    runTest: "Run test",
     fixConfigBefore: "Provider credentials or model wrong? Fix them in",
     configuration: "Configuration",
     fixConfigAfter: "and run the test again.",
     testSuccess: "Memory created successfully",
-    goToDashboard: "Go to Dashboard",
+    goToDashboard: "Go to dashboard",
+    stepOf: (step: number, total: number) => `Step ${step} of ${total}`,
+    stepDescriptions: [
+      "This account manages the server, its API keys and settings.",
+      "The models Norn-M uses to extract and embed memories. Keys are stored on the server.",
+      "Agents send this key in the X-API-Key header.",
+      "Optional. Tailor which facts the extractor keeps for your agents.",
+      "Sends one message through the API to check everything works.",
+    ],
+    skipTest: "Skip test",
+    copyCommand: "Copy command",
+    testUser:
+      "The test memory is stored for user setup-test; delete it any time on the Memories page.",
   },
 };
 
 const zh: typeof en = {
   login: {
     title: "登录 Norn-M",
+    subtitle: "使用初始化时创建的管理员账户登录。",
+    showPassword: "显示密码",
+    hidePassword: "隐藏密码",
     invalidEmail: "请输入有效的邮箱地址。",
     failed: "登录失败",
     signingIn: "登录中…",
@@ -163,7 +182,7 @@ const zh: typeof en = {
     generating: "生成中…",
     generateKey: "生成 API 密钥",
     yourKey: "你的 API 密钥",
-    saveKeyWarning: "请保存此密钥，之后将无法再次查看。",
+    saveKeyWarning: "之后随时可以在 API 密钥页面再次查看此密钥。",
     describeUseCase: "描述你的使用场景",
     useCasePlaceholder: "例如：一个能记住我偏好的个人助理",
     instructionsHint:
@@ -182,6 +201,17 @@ const zh: typeof en = {
     fixConfigAfter: "中修正后重新测试。",
     testSuccess: "记忆创建成功",
     goToDashboard: "进入控制台",
+    stepOf: (step: number, total: number) => `第 ${step} 步，共 ${total} 步`,
+    stepDescriptions: [
+      "这个账户用于管理服务器、API 密钥和各项设置。",
+      "Norn-M 用来提取和向量化记忆的模型。密钥保存在服务器上。",
+      "Agent 通过 X-API-Key 请求头发送此密钥。",
+      "可选。调整提取器为你的 Agent 重点保留哪些信息。",
+      "通过 API 发送一条消息，检查一切是否正常。",
+    ],
+    skipTest: "跳过测试",
+    copyCommand: "复制命令",
+    testUser: "测试记忆保存在用户 setup-test 下，可随时在“记忆”页面删除。",
   },
 };
 

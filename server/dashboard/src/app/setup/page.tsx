@@ -2,12 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy } from "lucide-react";
-import { CopyToClipboard } from "react-copy-to-clipboard";
+import {
+  ArrowRight,
+  Check,
+  CircleCheck,
+  KeyRound,
+  Loader2,
+  PlugZap,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { AuthFrame } from "@/components/auth/auth-frame";
+import { CopyButton } from "@/components/misc/copy-button";
+import { Field } from "@/components/shared/field";
 import { useAuth } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
@@ -32,7 +41,6 @@ import {
 import { ProviderFields } from "@/components/self-hosted/provider-fields";
 import { useProviderForms } from "@/hooks/use-provider-forms";
 import { isValidEmail } from "@/lib/validators";
-import { LanguageSwitcher } from "@/components/misc/language-switcher";
 import { useI18n } from "@/i18n/provider";
 
 type BundledProviders = {
@@ -71,7 +79,6 @@ export default function SetupPage() {
 
   const [apiKey, setApiKey] = useState("");
   const [keyLabel, setKeyLabel] = useState("");
-  const [copied, setCopied] = useState(false);
   const [testSuccess, setTestSuccess] = useState(false);
 
   const [useCase, setUseCase] = useState("");
@@ -240,6 +247,40 @@ export default function SetupPage() {
     setStep(4);
   };
 
+  const handleGenerateInstructions = async () => {
+    setError("");
+    setIsGeneratingInstructions(true);
+    try {
+      const res = await api.post(MEMORY_ENDPOINTS.GENERATE_INSTRUCTIONS, {
+        use_case: useCase,
+      });
+      setCustomInstructions(res.data.custom_instructions);
+      if (res.data.test_message) {
+        setTestMessage(res.data.test_message);
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, t.setup.errors.generateInstructions));
+    } finally {
+      setIsGeneratingInstructions(false);
+    }
+  };
+
+  const handleSaveInstructions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    try {
+      await api.post(MEMORY_ENDPOINTS.CONFIGURE, {
+        custom_instructions: customInstructions,
+      });
+      handleContinueToQuickTest();
+    } catch (err) {
+      setError(getErrorMessage(err, t.setup.errors.saveInstructions));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleGoToDashboard = (e: React.FormEvent) => {
     e.preventDefault();
     router.push("/dashboard/requests");
@@ -279,119 +320,176 @@ export default function SetupPage() {
     }
   };
 
+  const totalSteps = t.setup.steps.length;
+  // Single-quoted for the shell, so quotes in the test message can't break the command.
+  const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+  const curlCommand = [
+    `curl -X POST ${apiUrl || "<API_URL>"}/memories`,
+    `  -H "X-API-Key: ${apiKey}"`,
+    `  -H "Content-Type: application/json"`,
+    `  -d ${shellQuote(
+      JSON.stringify({
+        messages: [{ role: "user", content: testMessage }],
+        user_id: "setup-test",
+      }),
+    )}`,
+  ].join(" \\\n");
+
+  const actions = "flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end";
+
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-surface-default-primary p-4">
-      <LanguageSwitcher className="absolute right-4 top-4" />
-      <div className="w-full max-w-[560px] space-y-6">
-        <div className="flex items-center justify-center gap-2">
-          {t.setup.steps.map((label, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div
-                className={cn(
-                  "size-7 rounded-full flex items-center justify-center text-xs font-medium",
-                  i <= step
-                    ? "bg-memPurple-500 text-white"
-                    : "bg-memNeutral-200 text-onSurface-default-tertiary",
-                )}
-              >
-                {i < step ? <Check className="size-3.5" /> : i + 1}
-              </div>
-              {i < t.setup.steps.length - 1 && (
-                <div
-                  className={cn(
-                    "w-8 h-[2px]",
-                    i < step ? "bg-memPurple-500" : "bg-memNeutral-200",
-                  )}
-                />
+    <AuthFrame width="wide">
+      <ol className="mb-4 grid grid-cols-5 gap-1.5 sm:gap-2">
+        {t.setup.steps.map((label, i) => (
+          <li
+            key={label}
+            aria-current={i === step ? "step" : undefined}
+            className="min-w-0"
+          >
+            <span
+              className={cn(
+                "block h-1 rounded-full transition-colors",
+                i <= step ? "bg-brand" : "bg-line-strong",
               )}
-            </div>
-          ))}
+              aria-hidden
+            />
+            <span
+              className={cn(
+                "mt-2 hidden items-center gap-1 truncate text-xs sm:flex",
+                i === step
+                  ? "font-medium text-ink"
+                  : i < step
+                    ? "text-ink-2"
+                    : "text-ink-3",
+              )}
+            >
+              {i < step && (
+                <Check className="size-3 shrink-0 text-brand" aria-hidden />
+              )}
+              <span className="truncate">{label}</span>
+            </span>
+            <span className="sr-only sm:hidden">{label}</span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="overflow-hidden rounded-2xl border border-line bg-panel shadow-elev-2">
+        <div className="border-b border-line px-5 py-5 sm:px-8 sm:py-6">
+          <p className="text-xs font-medium text-brand-text">
+            {t.setup.stepOf(step + 1, totalSteps)}
+            <span className="sm:hidden"> · {t.setup.steps[step]}</span>
+          </p>
+          <h1 className="mt-1.5 font-serif text-[26px] font-normal leading-tight text-ink">
+            {t.setup.stepTitles[step]}
+          </h1>
+          <p className="mt-1 text-sm leading-6 text-ink-3">
+            {t.setup.stepDescriptions[step]}
+          </p>
         </div>
-        <p className="text-center text-sm text-onSurface-default-tertiary">
-          {t.setup.steps[step]}
-        </p>
 
-        <Card className="border-memBorder-primary">
-          <CardContent className="p-6 space-y-4">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold font-fustat">
-                {t.setup.stepTitles[step]}
-              </h2>
-              {isPrefillingConfig && step === 1 && (
-                <p className="text-xs text-onSurface-default-tertiary">
-                  {t.setup.checkingConfig}
-                </p>
-              )}
-            </div>
-            {error && (
-              <p className="text-sm text-onSurface-danger-primary">{error}</p>
-            )}
+        <div className="space-y-5 px-5 py-5 sm:px-8 sm:py-6">
+          {error && (
+            <p
+              className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
 
-            {step === 0 && (
-              <form onSubmit={handleStep1} className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="setup-name">{t.common.name}</Label>
-                  <Input
-                    id="setup-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t.setup.namePlaceholder}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="setup-email">{t.common.email}</Label>
-                  <Input
-                    id="setup-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@company.com"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="setup-password">{t.common.password}</Label>
+          {step === 0 && (
+            <form onSubmit={handleStep1} className="space-y-4">
+              <Field id="setup-name" label={t.common.name}>
+                <Input
+                  id="setup-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t.setup.namePlaceholder}
+                  autoComplete="name"
+                  autoFocus
+                />
+              </Field>
+              <Field id="setup-email" label={t.common.email}>
+                <Input
+                  id="setup-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@company.com"
+                  autoComplete="username"
+                />
+              </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field id="setup-password" label={t.common.password}>
                   <Input
                     id="setup-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t.setup.passwordPlaceholder}
+                    autoComplete="new-password"
                   />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="setup-confirm-password">
-                    {t.setup.confirmPassword}
-                  </Label>
+                </Field>
+                <Field
+                  id="setup-confirm-password"
+                  label={t.setup.confirmPassword}
+                  error={
+                    confirmPassword && password !== confirmPassword
+                      ? t.setup.errors.passwordMismatch
+                      : undefined
+                  }
+                >
                   <Input
                     id="setup-confirm-password"
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
                   />
-                </div>
+                </Field>
+              </div>
+              <div className={actions}>
                 <Button
                   type="submit"
                   disabled={isLoading || !name || !email || !password}
-                  className="w-full"
+                  className="sm:min-w-40"
                 >
+                  {isLoading && (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  )}
                   {isLoading ? t.setup.creating : t.setup.createAdmin}
                 </Button>
-              </form>
-            )}
+              </div>
+            </form>
+          )}
 
-            {step === 1 && (
-              <form onSubmit={handleStep2} className="space-y-4">
-                {!serverHasLlmKey && (
-                  <div className="rounded-md border border-memBorder-primary bg-surface-default-secondary p-3">
-                    <p className="text-xs text-onSurface-default-tertiary">
-                      {t.setup.noLlmKey}
-                    </p>
-                  </div>
-                )}
+          {step === 1 && (
+            <form
+              onSubmit={handleStep2}
+              className={cn("space-y-5", isPrefillingConfig && "opacity-60")}
+              aria-busy={isPrefillingConfig}
+            >
+              {isPrefillingConfig && (
+                <p
+                  className="flex items-center gap-2 text-sm text-ink-3"
+                  role="status"
+                >
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  {t.setup.checkingConfig}
+                </p>
+              )}
+              {!isPrefillingConfig && !serverHasLlmKey && (
+                <p className="rounded-lg bg-info-soft px-3 py-2.5 text-sm leading-5 text-info">
+                  {t.setup.noLlmKey}
+                </p>
+              )}
 
+              <section className="space-y-4">
+                <h2 className="text-[13px] font-semibold text-ink">
+                  {t.setup.llmProvider}
+                </h2>
                 <ProviderFields
                   {...providerFieldProps("llm")}
-                  providerLabel={t.setup.llmProvider}
                   keyLabel={t.setup.llmApiKey}
                   keyPlaceholder={
                     serverHasLlmKey && sameEndpoint(saved.llm, forms.llm)
@@ -400,285 +498,309 @@ export default function SetupPage() {
                   }
                   keyHint={t.setup.sharedKeyHint}
                 />
+              </section>
 
-                <div className="border-t border-memBorder-primary pt-4">
-                  <ProviderFields
-                    {...providerFieldProps("embedder")}
-                    providerLabel={t.setup.embedderProvider}
-                    keyPlaceholder={
-                      forms.llm.apiKey.trim() &&
-                      sameEndpoint(forms.llm, forms.embedder)
-                        ? t.setup.reuseLlmKey
-                        : undefined
-                    }
-                  />
-                </div>
+              <section className="space-y-4 border-t border-line pt-5">
+                <h2 className="text-[13px] font-semibold text-ink">
+                  {t.setup.embedderProvider}
+                </h2>
+                <ProviderFields
+                  {...providerFieldProps("embedder")}
+                  keyPlaceholder={
+                    forms.llm.apiKey.trim() &&
+                    sameEndpoint(forms.llm, forms.embedder)
+                      ? t.setup.reuseLlmKey
+                      : undefined
+                  }
+                />
+              </section>
 
-                <p className="text-xs text-onSurface-default-tertiary">
-                  {t.setup.otherProviderBefore}
-                  <a
-                    href={SUPPORTED_PROVIDERS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-4 hover:text-onSurface-default-primary"
-                  >
-                    {t.setup.supportedProviders}
-                  </a>
-                  {t.setup.otherProviderAfter}
-                </p>
+              <p className="text-xs leading-5 text-ink-3">
+                {t.setup.otherProviderBefore}
+                <a
+                  href={SUPPORTED_PROVIDERS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-brand-text underline-offset-4 hover:underline"
+                >
+                  {t.setup.supportedProviders}
+                </a>
+                {t.setup.otherProviderAfter}
+              </p>
 
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleTestProviders}
-                    disabled={isLoading || isTesting || !providersReady}
-                  >
-                    {isTesting
-                      ? t.configuration.testing
-                      : t.configuration.testConnection}
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isLoading || isTesting || !providersReady}
-                    className="flex-1"
-                  >
-                    {isLoading ? t.common.saving : t.setup.saveAndContinue}
-                  </Button>
-                </div>
-              </form>
-            )}
+              <div className={actions}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestProviders}
+                  disabled={isLoading || isTesting || !providersReady}
+                >
+                  {isTesting ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <PlugZap aria-hidden />
+                  )}
+                  {isTesting
+                    ? t.configuration.testing
+                    : t.configuration.testConnection}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading || isTesting || !providersReady}
+                  className="sm:min-w-40"
+                >
+                  {isLoading && (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  )}
+                  {isLoading ? t.common.saving : t.setup.saveAndContinue}
+                </Button>
+              </div>
+            </form>
+          )}
 
-            {step === 2 && !apiKey && (
-              <form onSubmit={handleStep3} className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="setup-key-label">{t.setup.keyLabel}</Label>
-                  <Input
-                    id="setup-key-label"
-                    value={keyLabel}
-                    onChange={(e) => setKeyLabel(e.target.value)}
-                    placeholder={t.setup.defaultKeyLabel}
-                  />
-                </div>
-                <Button type="submit" disabled={isLoading} className="w-full">
+          {step === 2 && !apiKey && (
+            <form onSubmit={handleStep3} className="space-y-4">
+              <Field id="setup-key-label" label={t.setup.keyLabel}>
+                <Input
+                  id="setup-key-label"
+                  value={keyLabel}
+                  onChange={(e) => setKeyLabel(e.target.value)}
+                  placeholder={t.setup.defaultKeyLabel}
+                  autoComplete="off"
+                />
+              </Field>
+              <div className={actions}>
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="sm:min-w-40"
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <KeyRound aria-hidden />
+                  )}
                   {isLoading ? t.setup.generating : t.setup.generateKey}
                 </Button>
-              </form>
-            )}
+              </div>
+            </form>
+          )}
 
-            {step === 2 && apiKey && (
-              <form onSubmit={handleContinueToUseCase} className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="setup-api-key">{t.setup.yourKey}</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="setup-api-key"
-                      value={apiKey}
-                      readOnly
-                      className="font-mono text-sm"
-                    />
-                    <CopyToClipboard
-                      text={apiKey}
-                      onCopy={() => {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      }}
-                    >
-                      <Button variant="outline" size="icon">
-                        {copied ? (
-                          <Check className="size-4" />
-                        ) : (
-                          <Copy className="size-4" />
-                        )}
-                      </Button>
-                    </CopyToClipboard>
-                  </div>
-                  <p className="text-xs text-onSurface-danger-primary">
-                    {t.setup.saveKeyWarning}
-                  </p>
-                </div>
-                <Button type="submit" className="w-full">
-                  {t.common.continue}
-                </Button>
-              </form>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <Label htmlFor="setup-use-case">
-                    {t.setup.describeUseCase}
-                  </Label>
-                  <textarea
-                    id="setup-use-case"
-                    value={useCase}
-                    onChange={(e) => setUseCase(e.target.value)}
-                    placeholder={t.setup.useCasePlaceholder}
-                    className="flex w-full rounded-md border border-memBorder-primary bg-surface-default-primary px-3 py-2 text-sm placeholder:text-onSurface-default-tertiary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-memPurple-500 min-h-[80px] resize-y"
+          {step === 2 && apiKey && (
+            <form onSubmit={handleContinueToUseCase} className="space-y-4">
+              <Field
+                id="setup-api-key"
+                label={t.setup.yourKey}
+                hint={
+                  <span className="text-ink-3">{t.setup.saveKeyWarning}</span>
+                }
+              >
+                <div className="flex items-center gap-1 rounded-lg border border-line bg-sunken py-1 pl-3 pr-1">
+                  <input
+                    id="setup-api-key"
+                    value={apiKey}
+                    readOnly
+                    onFocus={(e) => e.target.select()}
+                    className="min-w-0 flex-1 bg-transparent font-mono text-sm text-ink outline-none"
+                  />
+                  <CopyButton
+                    text={apiKey}
+                    label={t.common.copy}
+                    showLabel
+                    variant="outline"
+                    size="sm"
                   />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {t.setup.useCasePresets.map((preset) => (
-                    <Button
+              </Field>
+              <div className={actions}>
+                <Button type="submit" className="sm:min-w-40">
+                  {t.common.continue}
+                  <ArrowRight aria-hidden />
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {step === 3 && (
+            <form onSubmit={handleSaveInstructions} className="space-y-4">
+              <Field
+                id="setup-use-case"
+                label={t.setup.describeUseCase}
+                hint={t.setup.instructionsHint}
+              >
+                <Textarea
+                  id="setup-use-case"
+                  value={useCase}
+                  onChange={(e) => setUseCase(e.target.value)}
+                  placeholder={t.setup.useCasePlaceholder}
+                  className="min-h-[88px]"
+                />
+              </Field>
+              <div className="flex flex-wrap gap-2">
+                {t.setup.useCasePresets.map((preset) => {
+                  const active = useCase === preset;
+                  return (
+                    <button
                       key={preset}
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      aria-pressed={active}
                       onClick={() => setUseCase(preset)}
                       className={cn(
-                        useCase === preset &&
-                          "border-memPurple-500 text-memPurple-500",
+                        "h-8 rounded-full border px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]",
+                        active
+                          ? "border-brand bg-brand-soft text-brand-text"
+                          : "border-line text-ink-2 hover:bg-subtle",
                       )}
                     >
                       {preset}
-                    </Button>
-                  ))}
-                </div>
-                <p className="text-xs text-onSurface-default-tertiary">
-                  {t.setup.instructionsHint}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleContinueToQuickTest}
-                    className="flex-1"
-                  >
-                    {t.setup.skip}
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={!useCase || isGeneratingInstructions}
-                    className="flex-1"
-                    onClick={async () => {
-                      setError("");
-                      setIsGeneratingInstructions(true);
-                      try {
-                        const res = await api.post(
-                          MEMORY_ENDPOINTS.GENERATE_INSTRUCTIONS,
-                          {
-                            use_case: useCase,
-                          },
-                        );
-                        setCustomInstructions(res.data.custom_instructions);
-                        if (res.data.test_message) {
-                          setTestMessage(res.data.test_message);
-                        }
-                      } catch (err) {
-                        setError(
-                          getErrorMessage(
-                            err,
-                            t.setup.errors.generateInstructions,
-                          ),
-                        );
-                      } finally {
-                        setIsGeneratingInstructions(false);
-                      }
-                    }}
-                  >
-                    {isGeneratingInstructions
-                      ? t.setup.generatingInstructions
-                      : t.setup.generateInstructions}
-                  </Button>
-                </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {customInstructions && (
+                <Field
+                  id="setup-instructions"
+                  label={t.setup.generatedInstructions}
+                >
+                  <Textarea
+                    id="setup-instructions"
+                    value={customInstructions}
+                    onChange={(e) => setCustomInstructions(e.target.value)}
+                    className="min-h-[160px]"
+                  />
+                </Field>
+              )}
+
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleContinueToQuickTest}
+                  className="text-ink-3 sm:mr-auto"
+                >
+                  {t.setup.skip}
+                </Button>
+                <Button
+                  type="button"
+                  variant={customInstructions ? "outline" : "default"}
+                  disabled={!useCase.trim() || isGeneratingInstructions}
+                  onClick={handleGenerateInstructions}
+                >
+                  {isGeneratingInstructions ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <Sparkles aria-hidden />
+                  )}
+                  {isGeneratingInstructions
+                    ? t.setup.generatingInstructions
+                    : t.setup.generateInstructions}
+                </Button>
                 {customInstructions && (
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="setup-instructions">
-                        {t.setup.generatedInstructions}
-                      </Label>
-                      <textarea
-                        id="setup-instructions"
-                        value={customInstructions}
-                        onChange={(e) => setCustomInstructions(e.target.value)}
-                        className="flex w-full rounded-md border border-memBorder-primary bg-surface-default-primary px-3 py-2 text-sm placeholder:text-onSurface-default-tertiary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-memPurple-500 min-h-[120px] resize-y"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      className="w-full"
-                      onClick={async () => {
-                        setError("");
-                        setIsLoading(true);
-                        try {
-                          await api.post(MEMORY_ENDPOINTS.CONFIGURE, {
-                            custom_instructions: customInstructions,
-                          });
-                          handleContinueToQuickTest();
-                        } catch (err) {
-                          setError(
-                            getErrorMessage(
-                              err,
-                              t.setup.errors.saveInstructions,
-                            ),
-                          );
-                        } finally {
-                          setIsLoading(false);
-                        }
-                      }}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? t.common.saving : t.setup.saveAndContinue}
-                    </Button>
-                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isLoading || isGeneratingInstructions}
+                  >
+                    {isLoading && (
+                      <Loader2 className="animate-spin" aria-hidden />
+                    )}
+                    {isLoading ? t.common.saving : t.setup.saveAndContinue}
+                  </Button>
                 )}
               </div>
-            )}
+            </form>
+          )}
 
-            {step === 4 && (
-              <form
-                onSubmit={testSuccess ? handleGoToDashboard : handleTest}
-                className="space-y-4"
+          {step === 4 && (
+            <form
+              onSubmit={testSuccess ? handleGoToDashboard : handleTest}
+              className="space-y-4"
+            >
+              {!apiUrl && (
+                <p className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning">
+                  {t.setup.missingApiUrl}
+                </p>
+              )}
+              <Field
+                id="setup-test-message"
+                label={t.memories.contentLabel}
+                hint={t.setup.testUser}
               >
-                <div className="space-y-1">
-                  <Label>{t.setup.testLabel}</Label>
-                  {!apiUrl && (
-                    <p className="text-xs text-onSurface-danger-primary">
-                      {t.setup.missingApiUrl}
-                    </p>
-                  )}
-                  <pre className="text-xs bg-surface-default-secondary p-3 rounded font-mono overflow-x-auto">{`curl -X POST ${apiUrl}/memories \\
-  -H "X-API-Key: ${apiKey}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"messages": [{"role": "user", "content": "${testMessage}"}], "user_id": "setup-test"}'`}</pre>
-                </div>
-                {!testSuccess ? (
-                  <>
-                    <Button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full"
-                    >
-                      {isLoading ? t.setup.testing : t.setup.runTest}
-                    </Button>
-                    {error && (
-                      <p className="text-xs text-onSurface-default-tertiary">
-                        {t.setup.fixConfigBefore}{" "}
-                        <a
-                          href="/dashboard/configuration"
-                          className="underline underline-offset-4 hover:text-onSurface-default-primary"
-                        >
-                          {t.setup.configuration}
-                        </a>{" "}
-                        {t.setup.fixConfigAfter}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-onSurface-positive-primary">
-                      <Check className="size-4" /> {t.setup.testSuccess}
-                    </div>
-                    <Button type="submit" className="w-full">
+                <Input
+                  id="setup-test-message"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  disabled={testSuccess}
+                  autoComplete="off"
+                />
+              </Field>
+              <div className="relative rounded-lg border border-line bg-sunken">
+                <pre className="scrollbar-thin overflow-x-auto whitespace-pre-wrap break-all p-3 pr-12 font-mono text-xs leading-5 text-ink-2">
+                  {curlCommand}
+                </pre>
+                <CopyButton
+                  text={curlCommand}
+                  label={t.setup.copyCommand}
+                  className="absolute right-1.5 top-1.5 size-8"
+                />
+              </div>
+
+              {testSuccess ? (
+                <>
+                  <p
+                    className="flex items-center gap-2 rounded-lg bg-success-soft px-3 py-2.5 text-sm font-medium text-success"
+                    role="status"
+                  >
+                    <CircleCheck className="size-4 shrink-0" aria-hidden />
+                    {t.setup.testSuccess}
+                  </p>
+                  <div className={actions}>
+                    <Button type="submit" className="sm:min-w-40">
                       {t.setup.goToDashboard}
+                      <ArrowRight aria-hidden />
                     </Button>
                   </div>
-                )}
-              </form>
-            )}
-          </CardContent>
-        </Card>
+                </>
+              ) : (
+                <>
+                  {error && (
+                    <p className="text-xs leading-5 text-ink-3">
+                      {t.setup.fixConfigBefore}{" "}
+                      <a
+                        href="/dashboard/configuration"
+                        className="font-medium text-brand-text underline-offset-4 hover:underline"
+                      >
+                        {t.setup.configuration}
+                      </a>{" "}
+                      {t.setup.fixConfigAfter}
+                    </p>
+                  )}
+                  <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => router.push("/dashboard/requests")}
+                      className="text-ink-3 sm:mr-auto"
+                    >
+                      {t.setup.skipTest}
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isLoading || !testMessage.trim()}
+                      className="sm:min-w-40"
+                    >
+                      {isLoading && (
+                        <Loader2 className="animate-spin" aria-hidden />
+                      )}
+                      {isLoading ? t.setup.testing : t.setup.runTest}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </form>
+          )}
+        </div>
       </div>
-    </div>
+    </AuthFrame>
   );
 }

@@ -50,7 +50,7 @@ export function NornWordmark({
     <span className={cn("inline-flex items-center gap-2", className)}>
       <NornMark size={size} />
       <span
-        className="font-fustat font-semibold tracking-tight text-onSurface-default-primary"
+        className="font-semibold tracking-tight text-ink"
         style={{ fontSize: Math.round(size * 0.72) }}
       >
         Norn-M

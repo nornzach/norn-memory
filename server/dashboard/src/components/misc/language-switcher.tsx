@@ -13,14 +13,11 @@ export function LanguageSwitcher({ className }: { className?: string }) {
       role="radiogroup"
       aria-label={t.common.language}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-md border border-memBorder-primary p-0.5 text-xs",
+        "inline-flex h-8 items-center gap-0.5 rounded-lg border border-line bg-panel p-0.5 text-xs shadow-elev-1",
         className,
       )}
     >
-      <Languages
-        className="mx-1 size-3.5 text-onSurface-default-tertiary"
-        aria-hidden
-      />
+      <Languages className="mx-1 size-3.5 text-ink-3" aria-hidden />
       {LOCALES.map((option) => (
         <button
           key={option}
@@ -29,10 +26,10 @@ export function LanguageSwitcher({ className }: { className?: string }) {
           aria-checked={locale === option}
           onClick={() => locale !== option && setLocale(option)}
           className={cn(
-            "rounded px-1.5 py-0.5 transition-colors",
+            "h-full rounded-md px-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]",
             locale === option
-              ? "bg-surface-default-tertiary text-onSurface-default-primary font-medium"
-              : "text-onSurface-default-tertiary hover:text-onSurface-default-secondary",
+              ? "bg-subtle text-ink"
+              : "text-ink-3 hover:text-ink",
           )}
         >
           {LOCALE_LABELS[option]}

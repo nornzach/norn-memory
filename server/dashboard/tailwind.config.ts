@@ -1,5 +1,14 @@
 import type { Config } from "tailwindcss";
 
+// A CSS-variable color that still supports opacity modifiers such as `bg-subtle/60`.
+// Tailwind cannot add alpha to a bare var(), so mix it with transparent instead.
+// Tailwind 3 accepts a function here, but its config types only allow strings.
+const tok = (name: string) =>
+  (({ opacityValue }: { opacityValue?: string }) =>
+    opacityValue === undefined || opacityValue === "1"
+      ? `var(${name})`
+      : `color-mix(in srgb, var(${name}) calc(${opacityValue} * 100%), transparent)`) as unknown as string;
+
 const config = {
   darkMode: ["class"],
   content: [
@@ -28,17 +37,89 @@ const config = {
       spacing: {
         "2.5": "0.625rem",
       },
+      screens: {
+        xs: "480px",
+      },
       fontFamily: {
-        sans: ["Inter", "system-ui"],
-        serif: ["ui-serif", "Georgia"],
-        mono: ["Monaco", "Consolas", '"Courier New"', "monospace"],
-        "inter-display": ["var(--font-inter)", "sans-serif"], // Now uses same as Inter
+        sans: [
+          "var(--font-inter)",
+          "Inter",
+          "system-ui",
+          "-apple-system",
+          "PingFang SC",
+          "Microsoft YaHei",
+          "sans-serif",
+        ],
+        serif: [
+          "Iowan Old Style",
+          "Charter",
+          "Palatino Linotype",
+          "Georgia",
+          "Songti SC",
+          "STSong",
+          "serif",
+        ],
+        mono: [
+          "var(--font-dm-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "monospace",
+        ],
+        "inter-display": ["var(--font-inter)", "sans-serif"],
         inter: ["var(--font-inter)", "sans-serif"],
-        roboto: ["var(--font-roboto-mono)", "sans-serif"],
-        fustat: ["var(--font-fustat, ui-sans-serif)", "sans-serif"],
+        roboto: ["var(--font-roboto-mono)", "monospace"],
+        // Legacy: Fustat was the old interface font; it now resolves to Inter.
+        fustat: ["var(--font-inter)", "system-ui", "sans-serif"],
         "dm-mono": ["var(--font-dm-mono, ui-monospace)", "monospace"],
       },
       colors: {
+        canvas: tok("--canvas"),
+        panel: tok("--panel"),
+        subtle: {
+          DEFAULT: tok("--subtle"),
+          hover: tok("--subtle-hover"),
+        },
+        sunken: tok("--sunken"),
+        line: {
+          DEFAULT: tok("--line"),
+          strong: tok("--line-strong"),
+        },
+        ink: {
+          DEFAULT: tok("--ink"),
+          2: tok("--ink-2"),
+          3: tok("--ink-3"),
+          inverse: tok("--ink-inverse"),
+        },
+        brand: {
+          DEFAULT: tok("--brand"),
+          hover: tok("--brand-hover"),
+          text: tok("--brand-text"),
+          soft: tok("--brand-soft"),
+          "soft-hover": tok("--brand-soft-hover"),
+          mark: tok("--brand-mark"),
+        },
+        action: {
+          DEFAULT: tok("--action"),
+          hover: tok("--action-hover"),
+          ink: tok("--action-ink"),
+        },
+        success: { DEFAULT: tok("--success"), soft: tok("--success-soft") },
+        warning: { DEFAULT: tok("--warning"), soft: tok("--warning-soft") },
+        danger: {
+          DEFAULT: tok("--danger"),
+          hover: tok("--danger-hover"),
+          soft: tok("--danger-soft"),
+        },
+        info: { DEFAULT: tok("--info"), soft: tok("--info-soft") },
+        chart: {
+          1: tok("--chart-1"),
+          2: tok("--chart-2"),
+          3: tok("--chart-3"),
+          4: tok("--chart-4"),
+          5: tok("--chart-5"),
+          grid: tok("--chart-grid"),
+        },
         onSurface: {
           primary: "hsla(var(--onSurface-primary))",
           tertiary: "hsla(var(--onSurface-tertiary))",
@@ -282,7 +363,10 @@ const config = {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        custom: "0px 3px 10px 0px rgba(0, 0, 0, 0.08)",
+        custom: "var(--shadow-md)",
+        "elev-1": "var(--shadow-sm)",
+        "elev-2": "var(--shadow-md)",
+        "elev-3": "var(--shadow-lg)",
       },
       keyframes: {
         "accordion-down": {

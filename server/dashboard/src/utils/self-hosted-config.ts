@@ -12,6 +12,8 @@ export type EffectiveConfig = {
   llm?: ProviderConfig;
   embedder?: ProviderConfig;
   vector_store?: { config?: { embedding_model_dims?: number } };
+  /** What the LLM should keep, and leave out, when it extracts memories. */
+  custom_instructions?: string | null;
 };
 
 export const getEffectiveConfig = (data: unknown): EffectiveConfig | null => {

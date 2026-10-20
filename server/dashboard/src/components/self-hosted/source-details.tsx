@@ -23,20 +23,14 @@ export function SourceCell({ source }: { source: Provenance }) {
   const { t } = useI18n();
   const where = [source.device, source.agent].filter(Boolean).join(" · ");
   if (!source.project && !where) {
-    return (
-      <span className="text-xs text-onSurface-default-tertiary">
-        {t.common.none}
-      </span>
-    );
+    return <span className="text-xs text-ink-3">{t.common.none}</span>;
   }
   return (
     <div className="min-w-0" title={source.cwd ?? undefined}>
-      {source.project && <p className="truncate text-sm">{source.project}</p>}
-      {where && (
-        <p className="truncate text-xs text-onSurface-default-tertiary">
-          {where}
-        </p>
+      {source.project && (
+        <p className="truncate text-sm text-ink">{source.project}</p>
       )}
+      {where && <p className="truncate text-xs text-ink-3">{where}</p>}
     </div>
   );
 }
@@ -53,20 +47,20 @@ export function SourceDetails({ source }: { source: Provenance }) {
   ];
   const recorded = rows.filter(([, value]) => value);
   return (
-    <div className="space-y-1">
-      <Label className="text-xs text-onSurface-default-tertiary">
+    <div className="space-y-2">
+      <Label className="text-xs font-medium text-ink-3">
         {t.source.column}
       </Label>
       {recorded.length ? (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
           {recorded.map(([label, value, wide]) => (
             <div key={label} className={wide ? "col-span-2" : undefined}>
-              <dt className="text-xs text-onSurface-default-tertiary">
-                {label}
-              </dt>
+              <dt className="text-xs text-ink-3">{label}</dt>
               <dd
                 className={
-                  wide ? "font-mono text-xs break-all" : "text-sm break-words"
+                  wide
+                    ? "break-all font-mono text-xs text-ink-2"
+                    : "break-words text-sm text-ink"
                 }
               >
                 {value}
@@ -75,9 +69,7 @@ export function SourceDetails({ source }: { source: Provenance }) {
           ))}
         </dl>
       ) : (
-        <p className="text-sm text-onSurface-default-tertiary">
-          {t.source.noSource}
-        </p>
+        <p className="text-sm text-ink-3">{t.source.noSource}</p>
       )}
     </div>
   );

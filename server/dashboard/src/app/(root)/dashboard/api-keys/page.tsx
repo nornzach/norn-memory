@@ -1,46 +1,53 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormEvent, useState } from "react";
+import { format } from "date-fns";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Eye,
+  KeyRound,
+  Loader2,
+  Pencil,
+  PlugZap,
+  Plus,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { DataTable } from "@/components/shared/data-table";
+import { CopyButton } from "@/components/misc/copy-button";
+import { Column, DataTable } from "@/components/shared/data-table";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { ErrorBanner } from "@/components/shared/error-banner";
+import { Field } from "@/components/shared/field";
+import { IdText, PageHeader, Panel } from "@/components/shared/page";
 import { EmptyState } from "@/components/self-hosted/empty-state";
 import DeleteConfirmationModal from "@/components/ui/delete-confirmation-modal";
-import { api } from "@/utils/api";
-import { API_KEY_ENDPOINTS, CATEGORY_ENDPOINTS } from "@/utils/api-endpoints";
+import { AgentSetupDialog } from "@/components/self-hosted/agent-setup-dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Plus, Copy, Check, Trash2, PlugZap } from "lucide-react";
-import { CopyToClipboard } from "react-copy-to-clipboard";
-import { format } from "date-fns";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
+import { api } from "@/utils/api";
+import { API_KEY_ENDPOINTS, CATEGORY_ENDPOINTS } from "@/utils/api-endpoints";
 import { useApiQuery } from "@/hooks/use-api-query";
 import {
   ApiKey,
   ApiKeyAccess,
   ApiKeyCreateResponse,
   ApiKeyScopes,
+  ApiKeySecret,
   Category,
 } from "@/types/api";
 import { useI18n } from "@/i18n/provider";
-import { AgentSetupDialog } from "@/components/self-hosted/agent-setup-dialog";
 
 type IdField = "user_ids" | "agent_ids" | "run_ids";
 
@@ -66,34 +73,36 @@ function parseList(value: string): string[] {
 export default function ApiKeysPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newLabel, setNewLabel] = useState("");
+  const [labelError, setLabelError] = useState("");
   const [newAccess, setNewAccess] = useState<ApiKeyAccess>("read_write");
   const [newIds, setNewIds] = useState<Record<IdField, string>>(EMPTY_IDS);
   const [newCategories, setNewCategories] = useState<string[]>([]);
   const [newKey, setNewKey] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [newKeyId, setNewKeyId] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
   const [keyToRevoke, setKeyToRevoke] = useState<ApiKey | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
-  const [setupKey, setSetupKey] = useState("");
-  const [setupUserId, setSetupUserId] = useState("");
+  const [setupKeyId, setSetupKeyId] = useState("");
+  const [shownKey, setShownKey] = useState<{
+    row: ApiKey;
+    key: string;
+  } | null>(null);
+  const [revealing, setRevealing] = useState("");
   const { t, dateLocale } = useI18n();
 
   const {
     data: keys = [],
     isLoading,
+    error,
     refetch,
   } = useApiQuery<ApiKey[]>(
-    async () => {
-      const res = await api.get<ApiKey[]>(API_KEY_ENDPOINTS.BASE);
-      return res.data ?? [];
-    },
+    async () => (await api.get<ApiKey[]>(API_KEY_ENDPOINTS.BASE)).data ?? [],
     { errorToast: t.apiKeys.loadFailed, initialData: [] },
   );
 
   const { data: categories = [] } = useApiQuery<Category[]>(
-    async () => {
-      const res = await api.get<Category[]>(CATEGORY_ENDPOINTS.BASE);
-      return res.data ?? [];
-    },
+    async () => (await api.get<Category[]>(CATEGORY_ENDPOINTS.BASE)).data ?? [],
     { initialData: [] },
   );
 
@@ -110,7 +119,39 @@ export default function ApiKeysPage() {
         : [...current, name],
     );
 
-  const handleCreate = async () => {
+  const resetCreate = () => {
+    setNewKey("");
+    setNewKeyId("");
+    setNewLabel("");
+    setLabelError("");
+    setNewAccess("read_write");
+    setNewIds(EMPTY_IDS);
+    setNewCategories([]);
+    setEditingKey(null);
+  };
+
+  const openEdit = (row: ApiKey) => {
+    setEditingKey(row);
+    setNewKey("");
+    setNewLabel(row.label);
+    setLabelError("");
+    setNewAccess(row.access);
+    setNewIds({
+      user_ids: row.user_ids.join(", "),
+      agent_ids: row.agent_ids.join(", "),
+      run_ids: row.run_ids.join(", "),
+    });
+    setNewCategories(row.categories);
+    setCreateOpen(true);
+  };
+
+  const handleCreate = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newLabel.trim()) {
+      setLabelError(t.apiKeys.labelRequired);
+      return;
+    }
+    setCreating(true);
     try {
       const scopes: ApiKeyScopes = {
         access: newAccess,
@@ -119,18 +160,32 @@ export default function ApiKeysPage() {
         run_ids: parseList(newIds.run_ids),
         categories: newCategories,
       };
+      if (editingKey) {
+        await api.put(API_KEY_ENDPOINTS.BY_ID(editingKey.id), {
+          label: newLabel.trim(),
+          ...scopes,
+        });
+        toast({ title: t.apiKeys.updated, variant: "success" });
+        setCreateOpen(false);
+        resetCreate();
+        void refetch();
+        return;
+      }
       const res = await api.post<ApiKeyCreateResponse>(API_KEY_ENDPOINTS.BASE, {
-        label: newLabel,
+        label: newLabel.trim(),
         ...scopes,
       });
       setNewKey(res.data.key);
+      setNewKeyId(res.data.id);
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
-        title: t.apiKeys.createFailed,
-        description: getErrorMessage(error),
+        title: editingKey ? t.apiKeys.updateFailed : t.apiKeys.createFailed,
+        description: getErrorMessage(err),
         variant: "destructive",
       });
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -141,328 +196,457 @@ export default function ApiKeysPage() {
       toast({ title: t.apiKeys.revoked, variant: "success" });
       setKeyToRevoke(null);
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
         title: t.apiKeys.revokeFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     }
   };
 
-  const handleDialogClose = (open: boolean) => {
-    if (!open) {
-      setNewKey("");
-      setNewLabel("");
-      setNewAccess("read_write");
-      setNewIds(EMPTY_IDS);
-      setNewCategories([]);
-      setCopied(false);
-    }
+  const handleDialogChange = (open: boolean) => {
+    if (creating) return;
+    if (!open) resetCreate();
     setCreateOpen(open);
   };
 
-  const openAgentSetup = (key = "", userId = "") => {
-    setSetupKey(key);
-    setSetupUserId(userId);
+  const openAgentSetup = (keyId = "") => {
+    setSetupKeyId(keyId);
     setSetupOpen(true);
   };
 
-  const handleSetupClose = (open: boolean) => {
-    // Forget the key once the dialog closes; it was only kept to prefill the prompt.
-    if (!open) setSetupKey("");
-    setSetupOpen(open);
+  const showKey = async (row: ApiKey) => {
+    setRevealing(row.id);
+    try {
+      const res = await api.get<ApiKeySecret>(API_KEY_ENDPOINTS.KEY(row.id));
+      setShownKey({ row, key: res.data.key });
+    } catch (err) {
+      toast({
+        title: t.apiKeys.showFailed,
+        description: getErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setRevealing("");
+    }
   };
 
-  const columns = [
-    {
-      key: "label" as keyof ApiKey,
-      label: t.apiKeys.columns.label,
-      width: 150,
-    },
-    {
-      key: "key_prefix" as keyof ApiKey,
-      label: t.apiKeys.columns.key,
-      width: 120,
-      render: (value: string) => (
-        <code className="text-xs font-mono">{value}...</code>
-      ),
-    },
-    {
-      key: "access" as keyof ApiKey,
-      label: t.apiKeys.columns.access,
-      width: 100,
-      render: (value: ApiKeyAccess) =>
-        value === "read" ? t.apiKeys.accessRead : t.apiKeys.accessReadWrite,
-    },
-    {
-      key: "user_ids" as keyof ApiKey,
-      label: t.apiKeys.columns.scope,
-      width: 220,
-      render: (_: string[], row: ApiKey) => {
-        const parts = [
-          ...row.user_ids.map((v) => `${t.apiKeys.scopeUser}: ${v}`),
-          ...row.agent_ids.map((v) => `${t.apiKeys.scopeAgent}: ${v}`),
-          ...row.run_ids.map((v) => `${t.apiKeys.scopeRun}: ${v}`),
-          ...row.categories.map((v) => `${t.apiKeys.scopeCategory}: ${v}`),
-        ];
-        if (parts.length === 0) {
-          return (
-            <span className="text-onSurface-default-tertiary">
-              {t.apiKeys.scopeAll}
-            </span>
-          );
+  const date = (value: string | null) =>
+    value
+      ? format(new Date(value), t.common.dateFormat, { locale: dateLocale })
+      : t.common.never;
+
+  const scopeChips = (row: ApiKey) => {
+    const parts = [
+      ...row.user_ids.map((v) => `${t.apiKeys.scopeUser}: ${v}`),
+      ...row.agent_ids.map((v) => `${t.apiKeys.scopeAgent}: ${v}`),
+      ...row.run_ids.map((v) => `${t.apiKeys.scopeRun}: ${v}`),
+      ...row.categories.map((v) => `${t.apiKeys.scopeCategory}: ${v}`),
+    ];
+    if (parts.length === 0) {
+      return <span className="text-sm text-ink-3">{t.apiKeys.scopeAll}</span>;
+    }
+    return (
+      <div className="flex flex-wrap gap-1">
+        {parts.map((part) => (
+          <Badge key={part} variant="outline" className="font-mono">
+            {part}
+          </Badge>
+        ))}
+      </div>
+    );
+  };
+
+  const accessBadge = (value: ApiKeyAccess) => (
+    <Badge variant={value === "read" ? "secondary" : "brand"}>
+      {value === "read" ? t.apiKeys.accessRead : t.apiKeys.accessReadWrite}
+    </Badge>
+  );
+
+  const rowActions = (row: ApiKey) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => void showKey(row)}
+        disabled={!row.retrievable || revealing === row.id}
+        aria-label={t.apiKeys.showLabel(row.label)}
+        title={row.retrievable ? t.apiKeys.showKey : t.apiKeys.notRetrievable}
+      >
+        {revealing === row.id ? (
+          <Loader2 className="animate-spin" aria-hidden />
+        ) : (
+          <Eye aria-hidden />
+        )}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => openAgentSetup(row.id)}
+        disabled={!row.retrievable}
+        aria-label={t.apiKeys.connectLabel(row.label)}
+        title={
+          row.retrievable ? t.agentSetup.useWithAgent : t.apiKeys.notRetrievable
         }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {parts.map((part) => (
-              <code
-                key={part}
-                className="text-xs font-mono rounded bg-surface-default-secondary px-1.5 py-0.5"
-              >
-                {part}
-              </code>
-            ))}
+      >
+        <PlugZap aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => openEdit(row)}
+        aria-label={t.apiKeys.editLabel(row.label)}
+        title={t.common.edit}
+      >
+        <Pencil aria-hidden />
+      </Button>
+      <Button
+        variant="destructive-ghost"
+        size="icon-sm"
+        onClick={() => setKeyToRevoke(row)}
+        aria-label={t.apiKeys.revokeLabel(row.label)}
+        title={t.apiKeys.revoke}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+    </div>
+  );
+
+  const columns: Column<ApiKey>[] = [
+    {
+      key: "label",
+      label: t.apiKeys.columns.label,
+      render: (value, row) => (
+        <div className="min-w-0">
+          <p className="font-medium text-ink">{String(value)}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <IdText>{row.key_prefix}…</IdText>
+            {accessBadge(row.access)}
           </div>
-        );
-      },
-    },
-    {
-      key: "created_at" as keyof ApiKey,
-      label: t.apiKeys.columns.created,
-      width: 120,
-      render: (value: string) =>
-        format(new Date(value), t.common.dateFormat, { locale: dateLocale }),
-    },
-    {
-      key: "last_used_at" as keyof ApiKey,
-      label: t.apiKeys.columns.lastUsed,
-      width: 120,
-      render: (value: string | null) =>
-        value
-          ? format(new Date(value), t.common.dateFormat, {
-              locale: dateLocale,
-            })
-          : t.common.never,
-    },
-    {
-      key: "id" as keyof ApiKey,
-      label: "",
-      width: 40,
-      render: (_: string, row: ApiKey) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setKeyToRevoke(row)}
-          aria-label={t.apiKeys.revokeLabel(row.label)}
-          className="size-7"
-        >
-          <Trash2 className="size-3.5 text-onSurface-danger-primary" />
-        </Button>
+        </div>
       ),
+    },
+    {
+      key: "user_ids",
+      label: t.apiKeys.columns.scope,
+      wrap: true,
+      hideBelow: "lg",
+      className: "min-w-[150px]",
+      render: (_, row) => scopeChips(row),
+    },
+    {
+      key: "created_at",
+      label: t.apiKeys.columns.created,
+      hideBelow: "xl",
+      className: "text-ink-2",
+      render: (value) => date(value as string),
+    },
+    {
+      key: "last_used_at",
+      label: t.apiKeys.columns.lastUsed,
+      className: "text-ink-2",
+      render: (value) => date(value as string | null),
+    },
+    {
+      key: "id",
+      label: t.common.actions,
+      headerVariant: "check",
+      align: "right",
+      isAction: true,
+      render: (_, row) => rowActions(row),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold font-fustat">{t.apiKeys.title}</h1>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => openAgentSetup()}>
-            <PlugZap className="size-4 mr-1" /> {t.agentSetup.button}
-          </Button>
-          <Dialog open={createOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="size-4 mr-1" /> {t.apiKeys.createKey}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t.apiKeys.createTitle}</DialogTitle>
-              </DialogHeader>
-              {!newKey ? (
-                <div className="space-y-4 mt-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="api-key-label">{t.apiKeys.label}</Label>
-                    <Input
-                      id="api-key-label"
-                      value={newLabel}
-                      onChange={(e) => setNewLabel(e.target.value)}
-                      placeholder={t.apiKeys.labelPlaceholder}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="api-key-access">{t.apiKeys.access}</Label>
-                    <Select
-                      value={newAccess}
-                      onValueChange={(v) => setNewAccess(v as ApiKeyAccess)}
-                    >
-                      <SelectTrigger id="api-key-access">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="read_write">
-                          {t.apiKeys.accessReadWrite}
-                        </SelectItem>
-                        <SelectItem value="read">
-                          {t.apiKeys.accessRead}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-onSurface-default-tertiary">
-                      {t.apiKeys.accessHint}
-                    </p>
-                  </div>
-                  <fieldset className="space-y-3">
-                    <legend className="text-sm font-medium">
-                      {t.apiKeys.scope}
-                    </legend>
-                    <p className="text-xs text-onSurface-default-tertiary">
-                      {t.apiKeys.scopeHint}
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {ID_FIELDS.map((field) => (
-                        <div key={field} className="space-y-1">
-                          <Label htmlFor={`api-key-${field}`}>
-                            {idLabels[field]}
-                          </Label>
-                          <Input
-                            id={`api-key-${field}`}
-                            value={newIds[field]}
-                            onChange={(e) =>
-                              setNewIds((ids) => ({
-                                ...ids,
-                                [field]: e.target.value,
-                              }))
-                            }
-                            placeholder={t.apiKeys.idsPlaceholder}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="space-y-1">
-                      <Label>{t.apiKeys.categories}</Label>
-                      {categories.length === 0 ? (
-                        <p className="text-xs text-onSurface-default-tertiary">
-                          {t.apiKeys.noCategories}
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {categories.map((c) => {
-                            const selected = newCategories.includes(c.name);
-                            return (
-                              <button
-                                key={c.id}
-                                type="button"
-                                aria-pressed={selected}
-                                onClick={() => toggleCategory(c.name)}
-                                className={cn(
-                                  "rounded-md border px-2 py-0.5 text-xs transition-colors",
-                                  selected
-                                    ? "border-memPurple-500 bg-memPurple-500 text-white"
-                                    : "border-memBorder-primary text-onSurface-default-secondary hover:bg-surface-default-secondary",
-                                )}
-                              >
-                                {c.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                      <p className="text-xs text-onSurface-default-tertiary">
-                        {t.apiKeys.categoriesHint}
-                      </p>
-                    </div>
-                  </fieldset>
-                  <Button
-                    onClick={handleCreate}
-                    disabled={!newLabel}
-                    className="w-full"
-                  >
-                    {t.common.create}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4 mt-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="api-key-new">{t.apiKeys.yourKey}</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="api-key-new"
-                        value={newKey}
-                        readOnly
-                        className="font-mono text-sm"
-                      />
-                      <CopyToClipboard
-                        text={newKey}
-                        onCopy={() => {
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 2000);
-                        }}
-                      >
-                        <Button variant="outline" size="icon">
-                          {copied ? (
-                            <Check className="size-4" />
-                          ) : (
-                            <Copy className="size-4" />
-                          )}
-                        </Button>
-                      </CopyToClipboard>
-                    </div>
-                    <p className="text-xs text-onSurface-danger-primary">
-                      {t.apiKeys.saveKeyWarning}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => {
-                      const userId = parseList(newIds.user_ids)[0] ?? "";
-                      const key = newKey;
-                      handleDialogClose(false);
-                      openAgentSetup(key, userId);
-                    }}
-                  >
-                    <PlugZap className="size-4 mr-1" />
-                    {t.agentSetup.useWithAgent}
-                  </Button>
-                  <Button
-                    onClick={() => handleDialogClose(false)}
-                    className="w-full"
-                  >
-                    {t.common.done}
-                  </Button>
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      <AgentSetupDialog
-        open={setupOpen}
-        onOpenChange={handleSetupClose}
-        initialKey={setupKey}
-        initialUserId={setupUserId}
+    <>
+      <PageHeader
+        title={t.apiKeys.title}
+        description={t.apiKeys.subtitle}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => openAgentSetup()}>
+              <PlugZap aria-hidden />
+              {t.agentSetup.button}
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden />
+              {t.apiKeys.createKey}
+            </Button>
+          </>
+        }
       />
 
-      {isLoading ? (
-        <TableSkeleton rows={3} columns={6} />
-      ) : keys.length === 0 ? (
-        <EmptyState
-          title={t.apiKeys.emptyTitle}
-          description={t.apiKeys.emptyDescription}
-        />
-      ) : (
-        <Card className="border-memBorder-primary overflow-hidden">
+      {error && !isLoading && (
+        <ErrorBanner message={error} onRetry={() => void refetch()} />
+      )}
+
+      <Panel>
+        {isLoading ? (
+          <TableSkeleton rows={3} columns={6} />
+        ) : keys.length === 0 ? (
+          <EmptyState
+            icon={KeyRound}
+            title={t.apiKeys.emptyTitle}
+            description={t.apiKeys.emptyDescription}
+          >
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden />
+              {t.apiKeys.createKey}
+            </Button>
+          </EmptyState>
+        ) : (
           <DataTable
             data={keys}
             columns={columns}
+            caption={t.apiKeys.title}
             getRowKey={(row) => row.id}
+            renderMobileCard={(row) => (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-ink">{row.label}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <IdText>{row.key_prefix}…</IdText>
+                      {accessBadge(row.access)}
+                    </div>
+                  </div>
+                  {rowActions(row)}
+                </div>
+                {scopeChips(row)}
+                <p className="text-xs text-ink-3">
+                  {t.apiKeys.columns.lastUsed}: {date(row.last_used_at)}
+                </p>
+              </div>
+            )}
           />
-        </Card>
-      )}
+        )}
+      </Panel>
+
+      <Dialog open={createOpen} onOpenChange={handleDialogChange}>
+        <DialogContent className="max-w-xl">
+          {newKey ? (
+            <div className="grid gap-5">
+              <DialogHeader>
+                <DialogTitle>{t.apiKeys.keyCreated}</DialogTitle>
+                <DialogDescription>
+                  {t.apiKeys.keyCreatedDescription}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-sunken p-2 pl-3">
+                <code className="min-w-0 flex-1 break-all font-mono text-[13px] text-ink">
+                  {newKey}
+                </code>
+                <CopyButton
+                  text={newKey}
+                  label={t.common.copyValue(t.apiKeys.yourKey)}
+                  variant="outline"
+                  showLabel
+                />
+              </div>
+              <p className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+                <ShieldAlert className="mt-px size-4 shrink-0" aria-hidden />
+                {t.apiKeys.keyAccessNote}
+              </p>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const keyId = newKeyId;
+                    handleDialogChange(false);
+                    openAgentSetup(keyId);
+                  }}
+                >
+                  <PlugZap aria-hidden />
+                  {t.agentSetup.useWithAgent}
+                </Button>
+                <Button onClick={() => handleDialogChange(false)}>
+                  {t.common.done}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form onSubmit={handleCreate} className="grid gap-5" noValidate>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingKey ? t.apiKeys.editTitle : t.apiKeys.createTitle}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingKey
+                    ? t.apiKeys.editDescription
+                    : t.apiKeys.createDescription}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  id="api-key-label"
+                  label={t.apiKeys.label}
+                  error={labelError}
+                >
+                  <Input
+                    id="api-key-label"
+                    value={newLabel}
+                    autoFocus
+                    onChange={(e) => {
+                      setNewLabel(e.target.value);
+                      setLabelError("");
+                    }}
+                    placeholder={t.apiKeys.labelPlaceholder}
+                    aria-invalid={Boolean(labelError)}
+                  />
+                </Field>
+                <Field label={t.apiKeys.access} hint={t.apiKeys.accessHint}>
+                  <Segmented
+                    label={t.apiKeys.access}
+                    value={newAccess}
+                    onChange={setNewAccess}
+                    className="w-full"
+                    options={[
+                      {
+                        value: "read_write",
+                        label: t.apiKeys.accessReadWrite,
+                      },
+                      { value: "read", label: t.apiKeys.accessRead },
+                    ]}
+                  />
+                </Field>
+              </div>
+
+              <fieldset className="space-y-3 rounded-lg border border-line p-4">
+                <legend className="px-1 text-[13px] font-semibold text-ink">
+                  {t.apiKeys.scope}
+                </legend>
+                <p className="text-xs leading-5 text-ink-3">
+                  {t.apiKeys.scopeHint}
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {ID_FIELDS.map((field) => (
+                    <Field
+                      key={field}
+                      id={`api-key-${field}`}
+                      label={idLabels[field]}
+                    >
+                      <Input
+                        id={`api-key-${field}`}
+                        value={newIds[field]}
+                        onChange={(e) =>
+                          setNewIds((ids) => ({
+                            ...ids,
+                            [field]: e.target.value,
+                          }))
+                        }
+                        placeholder={t.apiKeys.idsPlaceholder}
+                        autoComplete="off"
+                      />
+                    </Field>
+                  ))}
+                </div>
+                <Field
+                  label={t.apiKeys.categories}
+                  hint={t.apiKeys.categoriesHint}
+                >
+                  {categories.length === 0 ? (
+                    <p className="text-xs text-ink-3">
+                      {t.apiKeys.noCategories}
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {categories.map((c) => {
+                        const selected = newCategories.includes(c.name);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => toggleCategory(c.name)}
+                            className={cn(
+                              "h-7 rounded-full border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]",
+                              selected
+                                ? "border-brand bg-brand-soft text-brand-text"
+                                : "border-line bg-panel text-ink-2 hover:bg-subtle",
+                            )}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Field>
+              </fieldset>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleDialogChange(false)}
+                  disabled={creating}
+                >
+                  {t.common.cancel}
+                </Button>
+                <Button type="submit" disabled={creating}>
+                  {creating && <Loader2 className="animate-spin" aria-hidden />}
+                  {editingKey ? t.common.save : t.common.create}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!shownKey}
+        onOpenChange={(open) => {
+          if (!open) setShownKey(null);
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          {shownKey && (
+            <div className="grid gap-5">
+              <DialogHeader>
+                <DialogTitle>{shownKey.row.label}</DialogTitle>
+                <DialogDescription>
+                  {t.apiKeys.shownDescription}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-sunken p-2 pl-3">
+                <code className="min-w-0 flex-1 break-all font-mono text-[13px] text-ink">
+                  {shownKey.key}
+                </code>
+                <CopyButton
+                  text={shownKey.key}
+                  label={t.common.copyValue(t.apiKeys.yourKey)}
+                  variant="outline"
+                  showLabel
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const keyId = shownKey.row.id;
+                    setShownKey(null);
+                    openAgentSetup(keyId);
+                  }}
+                >
+                  <PlugZap aria-hidden />
+                  {t.agentSetup.useWithAgent}
+                </Button>
+                <Button onClick={() => setShownKey(null)}>
+                  {t.common.done}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AgentSetupDialog
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+        initialKeyId={setupKeyId}
+      />
 
       <DeleteConfirmationModal
         isOpen={!!keyToRevoke}
@@ -472,7 +656,8 @@ export default function ApiKeysPage() {
         description={t.apiKeys.revokeDescription}
         itemName={keyToRevoke?.label ?? ""}
         confirmButtonText={t.apiKeys.revoke}
+        requireTyping
       />
-    </div>
+    </>
   );
 }

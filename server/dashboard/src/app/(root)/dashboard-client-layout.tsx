@@ -29,23 +29,24 @@ export function DashboardClientLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang={HTML_LANG[locale]} suppressHydrationWarning>
-      <body
-        className={cn(
-          Inter.className,
-          InterDisplay.variable,
-          Roboto.variable,
-          Fustat.variable,
-          DMMono.variable,
-        )}
-        suppressHydrationWarning
-      >
+    <html
+      lang={HTML_LANG[locale]}
+      className={cn(
+        Inter.variable,
+        InterDisplay.variable,
+        Roboto.variable,
+        Fustat.variable,
+        DMMono.variable,
+      )}
+      suppressHydrationWarning
+    >
+      <body className="font-sans" suppressHydrationWarning>
         <Provider store={store}>
           <I18nProvider initialLocale={locale}>
             <AuthProvider>
               <ThemeProvider
                 attribute="class"
-                defaultTheme="light"
+                defaultTheme="system"
                 enableSystem
                 disableTransitionOnChange
               >

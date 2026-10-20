@@ -1,22 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { FormEvent, useState } from "react";
+import Link from "next/link";
+import {
+  ChevronDown,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Sparkles,
+  Tags,
+  Trash2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DataTable } from "@/components/shared/data-table";
+import { CategoryChip } from "@/components/ui/categories-display";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Column, DataTable } from "@/components/shared/data-table";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { ErrorBanner } from "@/components/shared/error-banner";
+import { Field } from "@/components/shared/field";
+import { PageHeader, Panel } from "@/components/shared/page";
 import { EmptyState } from "@/components/self-hosted/empty-state";
 import DeleteConfirmationModal from "@/components/ui/delete-confirmation-modal";
 import { toast } from "@/components/ui/use-toast";
@@ -33,8 +52,10 @@ export default function CategoriesPage() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [nameError, setNameError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isTagging, setIsTagging] = useState(false);
+  const [confirmRetag, setConfirmRetag] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
     null,
   );
@@ -43,12 +64,10 @@ export default function CategoriesPage() {
   const {
     data: categories = [],
     isLoading,
+    error,
     refetch,
   } = useApiQuery<Category[]>(
-    async () => {
-      const res = await api.get<Category[]>(CATEGORY_ENDPOINTS.BASE);
-      return res.data ?? [];
-    },
+    async () => (await api.get<Category[]>(CATEGORY_ENDPOINTS.BASE)).data ?? [],
     { errorToast: t.categories.loadFailed, initialData: [] },
   );
 
@@ -56,10 +75,16 @@ export default function CategoriesPage() {
     setEditor(state);
     setName(state.mode === "edit" ? state.category.name : "");
     setDescription(state.mode === "edit" ? state.category.description : "");
+    setNameError("");
   };
 
-  const handleSave = async () => {
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
     if (!editor) return;
+    if (!name.trim()) {
+      setNameError(t.categories.nameRequired);
+      return;
+    }
     setIsSaving(true);
     try {
       const body = { name: name.trim(), description: description.trim() };
@@ -72,10 +97,10 @@ export default function CategoriesPage() {
       }
       setEditor(null);
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
         title: t.categories.saveFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -90,21 +115,24 @@ export default function CategoriesPage() {
       toast({ title: t.categories.deleted, variant: "success" });
       setCategoryToDelete(null);
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
         title: t.categories.deleteFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     }
   };
 
-  const handleBackfill = async () => {
+  const handleBackfill = async (retagAll = false) => {
     setIsTagging(true);
     try {
       const res = await api.post<CategoryBackfillResponse>(
         CATEGORY_ENDPOINTS.BACKFILL,
+        undefined,
+        retagAll ? { params: { retag_all: true } } : undefined,
       );
+      setConfirmRetag(false);
       toast({
         title: res.data.queued
           ? t.categories.taggingStarted
@@ -115,10 +143,10 @@ export default function CategoriesPage() {
             : t.categories.allTagged,
         variant: "success",
       });
-    } catch (error) {
+    } catch (err) {
       toast({
         title: t.categories.taggingFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -126,152 +154,280 @@ export default function CategoriesPage() {
     }
   };
 
-  const columns = [
+  const memoriesLink = (row: Category) => (
+    <Link
+      href={`/dashboard/memories?category=${encodeURIComponent(row.name)}`}
+      aria-label={t.categories.viewMemoriesLabel(row.name)}
+      className="tabular rounded font-medium text-brand-text underline decoration-brand/30 underline-offset-4 hover:decoration-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
+    >
+      {row.memory_count}
+    </Link>
+  );
+
+  const rowActions = (row: Category) => (
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t.categories.editLabel(row.name)}
+        title={t.categories.editLabel(row.name)}
+        onClick={() => openEditor({ mode: "edit", category: row })}
+      >
+        <Pencil aria-hidden />
+      </Button>
+      <Button
+        variant="destructive-ghost"
+        size="icon-sm"
+        aria-label={t.categories.deleteLabel(row.name)}
+        title={t.categories.deleteLabel(row.name)}
+        onClick={() => setCategoryToDelete(row)}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+    </div>
+  );
+
+  const columns: Column<Category>[] = [
     {
-      key: "name" as keyof Category,
+      key: "name",
       label: t.categories.columns.name,
-      width: 150,
+      render: (value) => <CategoryChip category={String(value)} />,
     },
     {
-      key: "description" as keyof Category,
+      key: "description",
       label: t.categories.columns.description,
-      width: 280,
-      render: (value: string) => (
-        <span className="line-clamp-2 text-sm text-onSurface-default-secondary">
-          {value || "--"}
+      wrap: true,
+      render: (value) => (
+        <span className="line-clamp-2 max-w-xl text-sm text-ink-2">
+          {String(value || t.common.none)}
         </span>
       ),
     },
     {
-      key: "memory_count" as keyof Category,
+      key: "memory_count",
       label: t.categories.columns.memories,
-      width: 80,
+      align: "right",
+      render: (_, row) => memoriesLink(row),
     },
     {
-      key: "created_at" as keyof Category,
+      key: "created_at",
       label: t.categories.columns.created,
-      width: 100,
-      render: (value: string) =>
-        format(new Date(value), t.common.dateFormat, { locale: dateLocale }),
+      hideBelow: "lg",
+      className: "text-ink-2",
+      render: (value) =>
+        format(new Date(String(value)), t.common.dateFormat, {
+          locale: dateLocale,
+        }),
     },
     {
-      key: "id" as keyof Category,
-      label: "",
-      width: 70,
-      render: (_: string, row: Category) => (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label={t.categories.editLabel(row.name)}
-            onClick={() => openEditor({ mode: "edit", category: row })}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label={t.categories.deleteLabel(row.name)}
-            onClick={() => setCategoryToDelete(row)}
-          >
-            <Trash2 className="size-3.5 text-onSurface-danger-primary" />
-          </Button>
-        </div>
-      ),
+      key: "id",
+      label: t.common.actions,
+      headerVariant: "check",
+      align: "right",
+      isAction: true,
+      render: (_, row) => rowActions(row),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-72">
-          <h1 className="text-xl font-semibold font-fustat">
-            {t.categories.title}
-          </h1>
-          <p className="text-sm text-onSurface-default-secondary mt-1">
-            {t.categories.subtitle}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleBackfill}
-            disabled={isTagging || categories.length === 0}
-          >
-            <Sparkles className="size-4 mr-1" /> {t.categories.tagExisting}
-          </Button>
-          <Button size="sm" onClick={() => openEditor({ mode: "create" })}>
-            <Plus className="size-4 mr-1" /> {t.categories.add}
-          </Button>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title={t.categories.title}
+        description={t.categories.subtitle}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={isTagging || categories.length === 0}
+                >
+                  {isTagging ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <Sparkles aria-hidden />
+                  )}
+                  {t.categories.tagMenu}
+                  <ChevronDown className="text-ink-3" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem
+                  className="items-start gap-2.5 py-2"
+                  onSelect={() => void handleBackfill()}
+                >
+                  <Sparkles className="mt-0.5" />
+                  <span className="flex min-w-0 flex-col">
+                    <span>{t.categories.tagUntagged}</span>
+                    <span className="text-xs text-ink-3">
+                      {t.categories.tagUntaggedHint}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="items-start gap-2.5 py-2"
+                  onSelect={() => setConfirmRetag(true)}
+                >
+                  <RefreshCcw className="mt-0.5" />
+                  <span className="flex min-w-0 flex-col">
+                    <span>{t.categories.retagAll}</span>
+                    <span className="text-xs text-ink-3">
+                      {t.categories.retagAllHint}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={() => openEditor({ mode: "create" })}>
+              <Plus aria-hidden />
+              {t.categories.add}
+            </Button>
+          </>
+        }
+      />
 
-      {isLoading ? (
-        <TableSkeleton rows={3} columns={4} />
-      ) : categories.length === 0 ? (
-        <EmptyState
-          title={t.categories.emptyTitle}
-          description={t.categories.emptyDescription}
-        />
-      ) : (
-        <Card className="border-memBorder-primary overflow-hidden">
+      {error && !isLoading && (
+        <ErrorBanner message={error} onRetry={() => void refetch()} />
+      )}
+
+      <Panel>
+        {isLoading ? (
+          <TableSkeleton rows={4} columns={4} />
+        ) : categories.length === 0 ? (
+          <EmptyState
+            icon={Tags}
+            title={t.categories.emptyTitle}
+            description={t.categories.emptyDescription}
+          >
+            <Button onClick={() => openEditor({ mode: "create" })}>
+              <Plus aria-hidden />
+              {t.categories.add}
+            </Button>
+          </EmptyState>
+        ) : (
           <DataTable
             data={categories}
             columns={columns}
+            caption={t.categories.title}
             getRowKey={(row) => row.id}
+            renderMobileCard={(row) => (
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <CategoryChip category={row.name} />
+                    <span className="text-xs text-ink-3">
+                      {memoriesLink(row)} {t.categories.columns.memories}
+                    </span>
+                  </div>
+                  {row.description && (
+                    <p className="line-clamp-2 text-sm text-ink-2">
+                      {row.description}
+                    </p>
+                  )}
+                </div>
+                {rowActions(row)}
+              </div>
+            )}
           />
-        </Card>
-      )}
+        )}
+      </Panel>
 
       <Dialog
         open={!!editor}
-        onOpenChange={(open) => {
-          if (!open) setEditor(null);
-        }}
+        onOpenChange={(open) => !open && !isSaving && setEditor(null)}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editor?.mode === "edit"
-                ? t.categories.editTitle
-                : t.categories.addTitle}
-            </DialogTitle>
-            <DialogDescription>
-              {editor?.mode === "edit"
-                ? t.categories.editDescription
-                : t.categories.addDescription}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="space-y-2">
-              <Label htmlFor="category-name">{t.common.name}</Label>
+          <form onSubmit={handleSave} className="grid gap-5" noValidate>
+            <DialogHeader>
+              <DialogTitle>
+                {editor?.mode === "edit"
+                  ? t.categories.editTitle
+                  : t.categories.addTitle}
+              </DialogTitle>
+              <DialogDescription>
+                {editor?.mode === "edit"
+                  ? t.categories.editDescription
+                  : t.categories.addDescription}
+              </DialogDescription>
+            </DialogHeader>
+            <Field id="category-name" label={t.common.name} error={nameError}>
               <Input
                 id="category-name"
                 value={name}
                 maxLength={64}
-                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameError("");
+                }}
                 placeholder={t.categories.namePlaceholder}
+                aria-invalid={Boolean(nameError)}
               />
-            </div>
-            <Textarea
+            </Field>
+            <Field
               id="category-description"
               label={t.common.description}
-              value={description}
-              maxLength={2000}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t.categories.descriptionPlaceholder}
-            />
-            <Button
-              onClick={handleSave}
-              disabled={!name.trim() || isSaving}
-              className="w-full"
+              hint={t.categories.howItWorks}
             >
-              {editor?.mode === "edit" ? t.common.save : t.common.create}
+              <Textarea
+                id="category-description"
+                value={description}
+                maxLength={2000}
+                rows={3}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t.categories.descriptionPlaceholder}
+              />
+            </Field>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditor(null)}
+                disabled={isSaving}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="animate-spin" aria-hidden />}
+                {editor?.mode === "edit" ? t.common.save : t.common.create}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmRetag}
+        onOpenChange={(open) => !isTagging && setConfirmRetag(open)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.categories.retagTitle}</DialogTitle>
+            <DialogDescription>
+              {t.categories.retagDescription}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-ink-3">{t.categories.retagRuns}</p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmRetag(false)}
+              disabled={isTagging}
+            >
+              {t.common.cancel}
             </Button>
-          </div>
+            <Button
+              onClick={() => void handleBackfill(true)}
+              disabled={isTagging}
+            >
+              {isTagging ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <RefreshCcw aria-hidden />
+              )}
+              {t.categories.retagConfirm}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -283,6 +439,6 @@ export default function CategoriesPage() {
         description={t.categories.deleteDescription}
         itemName={categoryToDelete?.name ?? ""}
       />
-    </div>
+    </>
   );
 }

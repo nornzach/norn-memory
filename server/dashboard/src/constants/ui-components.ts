@@ -1,18 +1,20 @@
 export const fieldLabelClassName =
-  "font-fustat font-semibold text-xs leading-4 tracking-normal text-onSurface-default-tertiary";
+  "text-[13px] font-medium leading-5 text-ink-2";
+
+const fieldBase =
+  "rounded-lg border border-line-strong bg-panel text-sm text-ink transition-[border-color,box-shadow] placeholder:text-ink-3 hover:border-ink-3/60 focus-visible:outline-none focus-visible:border-brand focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-50";
 
 export const inputVariants = {
-  default:
-    "flex h-9 w-full rounded-md border border-memBorder-primary bg-transparent py-2.5 px-3 text-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-  textField:
-    "flex h-[38px] w-full min-w-0 rounded-lg border border-memBorder-primary bg-surface-default-primary py-2.5 px-3 font-fustat text-sm text-onSurface-default-primary placeholder:text-onSurface-default-tertiary focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium peer",
+  default: `flex h-9 w-full min-w-0 px-3 file:border-0 file:bg-transparent file:text-sm file:font-medium ${fieldBase}`,
+  textField: `peer flex h-9 w-full min-w-0 px-3 file:border-0 file:bg-transparent file:text-sm file:font-medium ${fieldBase}`,
   nestedInput:
-    "flex h-[38px] w-full min-w-0 rounded-lg border-0 bg-transparent py-2.5 px-0 font-fustat text-sm text-onSurface-default-primary placeholder:text-onSurface-default-tertiary focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium peer",
+    "peer flex h-9 w-full min-w-0 border-0 bg-transparent px-0 text-sm text-ink placeholder:text-ink-3 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
 } as const;
 
+const triggerBase =
+  "relative flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-line-strong bg-panel pl-3 pr-9 text-left text-sm text-ink transition-[border-color,box-shadow] hover:border-ink-3/60 focus:outline-none focus-visible:border-brand focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] data-[placeholder]:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:truncate";
+
 export const selectTriggerVariants = {
-  default:
-    "flex h-10 w-full items-center relative justify-between rounded-md border border-memBorder-primary bg-surface-default-primary px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-  dropdown:
-    "relative flex h-[38px] w-full min-w-0 items-center justify-between rounded-lg border border-memBorder-primary bg-surface-default-primary py-2.5 pl-3 pr-10 font-fustat text-sm text-onSurface-default-primary placeholder:text-onSurface-default-tertiary focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+  default: triggerBase,
+  dropdown: triggerBase,
 } as const;

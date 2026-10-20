@@ -7,28 +7,21 @@ interface TableSkeletonProps {
 
 export function TableSkeleton({ rows = 5, columns = 5 }: TableSkeletonProps) {
   return (
-    <div className="w-full">
-      {/* Table Header */}
-      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
-        <div className="flex items-center gap-4 px-4 py-3">
-          <Skeleton className="size-4 rounded" />
-          {[...Array(Math.max(0, columns - 1))].map((_, i) => (
-            <Skeleton key={i} className="h-4 flex-1" />
-          ))}
-        </div>
+    <div className="w-full" aria-busy="true">
+      <div className="flex h-10 items-center gap-4 border-b border-line bg-subtle/60 px-5">
+        {[...Array(Math.max(1, columns))].map((_, i) => (
+          <Skeleton key={i} className="h-3 flex-1" />
+        ))}
       </div>
-
-      {/* Table Rows */}
-      <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+      <div className="divide-y divide-line">
         {[...Array(rows)].map((_, rowIndex) => (
-          <div key={rowIndex} className="flex items-center gap-4 px-4 py-3">
-            <Skeleton className="size-4 rounded" />
+          <div key={rowIndex} className="flex items-center gap-4 px-5 py-3.5">
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-3.5 w-full max-w-md" />
+              <Skeleton className="h-3 w-2/3 max-w-xs" />
             </div>
             {[...Array(Math.max(0, columns - 2))].map((_, colIndex) => (
-              <Skeleton key={colIndex} className="h-4 w-24" />
+              <Skeleton key={colIndex} className="hidden h-3.5 w-20 md:block" />
             ))}
           </div>
         ))}

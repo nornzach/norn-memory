@@ -15,6 +15,8 @@ export interface Memory {
   run_id?: string;
   categories?: string[];
   metadata?: Record<string, unknown>;
+  /** YYYY-MM-DD; hidden from listings and search after this day unless show_expired is set. */
+  expiration_date?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -36,6 +38,13 @@ export interface ApiKey extends ApiKeyScopes {
   key_prefix: string;
   created_at: string;
   last_used_at: string | null;
+  /** Whether the full key can be shown again; false for keys made before keys were kept. */
+  retrievable: boolean;
+}
+
+export interface ApiKeySecret {
+  id: string;
+  key: string;
 }
 
 export interface ApiKeyCreateResponse extends ApiKeyScopes {
@@ -54,6 +63,7 @@ export interface ApiRequestLog {
   status_code: number;
   latency_ms: number;
   auth_type: string;
+  key_label?: string | null;
 }
 
 export type EntityType = "user" | "agent" | "run";

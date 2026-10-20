@@ -12,6 +12,8 @@ const en = {
     kindFilter: "Filter by kind",
     allKinds: "All kinds",
     tagPlaceholder: "Tag",
+    prefixPlaceholder: "Key prefix, e.g. server/",
+    folderPlaceholder: "Folder or a parent folder",
     columns: {
       key: "Key",
       kind: "Kind",
@@ -93,6 +95,8 @@ const zh: typeof en = {
     kindFilter: "按类型筛选",
     allKinds: "所有类型",
     tagPlaceholder: "标签",
+    prefixPlaceholder: "键前缀，例如 server/",
+    folderPlaceholder: "目录或其上级目录",
     columns: {
       key: "键",
       kind: "类型",

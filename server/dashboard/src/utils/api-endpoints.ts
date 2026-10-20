@@ -5,11 +5,15 @@ export const AUTH_ENDPOINTS = {
   REFRESH: "/auth/refresh",
   ME: "/auth/me",
   CHANGE_PASSWORD: "/auth/change-password",
+  LOGOUT: "/auth/logout",
+  SESSIONS: "/auth/sessions",
+  SIGN_OUT_OTHERS: "/auth/sign-out-others",
 } as const;
 
 export const MEMORY_ENDPOINTS = {
   BASE: "/memories",
   BY_ID: (memoryId: string) => `/memories/${memoryId}`,
+  SEARCH: "/search",
   HISTORY: (memoryId: string) => `/memories/${memoryId}/history`,
   CONFIGURE: "/configure",
   CONFIGURE_PROVIDERS: "/configure/providers",
@@ -21,6 +25,7 @@ export const MEMORY_ENDPOINTS = {
 export const API_KEY_ENDPOINTS = {
   BASE: "/api-keys",
   BY_ID: (keyId: string) => `/api-keys/${keyId}`,
+  KEY: (keyId: string) => `/api-keys/${keyId}/key`,
 } as const;
 
 export const REQUEST_ENDPOINTS = {
@@ -51,6 +56,7 @@ export const ANALYTICS_ENDPOINTS = {
 
 export const EXPORT_ENDPOINTS = {
   BASE: "/export",
+  IMPORT: "/import",
 } as const;
 
 export const CONSOLIDATION_ENDPOINTS = {
@@ -71,4 +77,5 @@ export const EXACT_ENDPOINTS = {
   RECORD: (key: string) => `/exact/records/${exactKeyPath(key)}`,
   HISTORY: (key: string) => `/exact/history/${exactKeyPath(key)}`,
   BATCH: "/exact/batch",
+  EXPORT: "/exact/export",
 } as const;

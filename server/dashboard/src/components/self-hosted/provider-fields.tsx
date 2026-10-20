@@ -53,8 +53,8 @@ export function CheckLine({
     <p
       className={
         result.ok
-          ? "flex items-start gap-1.5 text-xs text-emerald-700 dark:text-emerald-300"
-          : "flex items-start gap-1.5 text-xs text-onSurface-danger-primary"
+          ? "flex items-start gap-1.5 text-xs text-success"
+          : "flex items-start gap-1.5 text-xs text-danger"
       }
     >
       {result.ok ? (
@@ -128,10 +128,10 @@ export function ProviderFields({
   const id = (field: string) => `${idPrefix}-${section}-${field}`;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor={id("provider")} className="text-xs">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={id("provider")}>
             {providerLabel ?? t.configuration.provider}
           </Label>
           <Select
@@ -153,10 +153,8 @@ export function ProviderFields({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor={id("model")} className="text-xs">
-            {t.configuration.model}
-          </Label>
+        <div className="space-y-1.5">
+          <Label htmlFor={id("model")}>{t.configuration.model}</Label>
           <Input
             id={id("model")}
             placeholder={
@@ -176,10 +174,8 @@ export function ProviderFields({
       </div>
 
       {compatible && (
-        <div className="space-y-1">
-          <Label htmlFor={id("base-url")} className="text-xs">
-            {t.configuration.baseUrl}
-          </Label>
+        <div className="space-y-1.5">
+          <Label htmlFor={id("base-url")}>{t.configuration.baseUrl}</Label>
           <Input
             id={id("base-url")}
             type="url"
@@ -188,7 +184,7 @@ export function ProviderFields({
             onChange={(e) => onChange({ baseUrl: e.target.value })}
             disabled={disabled}
           />
-          <p className="text-xs text-onSurface-default-tertiary">
+          <p className="text-xs text-ink-3">
             {isEmbedder
               ? t.configuration.embedderBaseUrlHint
               : t.configuration.llmBaseUrlHint}
@@ -196,13 +192,15 @@ export function ProviderFields({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div
           className={
-            compatible && isEmbedder ? "space-y-1" : "space-y-1 sm:col-span-2"
+            compatible && isEmbedder
+              ? "space-y-1.5"
+              : "space-y-1.5 sm:col-span-2"
           }
         >
-          <Label htmlFor={id("api-key")} className="text-xs">
+          <Label htmlFor={id("api-key")}>
             {keyLabel ?? t.configuration.apiKey}
           </Label>
           <Input
@@ -215,16 +213,14 @@ export function ProviderFields({
             disabled={disabled}
           />
           {(keyRequired || keyHint) && (
-            <p className="text-xs text-onSurface-default-tertiary">
+            <p className="text-xs text-ink-3">
               {keyRequired ? t.configuration.keyRequiredHint : keyHint}
             </p>
           )}
         </div>
         {compatible && isEmbedder && (
-          <div className="space-y-1">
-            <Label htmlFor={id("dims")} className="text-xs">
-              {t.configuration.dimensions}
-            </Label>
+          <div className="space-y-1.5">
+            <Label htmlFor={id("dims")}>{t.configuration.dimensions}</Label>
             <Input
               id={id("dims")}
               type="number"
@@ -234,7 +230,7 @@ export function ProviderFields({
               onChange={(e) => onChange({ dims: e.target.value })}
               disabled={disabled}
             />
-            <p className="text-xs text-onSurface-default-tertiary">
+            <p className="text-xs text-ink-3">
               {t.configuration.dimensionsHint(vectorDims)}
             </p>
           </div>

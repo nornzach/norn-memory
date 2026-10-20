@@ -1,25 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Copy, Plus, Send, Trash2 } from "lucide-react";
+import { FormEvent, useState } from "react";
+import {
+  Loader2,
+  Pencil,
+  Plus,
+  Send,
+  ShieldAlert,
+  Trash2,
+  Webhook as WebhookIcon,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DataTable } from "@/components/shared/data-table";
+import { CopyButton } from "@/components/misc/copy-button";
+import { Column, DataTable } from "@/components/shared/data-table";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { ErrorBanner } from "@/components/shared/error-banner";
+import { Field } from "@/components/shared/field";
+import { PageHeader, Panel } from "@/components/shared/page";
 import { EmptyState } from "@/components/self-hosted/empty-state";
 import DeleteConfirmationModal from "@/components/ui/delete-confirmation-modal";
 import { toast } from "@/components/ui/use-toast";
@@ -37,62 +47,101 @@ import {
 } from "@/types/api";
 import { useI18n } from "@/i18n/provider";
 
+const DEFAULT_EVENTS: WebhookEvent[] = [
+  "memory.created",
+  "memory.updated",
+  "memory.deleted",
+];
+
+type EditorState = { mode: "create" } | { mode: "edit"; webhook: Webhook };
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function WebhooksPage() {
-  const [createOpen, setCreateOpen] = useState(false);
+  const [editor, setEditor] = useState<EditorState | null>(null);
   const [url, setUrl] = useState("");
-  const [events, setEvents] = useState<WebhookEvent[]>([
-    "memory.created",
-    "memory.updated",
-    "memory.deleted",
-  ]);
+  const [events, setEvents] = useState<WebhookEvent[]>(DEFAULT_EVENTS);
+  const [formError, setFormError] = useState<{ url?: string; events?: string }>(
+    {},
+  );
   const [newSecret, setNewSecret] = useState("");
-  const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [webhookToDelete, setWebhookToDelete] = useState<Webhook | null>(null);
   const { t, dateLocale } = useI18n();
 
   const {
     data: webhooks = [],
     isLoading,
+    error,
     refetch,
   } = useApiQuery<Webhook[]>(
-    async () => {
-      const res = await api.get<Webhook[]>(WEBHOOK_ENDPOINTS.BASE);
-      return res.data ?? [];
-    },
+    async () => (await api.get<Webhook[]>(WEBHOOK_ENDPOINTS.BASE)).data ?? [],
     { errorToast: t.webhooks.loadFailed, initialData: [] },
   );
 
-  const handleDialogChange = (open: boolean) => {
-    if (!open) {
-      setUrl("");
-      setEvents(["memory.created", "memory.updated", "memory.deleted"]);
-      setNewSecret("");
-      setCopied(false);
-    }
-    setCreateOpen(open);
+  const openEditor = (state: EditorState) => {
+    setEditor(state);
+    setUrl(state.mode === "edit" ? state.webhook.url : "");
+    setEvents(state.mode === "edit" ? state.webhook.events : DEFAULT_EVENTS);
+    setFormError({});
+    setNewSecret("");
+  };
+
+  const closeEditor = () => {
+    if (isSaving) return;
+    setEditor(null);
+    setNewSecret("");
   };
 
   const toggleEvent = (event: WebhookEvent, checked: boolean) => {
+    setFormError((e) => ({ ...e, events: undefined }));
     setEvents((current) =>
       checked ? [...current, event] : current.filter((e) => e !== event),
     );
   };
 
-  const handleCreate = async () => {
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editor) return;
+    const next: typeof formError = {};
+    if (!isHttpUrl(url.trim())) next.url = t.webhooks.urlInvalid;
+    if (events.length === 0) next.events = t.webhooks.eventsRequired;
+    setFormError(next);
+    if (next.url || next.events) return;
+
     setIsSaving(true);
     try {
-      const res = await api.post<WebhookCreateResponse>(
-        WEBHOOK_ENDPOINTS.BASE,
-        { url: url.trim(), events },
-      );
-      setNewSecret(res.data.secret);
+      if (editor.mode === "create") {
+        const res = await api.post<WebhookCreateResponse>(
+          WEBHOOK_ENDPOINTS.BASE,
+          { url: url.trim(), events },
+        );
+        setNewSecret(res.data.secret);
+      } else {
+        await api.patch(WEBHOOK_ENDPOINTS.BY_ID(editor.webhook.id), {
+          url: url.trim(),
+          events,
+        });
+        toast({ title: t.webhooks.saved, variant: "success" });
+        setEditor(null);
+      }
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
-        title: t.webhooks.createFailed,
-        description: getErrorMessage(error),
+        title:
+          editor.mode === "create"
+            ? t.webhooks.createFailed
+            : t.webhooks.updateFailed,
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -101,17 +150,20 @@ export default function WebhooksPage() {
   };
 
   const handleToggleActive = async (webhook: Webhook, isActive: boolean) => {
+    setTogglingId(webhook.id);
     try {
       await api.patch(WEBHOOK_ENDPOINTS.BY_ID(webhook.id), {
         is_active: isActive,
       });
-      void refetch();
-    } catch (error) {
+      await refetch();
+    } catch (err) {
       toast({
         title: t.webhooks.updateFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -137,10 +189,10 @@ export default function WebhooksPage() {
             },
       );
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
         title: t.webhooks.sendTestFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -155,167 +207,269 @@ export default function WebhooksPage() {
       toast({ title: t.webhooks.deleted, variant: "success" });
       setWebhookToDelete(null);
       void refetch();
-    } catch (error) {
+    } catch (err) {
       toast({
         title: t.webhooks.deleteFailed,
-        description: getErrorMessage(error),
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     }
   };
 
-  const columns = [
+  const lastDelivery = (row: Webhook) => {
+    if (!row.last_delivery_at) {
+      return <span className="text-xs text-ink-3">{t.common.never}</span>;
+    }
+    return (
+      <div
+        className="flex items-center gap-2"
+        title={row.last_error ?? undefined}
+      >
+        <Badge className={getStatusClassName(row.last_status_code ?? 500)}>
+          {row.last_status_code ?? t.webhooks.error}
+        </Badge>
+        <span className="text-xs text-ink-3">
+          {formatDistanceToNow(new Date(row.last_delivery_at), {
+            addSuffix: true,
+            locale: dateLocale,
+          })}
+        </span>
+      </div>
+    );
+  };
+
+  const activeSwitch = (row: Webhook) => (
+    <Switch
+      checked={row.is_active}
+      disabled={togglingId === row.id}
+      aria-label={t.webhooks.toggleLabel(row.url)}
+      onCheckedChange={(checked) => handleToggleActive(row, checked)}
+    />
+  );
+
+  const rowActions = (row: Webhook) => (
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={testingId === row.id}
+        onClick={() => handleTest(row)}
+        aria-label={t.webhooks.testLabel(row.url)}
+      >
+        {testingId === row.id ? (
+          <Loader2 className="animate-spin" aria-hidden />
+        ) : (
+          <Send aria-hidden />
+        )}
+        <span className="hidden xl:inline">{t.webhooks.sendTest}</span>
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => openEditor({ mode: "edit", webhook: row })}
+        aria-label={t.webhooks.editLabel(row.url)}
+        title={t.webhooks.editLabel(row.url)}
+      >
+        <Pencil aria-hidden />
+      </Button>
+      <Button
+        variant="destructive-ghost"
+        size="icon-sm"
+        onClick={() => setWebhookToDelete(row)}
+        aria-label={t.webhooks.deleteLabel(row.url)}
+        title={t.webhooks.deleteLabel(row.url)}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+    </div>
+  );
+
+  const eventBadges = (list: WebhookEvent[]) => (
+    <div className="flex flex-wrap gap-1">
+      {list.map((event) => (
+        <Badge
+          key={event}
+          variant="outline"
+          className="font-mono"
+          title={t.webhooks.events[event]}
+        >
+          {event}
+        </Badge>
+      ))}
+    </div>
+  );
+
+  const columns: Column<Webhook>[] = [
     {
-      key: "url" as keyof Webhook,
+      key: "url",
       label: t.webhooks.columns.endpoint,
-      width: 240,
-      render: (value: string) => (
-        <code className="text-xs font-mono break-all">{value}</code>
+      wrap: true,
+      render: (value, row) => (
+        <div className="min-w-0">
+          <code className="break-all font-mono text-xs text-ink">
+            {String(value)}
+          </code>
+          {!row.is_active && (
+            <Badge variant="warning" className="ml-2">
+              {t.webhooks.paused}
+            </Badge>
+          )}
+        </div>
       ),
     },
     {
-      key: "events" as keyof Webhook,
+      key: "events",
       label: t.webhooks.columns.events,
-      width: 200,
-      render: (value: WebhookEvent[]) => (
-        <div className="flex flex-wrap gap-1">
-          {value.map((event) => (
-            <Badge key={event} variant="outline" className="font-mono text-xs">
-              {event}
-            </Badge>
-          ))}
-        </div>
-      ),
+      wrap: true,
+      hideBelow: "lg",
+      render: (value) => eventBadges(value as WebhookEvent[]),
     },
     {
-      key: "last_status_code" as keyof Webhook,
+      key: "last_status_code",
       label: t.webhooks.columns.lastDelivery,
-      width: 140,
-      render: (_: number | null, row: Webhook) => {
-        if (!row.last_delivery_at) {
-          return (
-            <span className="text-xs text-onSurface-default-tertiary">
-              {t.common.never}
-            </span>
-          );
-        }
-        return (
-          <div className="flex items-center gap-2" title={row.last_error ?? ""}>
-            <Badge
-              variant="outline"
-              className={getStatusClassName(row.last_status_code ?? 500)}
-            >
-              {row.last_status_code ?? t.webhooks.error}
-            </Badge>
-            <span className="text-xs text-onSurface-default-tertiary">
-              {formatDistanceToNow(new Date(row.last_delivery_at), {
-                addSuffix: true,
-                locale: dateLocale,
-              })}
-            </span>
-          </div>
-        );
-      },
+      render: (_, row) => lastDelivery(row),
     },
     {
-      key: "is_active" as keyof Webhook,
+      key: "is_active",
       label: t.webhooks.columns.active,
-      width: 60,
-      render: (value: boolean, row: Webhook) => (
-        <Switch
-          checked={value}
-          aria-label={t.webhooks.toggleLabel(row.url)}
-          onCheckedChange={(checked) => handleToggleActive(row, checked)}
-        />
-      ),
+      isAction: true,
+      render: (_, row) => activeSwitch(row),
     },
     {
-      key: "id" as keyof Webhook,
-      label: "",
-      width: 70,
-      render: (_: string, row: Webhook) => (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label={t.webhooks.testLabel(row.url)}
-            disabled={testingId === row.id}
-            onClick={() => handleTest(row)}
-          >
-            <Send className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label={t.webhooks.deleteLabel(row.url)}
-            onClick={() => setWebhookToDelete(row)}
-          >
-            <Trash2 className="size-3.5 text-onSurface-danger-primary" />
-          </Button>
-        </div>
-      ),
+      key: "id",
+      label: t.common.actions,
+      headerVariant: "check",
+      align: "right",
+      isAction: true,
+      render: (_, row) => rowActions(row),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-72">
-          <h1 className="text-xl font-semibold font-fustat">
-            {t.webhooks.title}
-          </h1>
-          <p className="text-sm text-onSurface-default-secondary mt-1">
-            {t.webhooks.subtitle}
-          </p>
-        </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4 mr-1" /> {t.webhooks.add}
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title={t.webhooks.title}
+        description={t.webhooks.subtitle}
+        actions={
+          <Button onClick={() => openEditor({ mode: "create" })}>
+            <Plus aria-hidden />
+            {t.webhooks.add}
+          </Button>
+        }
+      />
 
-      {isLoading ? (
-        <TableSkeleton rows={3} columns={5} />
-      ) : webhooks.length === 0 ? (
-        <EmptyState
-          title={t.webhooks.emptyTitle}
-          description={t.webhooks.emptyDescription}
-        />
-      ) : (
-        <Card className="border-memBorder-primary overflow-hidden">
+      {error && !isLoading && (
+        <ErrorBanner message={error} onRetry={() => void refetch()} />
+      )}
+
+      <Panel>
+        {isLoading ? (
+          <TableSkeleton rows={3} columns={5} />
+        ) : webhooks.length === 0 ? (
+          <EmptyState
+            icon={WebhookIcon}
+            title={t.webhooks.emptyTitle}
+            description={t.webhooks.emptyDescription}
+          >
+            <Button onClick={() => openEditor({ mode: "create" })}>
+              <Plus aria-hidden />
+              {t.webhooks.add}
+            </Button>
+          </EmptyState>
+        ) : (
           <DataTable
             data={webhooks}
             columns={columns}
+            caption={t.webhooks.title}
             getRowKey={(row) => row.id}
+            renderMobileCard={(row) => (
+              <div className="space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <code className="min-w-0 break-all font-mono text-xs text-ink">
+                    {row.url}
+                  </code>
+                  {activeSwitch(row)}
+                </div>
+                {eventBadges(row.events)}
+                <div className="flex items-center justify-between gap-2">
+                  {lastDelivery(row)}
+                  {rowActions(row)}
+                </div>
+              </div>
+            )}
           />
-        </Card>
-      )}
+        )}
+      </Panel>
 
-      <Dialog open={createOpen} onOpenChange={handleDialogChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t.webhooks.addTitle}</DialogTitle>
-            <DialogDescription>{t.webhooks.addDescription}</DialogDescription>
-          </DialogHeader>
-          {!newSecret ? (
-            <div className="space-y-4 mt-2">
-              <div className="space-y-2">
-                <Label htmlFor="webhook-url">{t.webhooks.endpointUrl}</Label>
-                <Input
-                  id="webhook-url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://your-app.com/webhooks/norn_m"
+      <Dialog open={!!editor} onOpenChange={(open) => !open && closeEditor()}>
+        <DialogContent className="max-w-lg">
+          {newSecret ? (
+            <div className="grid gap-5">
+              <DialogHeader>
+                <DialogTitle>{t.webhooks.signingSecret}</DialogTitle>
+                <DialogDescription>{t.webhooks.verifyHint}</DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-sunken p-2 pl-3">
+                <code className="min-w-0 flex-1 break-all font-mono text-[13px] text-ink">
+                  {newSecret}
+                </code>
+                <CopyButton
+                  text={newSecret}
+                  label={t.common.copyValue(t.webhooks.signingSecret)}
+                  variant="outline"
+                  showLabel
                 />
               </div>
-              <div className="space-y-2">
-                <Label>{t.webhooks.eventsLabel}</Label>
-                <div className="flex flex-col gap-2">
+              <p className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+                <ShieldAlert className="mt-px size-4 shrink-0" aria-hidden />
+                {t.common.saveSecretWarning}
+              </p>
+              <DialogFooter>
+                <Button onClick={closeEditor}>{t.common.done}</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form onSubmit={handleSave} className="grid gap-5" noValidate>
+              <DialogHeader>
+                <DialogTitle>
+                  {editor?.mode === "edit"
+                    ? t.webhooks.editTitle
+                    : t.webhooks.addTitle}
+                </DialogTitle>
+                <DialogDescription>
+                  {editor?.mode === "edit"
+                    ? t.webhooks.editDescription
+                    : t.webhooks.addDescription}
+                </DialogDescription>
+              </DialogHeader>
+              <Field
+                id="webhook-url"
+                label={t.webhooks.endpointUrl}
+                error={formError.url}
+              >
+                <Input
+                  id="webhook-url"
+                  type="url"
+                  inputMode="url"
+                  value={url}
+                  autoFocus
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    setFormError((f) => ({ ...f, url: undefined }));
+                  }}
+                  placeholder="https://your-app.com/webhooks/norn-m"
+                  aria-invalid={Boolean(formError.url)}
+                />
+              </Field>
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-[13px] font-medium text-ink-2">
+                  {t.webhooks.eventsLabel}
+                </legend>
+                <div className="divide-y divide-line overflow-hidden rounded-lg border border-line">
                   {WEBHOOK_EVENTS.map((event) => (
                     <label
                       key={event}
-                      className="flex items-start gap-2 cursor-pointer"
+                      className="flex cursor-pointer items-start gap-3 px-3 py-2.5 transition-colors hover:bg-subtle/60"
                     >
                       <Checkbox
                         checked={events.includes(event)}
@@ -324,67 +478,38 @@ export default function WebhooksPage() {
                         }
                         className="mt-0.5"
                       />
-                      <span className="text-sm">
-                        <code className="font-mono">{event}</code>
-                        <span className="block text-xs text-onSurface-default-tertiary">
+                      <span className="min-w-0 text-sm">
+                        <code className="font-mono text-[13px] text-ink">
+                          {event}
+                        </code>
+                        <span className="block text-xs text-ink-3">
                           {t.webhooks.events[event]}
                         </span>
                       </span>
                     </label>
                   ))}
                 </div>
-              </div>
-              <Button
-                onClick={handleCreate}
-                disabled={!url.trim() || events.length === 0 || isSaving}
-                className="w-full"
-              >
-                {t.common.create}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4 mt-2">
-              <div className="space-y-2">
-                <Label htmlFor="webhook-secret">
-                  {t.webhooks.signingSecret}
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="webhook-secret"
-                    value={newSecret}
-                    readOnly
-                    className="font-mono text-sm"
-                  />
-                  <CopyToClipboard
-                    text={newSecret}
-                    onCopy={() => {
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                  >
-                    <Button variant="outline" size="icon">
-                      {copied ? (
-                        <Check className="size-4" />
-                      ) : (
-                        <Copy className="size-4" />
-                      )}
-                    </Button>
-                  </CopyToClipboard>
-                </div>
-                <p className="text-xs text-onSurface-default-secondary">
-                  {t.webhooks.verifyHint}
-                </p>
-                <p className="text-xs text-onSurface-danger-primary">
-                  {t.common.saveSecretWarning}
-                </p>
-              </div>
-              <Button
-                onClick={() => handleDialogChange(false)}
-                className="w-full"
-              >
-                {t.common.done}
-              </Button>
-            </div>
+                {formError.events && (
+                  <p className="text-xs text-danger" role="alert">
+                    {formError.events}
+                  </p>
+                )}
+              </fieldset>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeEditor}
+                  disabled={isSaving}
+                >
+                  {t.common.cancel}
+                </Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving && <Loader2 className="animate-spin" aria-hidden />}
+                  {editor?.mode === "edit" ? t.common.save : t.common.create}
+                </Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>
@@ -397,6 +522,6 @@ export default function WebhooksPage() {
         description={t.webhooks.deleteDescription}
         itemName={webhookToDelete?.url ?? ""}
       />
-    </div>
+    </>
   );
 }

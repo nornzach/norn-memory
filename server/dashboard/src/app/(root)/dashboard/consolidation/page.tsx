@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Loader2, Merge, Trash2, X } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  GitMerge,
+  Loader2,
+  Merge,
+  Trash2,
+  X,
+} from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,22 +25,15 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { DataTable } from "@/components/shared/data-table";
-import { TableSkeleton } from "@/components/shared/table-skeleton";
+import DeleteConfirmationModal from "@/components/ui/delete-confirmation-modal";
+import { Field } from "@/components/shared/field";
+import { PageHeader, Panel, PanelHeader } from "@/components/shared/page";
 import { EmptyState } from "@/components/self-hosted/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { getErrorMessage } from "@/lib/error-message";
 import { cn } from "@/lib/utils";
@@ -61,33 +60,24 @@ const THRESHOLDS = [
   { value: "0.9", key: "strict" },
 ] as const;
 
-const GOOD =
-  "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300";
-const WARN =
-  "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300";
-const BAD =
-  "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300";
-const INFO =
-  "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300";
-const NEUTRAL =
-  "border-memBorder-primary bg-surface-default-secondary text-onSurface-default-secondary";
+type Tone = NonNullable<BadgeProps["variant"]>;
 
-const RUN_STATUS: Record<ConsolidationRunStatus, string> = {
-  running: INFO,
-  completed: GOOD,
-  failed: BAD,
+const RUN_STATUS: Record<ConsolidationRunStatus, Tone> = {
+  running: "info",
+  completed: "success",
+  failed: "destructive",
 };
 
-const PROPOSAL_STATUS: Record<ConsolidationProposalStatus, string> = {
-  proposed: INFO,
-  applied: GOOD,
-  dismissed: NEUTRAL,
-  stale: WARN,
-  failed: BAD,
+const PROPOSAL_STATUS: Record<ConsolidationProposalStatus, Tone> = {
+  proposed: "info",
+  applied: "success",
+  dismissed: "secondary",
+  stale: "warning",
+  failed: "destructive",
 };
 
 type Confirm =
-  | { type: "apply-all"; run: ConsolidationRun }
+  | { type: "apply-all"; run: ConsolidationRun; count: number }
   | { type: "delete"; run: ConsolidationRun };
 
 const scopeLabel = (
@@ -106,20 +96,6 @@ const pendingCount = (run: ConsolidationRun) => run.actions.proposed ?? 0;
 const totalCount = (run: ConsolidationRun) =>
   Object.values(run.actions).reduce((sum, n) => sum + (n ?? 0), 0);
 
-function StatusBadge({
-  label,
-  className,
-}: {
-  label: string;
-  className: string;
-}) {
-  return (
-    <Badge variant="outline" className={className}>
-      {label}
-    </Badge>
-  );
-}
-
 function ProposalCard({
   proposal,
   busy,
@@ -127,7 +103,7 @@ function ProposalCard({
   onDismiss,
 }: {
   proposal: ConsolidationProposal;
-  busy: boolean;
+  busy: "apply" | "dismiss" | null;
   onApply: () => void;
   onDismiss: () => void;
 }) {
@@ -141,25 +117,32 @@ function ProposalCard({
   };
   // Only pending and applied proposals delete anything; otherwise the roles are shown muted.
   const live = proposal.status === "proposed" || proposal.status === "applied";
-  return (
-    <Card className="border-memBorder-primary">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={NEUTRAL}>
-            {t.consolidation.kinds[proposal.kind]}
-          </Badge>
-          <StatusBadge
-            label={t.consolidation.proposalStatus[proposal.status]}
-            className={PROPOSAL_STATUS[proposal.status]}
-          />
-          {proposal.reason && (
-            <span className="min-w-0 flex-1 basis-48 text-sm text-onSurface-default-secondary">
-              {proposal.reason}
-            </span>
-          )}
-        </div>
+  const pending = proposal.status === "proposed";
 
-        <ul className="space-y-1.5">
+  return (
+    <article
+      className={cn(
+        "rounded-xl border bg-panel shadow-elev-1",
+        pending ? "border-line" : "border-line opacity-80",
+      )}
+    >
+      <header className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
+        <Badge variant="outline">
+          {isMerge ? <GitMerge aria-hidden /> : <ArrowRight aria-hidden />}
+          {t.consolidation.kinds[proposal.kind]}
+        </Badge>
+        <Badge variant={PROPOSAL_STATUS[proposal.status]}>
+          {t.consolidation.proposalStatus[proposal.status]}
+        </Badge>
+        {proposal.reason && (
+          <p className="w-full text-sm leading-5 text-ink-2 sm:w-auto sm:min-w-0 sm:flex-1">
+            {proposal.reason}
+          </p>
+        )}
+      </header>
+
+      <div className="space-y-3 px-4 py-3">
+        <ul className="space-y-2">
           {proposal.sources.map((source) => {
             const marked = proposal.remove_ids.includes(source.id);
             const removed = live && marked;
@@ -170,27 +153,24 @@ function ProposalCard({
                 : t.consolidation.roles.keep;
             const date = shortDate(source.created_at);
             return (
-              <li key={source.id} className="flex items-start gap-2 text-sm">
+              <li
+                key={source.id}
+                className="flex flex-col gap-1 text-sm xs:flex-row xs:items-start xs:gap-3"
+              >
                 <span
                   className={cn(
-                    "w-14 shrink-0 pt-0.5 text-xs font-medium",
-                    removed
-                      ? "text-onSurface-danger-primary"
-                      : "text-onSurface-default-tertiary",
+                    "w-16 shrink-0 text-xs font-medium leading-5",
+                    removed ? "text-danger" : "text-ink-3",
                   )}
                 >
                   {role}
                 </span>
-                <span className="min-w-0 break-words">
-                  <span
-                    className={cn(
-                      removed && "line-through text-onSurface-default-tertiary",
-                    )}
-                  >
+                <span className="min-w-0 break-words leading-5">
+                  <span className={cn(removed && "text-ink-3 line-through")}>
                     {source.memory}
                   </span>
                   {date && (
-                    <span className="ml-1.5 whitespace-nowrap text-xs text-onSurface-default-tertiary">
+                    <span className="ml-2 whitespace-nowrap text-xs text-ink-3">
                       {date}
                     </span>
                   )}
@@ -201,8 +181,8 @@ function ProposalCard({
         </ul>
 
         {isMerge && proposal.new_text && (
-          <div className="rounded-md bg-surface-default-secondary p-3 text-sm">
-            <span className="mb-1 block text-xs text-onSurface-default-tertiary">
+          <div className="rounded-lg border border-brand/30 bg-brand-soft px-3 py-2.5 text-sm leading-5 text-ink">
+            <span className="mb-1 block text-xs font-medium text-brand-text">
               {t.consolidation.becomes}
             </span>
             {proposal.new_text}
@@ -210,28 +190,117 @@ function ProposalCard({
         )}
 
         {proposal.error && (
-          <p className="text-xs text-onSurface-danger-primary">
+          <p className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">
             {proposal.error}
           </p>
         )}
+      </div>
 
-        {proposal.status === "proposed" && (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={onApply} disabled={busy}>
-              <Check className="size-4 mr-1" /> {t.common.apply}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onDismiss}
-              disabled={busy}
+      {pending && (
+        <footer className="flex flex-col-reverse gap-2 border-t border-line px-4 py-3 xs:flex-row xs:justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onDismiss}
+            disabled={busy !== null}
+          >
+            {busy === "dismiss" ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : (
+              <X aria-hidden />
+            )}
+            {t.common.dismiss}
+          </Button>
+          <Button size="sm" onClick={onApply} disabled={busy !== null}>
+            {busy === "apply" ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : (
+              <Check aria-hidden />
+            )}
+            {t.common.apply}
+          </Button>
+        </footer>
+      )}
+    </article>
+  );
+}
+
+function RunList({
+  runs,
+  selectedId,
+  onSelect,
+  onDelete,
+}: {
+  runs: ConsolidationRun[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onDelete: (run: ConsolidationRun) => void;
+}) {
+  const { t, dateLocale } = useI18n();
+  return (
+    <ul className="divide-y divide-line">
+      {runs.map((run) => {
+        const active = run.id === selectedId;
+        return (
+          <li key={run.id} className="relative">
+            <button
+              type="button"
+              onClick={() => onSelect(run.id)}
+              aria-current={active ? "true" : undefined}
+              className={cn(
+                "flex w-full flex-col gap-1.5 py-3 pl-4 pr-12 text-left transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-[var(--focus)] sm:pl-5",
+                active ? "bg-brand-soft" : "hover:bg-subtle",
+              )}
             >
-              <X className="size-4 mr-1" /> {t.common.dismiss}
+              {active && (
+                <span
+                  className="absolute inset-y-0 left-0 w-0.5 bg-brand"
+                  aria-hidden
+                />
+              )}
+              <span className="flex items-center gap-2">
+                <span className="min-w-0 truncate text-sm font-medium text-ink">
+                  {scopeLabel(run.scope, t.consolidation)}
+                </span>
+                <Badge variant={RUN_STATUS[run.status]} className="shrink-0">
+                  {run.status === "running" && (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  )}
+                  {t.consolidation.runStatus[run.status]}
+                </Badge>
+              </span>
+              <span className="flex flex-wrap items-center gap-x-3 text-xs text-ink-3">
+                <span>
+                  {formatDistanceToNow(new Date(run.created_at), {
+                    addSuffix: true,
+                    locale: dateLocale,
+                  })}
+                </span>
+                {run.status === "completed" && (
+                  <span className="tabular">
+                    {t.consolidation.columns.pending}{" "}
+                    {t.consolidation.pendingOf(
+                      pendingCount(run),
+                      totalCount(run),
+                    )}
+                  </span>
+                )}
+              </span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2.5 size-8 text-ink-3 hover:bg-danger-soft hover:text-danger"
+              aria-label={t.consolidation.deleteRun}
+              disabled={run.status === "running"}
+              onClick={() => onDelete(run)}
+            >
+              <Trash2 className="size-4" aria-hidden />
             </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -243,10 +312,14 @@ export default function ConsolidationPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConsolidationRunDetail | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<{
+    id: string;
+    action: "apply" | "dismiss";
+  } | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const selectedRef = useRef<string | null>(null);
-  const { t, dateLocale } = useI18n();
+  const detailRef = useRef<HTMLDivElement>(null);
+  const { t } = useI18n();
   // Read through a ref so loadDetail stays stable across language switches.
   const tRef = useRef(t);
   tRef.current = t;
@@ -309,7 +382,19 @@ export default function ConsolidationPage() {
     return () => clearInterval(timer);
   }, [anyRunning, refetchRuns, loadDetail]);
 
-  const handleStart = async () => {
+  const selectRun = (id: string) => {
+    setSelectedId(id);
+    // On one-column layouts the proposals sit below the list; bring them into view.
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() =>
+        detailRef.current?.scrollIntoView({ behavior: "smooth" }),
+      );
+    }
+  };
+
+  const handleStart = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isStarting) return;
     setIsStarting(true);
     try {
       const body: Record<string, string | number> = {
@@ -345,7 +430,7 @@ export default function ConsolidationPage() {
     proposal: ConsolidationProposal,
     action: "apply" | "dismiss",
   ) => {
-    setBusyId(proposal.id);
+    setBusy({ id: proposal.id, action });
     try {
       const url =
         action === "apply"
@@ -381,14 +466,13 @@ export default function ConsolidationPage() {
         variant: "destructive",
       });
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
     const { type, run } = confirm;
-    setConfirm(null);
     try {
       if (type === "apply-all") {
         const res = await api.post<ConsolidationApplyAllResponse>(
@@ -408,6 +492,7 @@ export default function ConsolidationPage() {
         await api.delete(CONSOLIDATION_ENDPOINTS.RUN(run.id));
         toast({ title: t.consolidation.runDeleted, variant: "success" });
       }
+      setConfirm(null);
       void refetchRuns();
     } catch (error) {
       toast({
@@ -421,215 +506,187 @@ export default function ConsolidationPage() {
     }
   };
 
-  const columns = [
-    {
-      key: "created_at" as keyof ConsolidationRun,
-      label: t.consolidation.columns.started,
-      width: 120,
-      render: (value: string) =>
-        formatDistanceToNow(new Date(value), {
-          addSuffix: true,
-          locale: dateLocale,
-        }),
-    },
-    {
-      key: "scope" as keyof ConsolidationRun,
-      label: t.consolidation.columns.scope,
-      width: 160,
-      render: (value: ConsolidationRun["scope"]) => (
-        <span className="break-all">{scopeLabel(value, t.consolidation)}</span>
-      ),
-    },
-    {
-      key: "status" as keyof ConsolidationRun,
-      label: t.consolidation.columns.status,
-      width: 100,
-      render: (value: ConsolidationRunStatus) => (
-        <StatusBadge
-          label={t.consolidation.runStatus[value]}
-          className={RUN_STATUS[value]}
-        />
-      ),
-    },
-    {
-      key: "actions" as keyof ConsolidationRun,
-      label: t.consolidation.columns.pending,
-      width: 90,
-      render: (_: unknown, row: ConsolidationRun) =>
-        row.status === "completed"
-          ? t.consolidation.pendingOf(pendingCount(row), totalCount(row))
-          : "--",
-    },
-    {
-      key: "id" as keyof ConsolidationRun,
-      label: "",
-      width: 40,
-      render: (_: string, row: ConsolidationRun) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          aria-label={t.consolidation.deleteRun}
-          disabled={row.status === "running"}
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirm({ type: "delete", run: row });
-          }}
-        >
-          <Trash2 className="size-3.5 text-onSurface-danger-primary" />
-        </Button>
-      ),
-    },
-  ];
+  const [applyingAll, setApplyingAll] = useState(false);
+  const runApplyAll = async () => {
+    setApplyingAll(true);
+    try {
+      await handleConfirm();
+    } finally {
+      setApplyingAll(false);
+    }
+  };
 
   const selectedRun = runs.find((r) => r.id === selectedId) ?? null;
   const shownDetail = detail && detail.id === selectedId ? detail : null;
   const pending =
     shownDetail?.proposals.filter((p) => p.status === "proposed").length ?? 0;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-72">
-          <h1 className="text-xl font-semibold font-fustat">
-            {t.consolidation.title}
-          </h1>
-          <p className="text-sm text-onSurface-default-secondary mt-1">
-            {t.consolidation.subtitle}
+  const runDetail = selectedRun && (
+    <div ref={detailRef} className="min-w-0 scroll-mt-20 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="break-words text-base font-semibold text-ink">
+            {scopeLabel(selectedRun.scope, t.consolidation)}
+          </h2>
+          <p className="mt-0.5 text-sm text-ink-3">
+            {selectedRun.status === "completed"
+              ? t.consolidation.summary(
+                  selectedRun.memories_scanned,
+                  selectedRun.clusters_found,
+                  selectedRun.threshold.toFixed(2),
+                )
+              : t.consolidation.thresholdOnly(selectedRun.threshold.toFixed(2))}
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setDialogOpen(true)}
-          disabled={anyRunning}
-        >
-          <Merge className="size-4 mr-1" /> {t.consolidation.run}
-        </Button>
+        {pending > 0 && (
+          <Button
+            variant="outline"
+            className="shrink-0"
+            onClick={() =>
+              setConfirm({
+                type: "apply-all",
+                run: selectedRun,
+                count: pending,
+              })
+            }
+          >
+            <Check aria-hidden />
+            {t.consolidation.applyAllPending(pending)}
+          </Button>
+        )}
       </div>
 
-      {isLoading && runs.length === 0 ? (
-        <TableSkeleton rows={3} columns={4} />
-      ) : runs.length === 0 ? (
-        <EmptyState
-          title={t.consolidation.emptyTitle}
-          description={t.consolidation.emptyDescription}
-        />
+      {selectedRun.status === "running" ? (
+        <Panel className="flex items-center gap-3 px-5 py-10 text-sm text-ink-2">
+          <Loader2 className="size-4 animate-spin text-brand" aria-hidden />
+          <span role="status">{t.consolidation.scanning}</span>
+        </Panel>
+      ) : selectedRun.status === "failed" ? (
+        <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">
+          {selectedRun.error ?? t.consolidation.runFailed}
+        </p>
+      ) : !shownDetail ? (
+        <div className="space-y-3">
+          <Skeleton className="h-36 w-full rounded-xl" />
+          <Skeleton className="h-36 w-full rounded-xl" />
+        </div>
+      ) : shownDetail.proposals.length === 0 ? (
+        <Panel className="px-5 py-10 text-center text-sm text-ink-3">
+          {t.consolidation.nothingFound}
+        </Panel>
       ) : (
-        <>
-          <Card className="border-memBorder-primary overflow-hidden">
-            <DataTable
-              data={runs}
-              columns={columns}
-              getRowKey={(row) => row.id}
-              onRowClick={(row) => setSelectedId(row.id)}
-              getRowClassName={(row) =>
-                cn(
-                  "cursor-pointer",
-                  row.id === selectedId && "bg-surface-default-secondary",
-                )
-              }
+        <div className="space-y-3">
+          {shownDetail.proposals.map((proposal) => (
+            <ProposalCard
+              key={proposal.id}
+              proposal={proposal}
+              busy={busy?.id === proposal.id ? busy.action : null}
+              onApply={() => resolveProposal(proposal, "apply")}
+              onDismiss={() => resolveProposal(proposal, "dismiss")}
             />
-          </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
-          {selectedRun && (
-            <section className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold">
-                    {scopeLabel(selectedRun.scope, t.consolidation)}
-                  </h2>
-                  <p className="text-xs text-onSurface-default-tertiary">
-                    {selectedRun.status === "completed"
-                      ? t.consolidation.summary(
-                          selectedRun.memories_scanned,
-                          selectedRun.clusters_found,
-                          selectedRun.threshold.toFixed(2),
-                        )
-                      : t.consolidation.thresholdOnly(
-                          selectedRun.threshold.toFixed(2),
-                        )}
-                  </p>
-                </div>
-                {pending > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setConfirm({ type: "apply-all", run: selectedRun })
-                    }
-                  >
-                    <Check className="size-4 mr-1" />{" "}
-                    {t.consolidation.applyAllPending(pending)}
-                  </Button>
-                )}
-              </div>
+  return (
+    <>
+      <PageHeader
+        title={t.consolidation.title}
+        description={t.consolidation.subtitle}
+        actions={
+          <Button onClick={() => setDialogOpen(true)} disabled={anyRunning}>
+            {anyRunning ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : (
+              <Merge aria-hidden />
+            )}
+            {t.consolidation.run}
+          </Button>
+        }
+      />
 
-              {selectedRun.status === "running" ? (
-                <div className="flex items-center gap-2 py-8 text-sm text-onSurface-default-secondary">
-                  <Loader2 className="size-4 animate-spin" />
-                  {t.consolidation.scanning}
-                </div>
-              ) : selectedRun.status === "failed" ? (
-                <p className="text-sm text-onSurface-danger-primary">
-                  {selectedRun.error ?? t.consolidation.runFailed}
-                </p>
-              ) : !shownDetail ? (
-                <TableSkeleton rows={2} columns={2} />
-              ) : shownDetail.proposals.length === 0 ? (
-                <p className="py-8 text-center text-sm text-onSurface-default-secondary">
-                  {t.consolidation.nothingFound}
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {shownDetail.proposals.map((proposal) => (
-                    <ProposalCard
-                      key={proposal.id}
-                      proposal={proposal}
-                      busy={busyId === proposal.id}
-                      onApply={() => resolveProposal(proposal, "apply")}
-                      onDismiss={() => resolveProposal(proposal, "dismiss")}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-        </>
+      {isLoading && runs.length === 0 ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:gap-6">
+          <Skeleton className="h-48 w-full rounded-xl" />
+          <Skeleton className="h-48 w-full rounded-xl" />
+        </div>
+      ) : runs.length === 0 ? (
+        <Panel>
+          <EmptyState
+            title={t.consolidation.emptyTitle}
+            description={t.consolidation.emptyDescription}
+            icon={Merge}
+          >
+            <Button onClick={() => setDialogOpen(true)}>
+              <Merge aria-hidden />
+              {t.consolidation.run}
+            </Button>
+          </EmptyState>
+        </Panel>
+      ) : (
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:gap-6">
+          <Panel className="lg:sticky lg:top-6">
+            <PanelHeader
+              title={t.consolidation.runs}
+              className="py-3 sm:py-3"
+            />
+            <div className="scrollbar-thin max-h-[360px] overflow-y-auto lg:max-h-[calc(100dvh-12rem)]">
+              <RunList
+                runs={runs}
+                selectedId={selectedId}
+                onSelect={selectRun}
+                onDelete={(run) => setConfirm({ type: "delete", run })}
+              />
+            </div>
+          </Panel>
+          {runDetail}
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t.consolidation.run}</DialogTitle>
-            <DialogDescription>
-              {t.consolidation.dialogDescription}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="consolidation-user">{t.common.userId}</Label>
+        <DialogContent className="max-w-lg">
+          <form onSubmit={handleStart} className="space-y-5">
+            <DialogHeader>
+              <DialogTitle>{t.consolidation.run}</DialogTitle>
+              <DialogDescription>
+                {t.consolidation.dialogDescription}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field
+                id="consolidation-user"
+                label={t.common.userId}
+                optional={t.memories.optional}
+              >
                 <Input
                   id="consolidation-user"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
                   placeholder={t.common.allUsers}
+                  autoComplete="off"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="consolidation-agent">{t.common.agentId}</Label>
+              </Field>
+              <Field
+                id="consolidation-agent"
+                label={t.common.agentId}
+                optional={t.memories.optional}
+              >
                 <Input
                   id="consolidation-agent"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
                   placeholder={t.common.allAgents}
+                  autoComplete="off"
                 />
-              </div>
+              </Field>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="consolidation-threshold">
-                {t.consolidation.similarity}
-              </Label>
+            <Field
+              id="consolidation-threshold"
+              label={t.consolidation.similarity}
+              hint={t.consolidation.similarityHint}
+            >
               <Select value={threshold} onValueChange={setThreshold}>
                 <SelectTrigger id="consolidation-threshold">
                   <SelectValue />
@@ -642,48 +699,70 @@ export default function ConsolidationPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-onSurface-default-tertiary">
-                {t.consolidation.similarityHint}
-              </p>
-            </div>
-            <Button
-              onClick={handleStart}
-              disabled={isStarting}
-              className="w-full"
-            >
-              {t.consolidation.start}
-            </Button>
-          </div>
+            </Field>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button type="submit" disabled={isStarting}>
+                {isStarting && <Loader2 className="animate-spin" aria-hidden />}
+                {t.consolidation.start}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
-        open={!!confirm}
-        onOpenChange={(open) => {
-          if (!open) setConfirm(null);
-        }}
+      <Dialog
+        open={confirm?.type === "apply-all"}
+        onOpenChange={(open) => !open && !applyingAll && setConfirm(null)}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirm?.type === "apply-all"
-                ? t.consolidation.confirmApplyTitle(pending)
-                : t.consolidation.confirmDeleteTitle}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirm?.type === "apply-all"
-                ? t.consolidation.confirmApplyDescription
-                : t.consolidation.confirmDeleteDescription}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm}>
-              {confirm?.type === "apply-all" ? t.common.apply : t.common.delete}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {confirm?.type === "apply-all" &&
+                t.consolidation.confirmApplyTitle(confirm.count)}
+            </DialogTitle>
+            <DialogDescription>
+              {t.consolidation.confirmApplyDescription}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirm(null)}
+              disabled={applyingAll}
+            >
+              {t.common.cancel}
+            </Button>
+            <Button onClick={runApplyAll} disabled={applyingAll}>
+              {applyingAll ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <Check aria-hidden />
+              )}
+              {t.common.apply}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <DeleteConfirmationModal
+        isOpen={confirm?.type === "delete"}
+        onClose={() => setConfirm(null)}
+        onConfirm={handleConfirm}
+        title={t.consolidation.confirmDeleteTitle}
+        description={t.consolidation.confirmDeleteDescription}
+        itemName={
+          confirm?.type === "delete"
+            ? scopeLabel(confirm.run.scope, t.consolidation)
+            : ""
+        }
+      />
+    </>
   );
 }

@@ -1,14 +1,25 @@
-import { ReactNode } from "react";
-import { LucideIcon } from "lucide-react";
+"use client";
 
-interface Column<T> {
+import { KeyboardEvent, ReactNode } from "react";
+import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export interface Column<T> {
   key: keyof T;
   label: string;
   icon?: LucideIcon;
   render?(value: T[keyof T], row: T): ReactNode;
+  /** Extra classes for the body cells of this column. */
   className?: string;
+  /** Fixed width in px, or "auto". Numbers are real pixel widths, not weights. */
   width?: number | "auto";
   align?: "left" | "center" | "right";
+  /** Hide this column below a breakpoint, so narrow screens keep the important ones. */
+  hideBelow?: "sm" | "md" | "lg" | "xl";
+  /** Cells that hold their own buttons: clicks there never open the row. */
+  isAction?: boolean;
+  /** Let long text wrap instead of staying on one line. */
+  wrap?: boolean;
   cellVariant?: "default" | "flush";
   headerVariant?: "default" | "check";
 }
@@ -20,180 +31,169 @@ interface DataTableProps<T> {
   getRowKey?: (row: T, rowIndex: number) => string | number;
   onRowClick?: (row: T, rowIndex: number) => void;
   getRowClassName?: (row: T, rowIndex: number) => string | undefined;
+  /** Accessible name for a clickable row, e.g. "Open memory …". */
+  getRowLabel?: (row: T) => string;
+  /** On phones, render each row as a card instead of a sideways-scrolling table. */
+  renderMobileCard?: (row: T, rowIndex: number) => ReactNode;
+  caption?: string;
 }
 
-const MIN_COLUMN_WIDTH = 120;
-
-const classes = {
-  tableHeaderRow: "h-[38px] border-b border-memBorder-primary",
-  tableHeaderCell:
-    "w-[230px] h-[38px] p-2 align-middle bg-surface-default-fg-secondary text-onSurface-default-secondary",
-  tableHeaderCheckCell:
-    "w-[40px] h-[38px] p-2 align-middle bg-surface-default-fg-secondary",
-  tableHeaderCheckWrap: "flex items-center gap-2",
-  tableHeaderCheckBox:
-    "box-border flex h-4 w-4 items-center gap-2.5 rounded-sm border border-memBorder-primary p-1",
-  tableHeaderDivider:
-    "w-px self-stretch border border-memBorder-primary shrink-0",
-  tableRow:
-    "h-[38px] border-t border-memBorder-primary bg-surface-default-primary hover:bg-surface-default-primary-hover",
-  tableCell:
-    "text-sm font-medium text-onSurface-default-primary px-4 py-2 justify-start align-middle font-[Fustat] leading-[140%] tracking-normal",
-  tableCellFlush: "align-middle",
-  tableCellBase: "text-sm px-6",
-  tableCellPadding: "",
+const HIDE_BELOW = {
+  sm: "hidden sm:table-cell",
+  md: "hidden md:table-cell",
+  lg: "hidden lg:table-cell",
+  xl: "hidden xl:table-cell",
 } as const;
+
+const ALIGN = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+} as const;
+
+function activateOnKey(event: KeyboardEvent, action: () => void) {
+  if (event.target !== event.currentTarget) return;
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    action();
+  }
+}
 
 export function DataTable<T>({
   data,
   columns,
-  className = "",
+  className,
   getRowKey,
   onRowClick,
   getRowClassName,
+  getRowLabel,
+  renderMobileCard,
+  caption,
 }: DataTableProps<T>) {
-  const minHeight = data.length > 0 ? Math.max(76, 38 + data.length * 38) : 100;
-  // Proportional column widths so table fits container (width numbers treated as relative weights)
-  const totalWeight = columns.reduce(
-    (sum, col) => sum + (typeof col.width === "number" ? col.width : 100),
-    0,
-  );
+  const keyOf = (row: T, i: number) =>
+    getRowKey ? String(getRowKey(row, i)) : String(i);
+
   return (
-    <div
-      className={`min-w-0 max-w-full overflow-x-auto overflow-y-hidden [contain:inline-size] transition-all duration-300 ease-in-out ${className}`}
-      style={{ minHeight: `${minHeight}px` }}
-    >
-      {/* Below ~120px per column the table scrolls sideways instead of clipping cells.
-          contain:inline-size keeps that minimum width from widening the page itself. */}
-      <table
-        className="table-fixed w-full"
-        style={{ minWidth: `${columns.length * MIN_COLUMN_WIDTH}px` }}
-      >
-        <colgroup>
-          {columns.map((col, i) => {
-            const weight = typeof col.width === "number" ? col.width : 100;
-            const pct =
-              totalWeight > 0
-                ? (weight / totalWeight) * 100
-                : 100 / columns.length;
-            return <col key={i} style={{ width: `${pct}%` }} />;
+    <div className={cn("min-w-0", className)}>
+      {renderMobileCard && (
+        <ul className="flex flex-col divide-y divide-line md:hidden">
+          {data.map((row, i) => {
+            const open = onRowClick ? () => onRowClick(row, i) : undefined;
+            return (
+              <li
+                key={keyOf(row, i)}
+                className={cn(
+                  "px-5 py-3.5",
+                  open &&
+                    "cursor-pointer transition-colors hover:bg-subtle focus-visible:bg-subtle",
+                  getRowClassName?.(row, i),
+                )}
+                role={open ? "button" : undefined}
+                tabIndex={open ? 0 : undefined}
+                aria-label={open ? getRowLabel?.(row) : undefined}
+                onClick={open}
+                onKeyDown={open ? (e) => activateOnKey(e, open) : undefined}
+              >
+                {renderMobileCard(row, i)}
+              </li>
+            );
           })}
-        </colgroup>
-        <thead>
-          <tr className={classes.tableHeaderRow}>
-            {columns.map((column, index) => {
-              const isLastColumn = index === columns.length - 1;
+        </ul>
+      )}
 
-              if (column.headerVariant === "check") {
+      <div
+        className={cn(
+          "scrollbar-thin w-full overflow-x-auto",
+          renderMobileCard && "hidden md:block",
+        )}
+      >
+        <table className="w-full border-collapse text-sm">
+          {caption && <caption className="sr-only">{caption}</caption>}
+          <thead>
+            <tr className="border-b border-line">
+              {columns.map((column, index) => {
+                const Icon = column.icon;
                 return (
-                  <th key={index} className={classes.tableHeaderCheckCell}>
-                    <div className="flex h-full items-stretch justify-between">
-                      <div className={classes.tableHeaderCheckWrap}>
-                        <span className={classes.tableHeaderCheckBox} />
-                      </div>
-                      {!isLastColumn && (
-                        <div className={classes.tableHeaderDivider} />
-                      )}
-                    </div>
-                  </th>
-                );
-              }
-
-              const Icon = column.icon;
-              const relevantClasses = column.className
-                ? column.className
-                    .split(" ")
-                    .filter(
-                      (c) =>
-                        c.startsWith("w-") ||
-                        c.startsWith("min-w-") ||
-                        c.startsWith("max-w-") ||
-                        c.startsWith("text-center") ||
-                        c.startsWith("text-left") ||
-                        c.startsWith("text-right"),
-                    )
-                    .join(" ")
-                : "";
-
-              const baseHeaderClass = classes.tableHeaderCell;
-              const alignClass =
-                column.align === "center"
-                  ? "text-center"
-                  : column.align === "right"
-                    ? "text-right"
-                    : "";
-              const mergedRelevantClasses =
-                `${relevantClasses} ${alignClass}`.trim();
-              const hasCustomAlignment =
-                mergedRelevantClasses.includes("text-center") ||
-                mergedRelevantClasses.includes("text-right");
-              const headerClassName = hasCustomAlignment
-                ? `${baseHeaderClass.replace("text-left", "")} ${mergedRelevantClasses}`.trim()
-                : mergedRelevantClasses
-                  ? `${baseHeaderClass} ${mergedRelevantClasses}`.trim()
-                  : baseHeaderClass;
-              const headerCellClassName = `${headerClassName} min-w-0`;
-
-              const flexAlignment = mergedRelevantClasses.includes(
-                "text-center",
-              )
-                ? "justify-center"
-                : mergedRelevantClasses.includes("text-right")
-                  ? "justify-end"
-                  : "";
-
-              return (
-                <th key={index} className={headerCellClassName}>
-                  <div className="flex h-full min-w-0 items-stretch justify-between">
-                    <div
-                      className={`flex min-w-0 flex-1 items-center gap-2 overflow-hidden ${flexAlignment}`}
-                    >
-                      {Icon && <Icon className="size-4 shrink-0" />}
-                      <span className="truncate font-[Fustat] text-sm font-semibold leading-[18px] text-onSurface-default-secondary">
+                  <th
+                    key={index}
+                    scope="col"
+                    style={
+                      typeof column.width === "number"
+                        ? { width: column.width, minWidth: column.width }
+                        : undefined
+                    }
+                    className={cn(
+                      "h-11 whitespace-nowrap px-4 text-xs font-medium text-ink-3 first:pl-6 last:pr-6",
+                      ALIGN[column.align ?? "left"],
+                      column.hideBelow && HIDE_BELOW[column.hideBelow],
+                    )}
+                  >
+                    {column.headerVariant === "check" ? (
+                      <span className="sr-only">{column.label}</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        {Icon && <Icon className="size-3.5" />}
                         {column.label}
                       </span>
-                    </div>
-                    {!isLastColumn && (
-                      <div className={classes.tableHeaderDivider} />
                     )}
-                  </div>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody className="transition-all duration-300 ease-in-out">
-          {data.map((row, rowIndex) => (
-            <tr
-              key={getRowKey ? String(getRowKey(row, rowIndex)) : rowIndex}
-              className={`${classes.tableRow} ${
-                onRowClick ? "cursor-pointer" : ""
-              } ${getRowClassName ? (getRowClassName(row, rowIndex) ?? "") : ""} animate-fade-in`}
-              onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
-            >
-              {columns.map((column, colIndex) => {
-                const value = row[column.key];
-                const baseCellClass =
-                  column.cellVariant === "flush"
-                    ? classes.tableCellFlush
-                    : classes.tableCell;
-                const cellClassName = `${column.className || baseCellClass} min-w-0 overflow-hidden`;
-                return (
-                  <td key={colIndex} className={cellClassName}>
-                    <div className="min-w-0 overflow-hidden">
-                      {column.render
-                        ? column.render(value, row)
-                        : String(value)}
-                    </div>
-                  </td>
+                  </th>
                 );
               })}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.map((row, rowIndex) => {
+              const open = onRowClick
+                ? () => onRowClick(row, rowIndex)
+                : undefined;
+              return (
+                <tr
+                  key={keyOf(row, rowIndex)}
+                  className={cn(
+                    "border-b border-line transition-colors last:border-b-0",
+                    open
+                      ? "cursor-pointer hover:bg-subtle focus-visible:bg-subtle focus-visible:outline-none"
+                      : "hover:bg-subtle/50",
+                    getRowClassName?.(row, rowIndex),
+                  )}
+                  tabIndex={open ? 0 : undefined}
+                  aria-label={open ? getRowLabel?.(row) : undefined}
+                  onClick={open}
+                  onKeyDown={open ? (e) => activateOnKey(e, open) : undefined}
+                >
+                  {columns.map((column, colIndex) => {
+                    const value = row[column.key];
+                    return (
+                      <td
+                        key={colIndex}
+                        className={cn(
+                          "h-[52px] px-4 py-2.5 align-middle text-ink first:pl-6 last:pr-6",
+                          column.wrap
+                            ? "min-w-[180px] whitespace-normal"
+                            : "whitespace-nowrap",
+                          ALIGN[column.align ?? "left"],
+                          column.hideBelow && HIDE_BELOW[column.hideBelow],
+                          column.cellVariant === "flush" && "p-0",
+                          column.className,
+                        )}
+                        onClick={
+                          column.isAction
+                            ? (e) => e.stopPropagation()
+                            : undefined
+                        }
+                      >
+                        {column.render
+                          ? column.render(value, row)
+                          : String(value ?? "")}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
-
-export { classes as tableClasses };

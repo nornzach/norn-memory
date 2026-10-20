@@ -1,29 +1,35 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Check,
-  Copy,
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
   Eye,
   EyeOff,
+  KeyRound,
+  Loader2,
   Pencil,
   Plus,
-  Search,
+  SlidersHorizontal,
   Trash2,
+  UserRound,
   X,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -42,7 +48,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SearchInput } from "@/components/ui/search-input";
+import { CopyButton } from "@/components/misc/copy-button";
 import { DataTable } from "@/components/shared/data-table";
+import { Field } from "@/components/shared/field";
+import { FilterBar, PageHeader, Panel } from "@/components/shared/page";
+import { Pager } from "@/components/shared/pager";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { EmptyState } from "@/components/self-hosted/empty-state";
 import {
@@ -108,34 +120,6 @@ interface RecordPage {
   hasMore: boolean;
 }
 
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  const { t } = useI18n();
-  return (
-    <CopyToClipboard
-      text={text}
-      onCopy={() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-    >
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-7 shrink-0"
-        aria-label={copied ? t.exact.copied : label}
-        title={copied ? t.exact.copied : label}
-      >
-        {copied ? (
-          <Check className="size-3.5" />
-        ) : (
-          <Copy className="size-3.5" />
-        )}
-      </Button>
-    </CopyToClipboard>
-  );
-}
-
 function RevealButton({
   name,
   revealed,
@@ -154,15 +138,16 @@ function RevealButton({
       type="button"
       variant="ghost"
       size="icon"
-      className={cn("size-7 shrink-0", className)}
+      className={cn("size-8 shrink-0 text-ink-3", className)}
       aria-label={label}
       title={label}
+      aria-pressed={revealed}
       onClick={onToggle}
     >
       {revealed ? (
-        <EyeOff className="size-3.5" />
+        <EyeOff className="size-4" aria-hidden />
       ) : (
-        <Eye className="size-3.5" />
+        <Eye className="size-4" aria-hidden />
       )}
     </Button>
   );
@@ -174,11 +159,7 @@ function FieldList({ fields }: { fields: Record<string, unknown> }) {
   const entries = Object.entries(fields);
 
   if (entries.length === 0) {
-    return (
-      <p className="text-sm text-onSurface-default-tertiary">
-        {t.exact.noFields}
-      </p>
-    );
+    return <p className="text-sm text-ink-3">{t.exact.noFields}</p>;
   }
 
   const toggle = (name: string) =>
@@ -190,20 +171,20 @@ function FieldList({ fields }: { fields: Record<string, unknown> }) {
     });
 
   return (
-    <div className="divide-y divide-memBorder-primary rounded-lg border border-memBorder-primary">
+    <dl className="divide-y divide-line overflow-hidden rounded-lg border border-line">
       {entries.map(([name, value]) => {
         const text = displayValue(value);
         const secret = isSecretField(name);
         const hidden = secret && !revealed.has(name);
         return (
-          <div key={name} className="flex items-start gap-2 px-3 py-2">
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <p className="text-xs text-onSurface-default-tertiary break-all">
-                {name}
-              </p>
-              <pre className="whitespace-pre-wrap break-all font-mono text-sm text-onSurface-default-primary">
-                {hidden ? "••••••••" : text}
-              </pre>
+          <div key={name} className="flex items-start gap-1 py-2 pl-3 pr-1.5">
+            <div className="min-w-0 flex-1 space-y-0.5 py-0.5">
+              <dt className="break-all font-mono text-xs text-ink-3">{name}</dt>
+              <dd>
+                <pre className="whitespace-pre-wrap break-all font-mono text-[13px] leading-5 text-ink">
+                  {hidden ? "••••••••" : text}
+                </pre>
+              </dd>
             </div>
             {secret && (
               <RevealButton
@@ -212,11 +193,24 @@ function FieldList({ fields }: { fields: Record<string, unknown> }) {
                 onToggle={() => toggle(name)}
               />
             )}
-            <CopyButton text={text} label={t.exact.copy(name)} />
+            <CopyButton
+              text={text}
+              label={t.exact.copy(name)}
+              className="size-8 shrink-0 text-ink-3"
+            />
           </div>
         );
       })}
-    </div>
+    </dl>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-xs font-medium text-ink-3">{title}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -229,49 +223,42 @@ function RecordSummary({
 }) {
   const { t } = useI18n();
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="font-mono text-xs">
-          {record.kind}
-        </Badge>
+        {record.kind && (
+          <Badge variant="outline" className="font-mono">
+            {record.kind}
+          </Badge>
+        )}
         {record.title && (
-          <span className="text-sm font-medium">{record.title}</span>
+          <span className="min-w-0 break-words text-[15px] font-medium text-ink">
+            {record.title}
+          </span>
         )}
       </div>
       {record.description && (
-        <div className="space-y-1">
-          <Label className="text-xs text-onSurface-default-tertiary">
-            {t.exact.descriptionLabel}
-          </Label>
-          <p className="whitespace-pre-wrap break-words text-sm">
+        <Section title={t.exact.descriptionLabel}>
+          <p className="whitespace-pre-wrap break-words text-sm leading-6 text-ink-2">
             {record.description}
           </p>
-        </div>
+        </Section>
       )}
-      <div className="space-y-1">
-        <Label className="text-xs text-onSurface-default-tertiary">
-          {t.exact.tagsLabel}
-        </Label>
+      <Section title={t.exact.fieldsLabel}>
+        <FieldList fields={record.fields} />
+      </Section>
+      <Section title={t.exact.tagsLabel}>
         {record.tags.length ? (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {record.tags.map((tag) => (
-              <Badge key={tag} variant="outline" className="text-xs">
+              <Badge key={tag} variant="secondary">
                 {tag}
               </Badge>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-onSurface-default-tertiary">
-            {t.exact.noTags}
-          </p>
+          <p className="text-sm text-ink-3">{t.exact.noTags}</p>
         )}
-      </div>
-      <div className="space-y-1">
-        <Label className="text-xs text-onSurface-default-tertiary">
-          {t.exact.fieldsLabel}
-        </Label>
-        <FieldList fields={record.fields} />
-      </div>
+      </Section>
     </div>
   );
 }
@@ -304,38 +291,43 @@ function HistoryList({
 
   if (!data) {
     return error ? (
-      <p className="text-sm text-onSurface-danger-primary">{error}</p>
+      <p className="text-sm text-danger">{error}</p>
     ) : (
-      <TableSkeleton rows={3} columns={1} />
+      <div className="space-y-3">
+        <Skeleton className="h-24 w-full rounded-lg" />
+        <Skeleton className="h-24 w-full rounded-lg" />
+      </div>
     );
   }
 
   const versions: ExactRecordVersion[] = data.versions;
   if (versions.length === 0) {
-    return (
-      <p className="text-sm text-onSurface-default-tertiary">
-        {t.exact.noHistory}
-      </p>
-    );
+    return <p className="text-sm text-ink-3">{t.exact.noHistory}</p>;
   }
 
   return (
-    <div className="space-y-4">
+    <ol className="space-y-3">
       {versions.map((entry) => (
-        <Card
+        <li
           key={`${entry.version}-${entry.replaced_at}`}
-          className="border-memBorder-primary p-4 space-y-3"
+          className="space-y-4 rounded-lg border border-line p-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-semibold">
+            <span className="text-sm font-semibold text-ink">
               {t.exact.versionLabel(entry.version)}
             </span>
-            <span className="text-xs text-onSurface-default-tertiary">
-              {entry.change === "delete"
-                ? t.exact.changeDelete
-                : t.exact.changeUpdate}
+            <span className="flex items-center gap-2 text-xs text-ink-3">
+              <Badge
+                variant={entry.change === "delete" ? "destructive" : "info"}
+              >
+                {entry.change === "delete"
+                  ? t.exact.changeDelete
+                  : t.exact.changeUpdate}
+              </Badge>
               {entry.replaced_at &&
-                ` · ${format(new Date(entry.replaced_at), t.common.dateTimeFormat, { locale: dateLocale })}`}
+                format(new Date(entry.replaced_at), t.common.dateTimeFormat, {
+                  locale: dateLocale,
+                })}
             </span>
           </div>
           <RecordSummary
@@ -347,9 +339,9 @@ function HistoryList({
               fields: entry.fields ?? {},
             }}
           />
-        </Card>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
@@ -440,7 +432,9 @@ function RecordDialog({
     return entries;
   };
 
-  const handleSave = async () => {
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (isSaving) return;
     if (!record && !key.trim()) {
       setError(t.exact.keyRequired);
       return;
@@ -493,7 +487,7 @@ function RecordDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        className="sm:max-w-2xl"
         onCloseAutoFocus={(event) => {
           // After a save the detail sheet opens; moving focus back to the button
           // that opened this dialog would count as a click outside and close it.
@@ -501,18 +495,18 @@ function RecordDialog({
           saved.current = false;
         }}
       >
-        <DialogHeader>
-          <DialogTitle>
-            {record ? t.exact.editTitle : t.exact.createTitle}
-          </DialogTitle>
-          <DialogDescription>
-            {record ? t.exact.editDescription : t.exact.createDescription}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="exact-key">{t.exact.keyLabel}</Label>
+        <form onSubmit={handleSave} className="space-y-5">
+          <DialogHeader>
+            <DialogTitle>
+              {record ? t.exact.editTitle : t.exact.createTitle}
+            </DialogTitle>
+            <DialogDescription>
+              {record ? t.exact.editDescription : t.exact.createDescription}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="exact-key" label={t.exact.keyLabel}>
               <Input
                 id="exact-key"
                 value={key}
@@ -521,10 +515,10 @@ function RecordDialog({
                 disabled={!!record}
                 className="font-mono"
                 autoComplete="off"
+                autoFocus={!record}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="exact-kind">{t.exact.kindLabel}</Label>
+            </Field>
+            <Field id="exact-kind" label={t.exact.kindLabel}>
               <Input
                 id="exact-kind"
                 value={kind}
@@ -539,100 +533,92 @@ function RecordDialog({
                   <option key={option} value={option} />
                 ))}
               </datalist>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="exact-title">{t.exact.titleLabel}</Label>
-            <Input
+            </Field>
+            <Field
               id="exact-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t.exact.titlePlaceholder}
-              autoComplete="off"
-            />
+              label={t.exact.titleLabel}
+              className="sm:col-span-2"
+            >
+              <Input
+                id="exact-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t.exact.titlePlaceholder}
+                autoComplete="off"
+              />
+            </Field>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="exact-description">
-              {t.exact.descriptionLabel}
-            </Label>
-            <Textarea
-              id="exact-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="h-20 resize-y"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="exact-tags">{t.exact.tagsLabel}</Label>
-            <Input
-              id="exact-tags"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder={t.exact.tagsPlaceholder}
-              autoComplete="off"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>{t.exact.fieldsLabel}</Label>
-            <div className="space-y-2">
+
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-[13px] font-medium text-ink-2">
+              {t.exact.fieldsLabel}
+            </legend>
+            <ul className="space-y-2">
               {rows.map((row) => {
                 const secret = isSecretField(row.name);
                 const hidden = secret && !row.revealed;
                 return (
-                  <div key={row.id} className="flex items-start gap-2">
-                    <Input
-                      value={row.name}
-                      onChange={(e) =>
-                        updateRow(row.id, { name: e.target.value })
-                      }
-                      placeholder={t.exact.fieldName}
-                      aria-label={t.exact.fieldName}
-                      className="w-36 shrink-0 font-mono sm:w-44"
-                      autoComplete="off"
-                    />
-                    <Textarea
-                      value={row.value}
-                      onChange={(e) =>
-                        updateRow(row.id, { value: e.target.value })
-                      }
-                      placeholder={t.exact.fieldValue}
-                      aria-label={t.exact.fieldValue}
-                      rows={lineCount(row.value)}
-                      spellCheck={false}
-                      autoComplete="off"
-                      className={cn(
-                        "h-auto min-h-9 flex-1 resize-y py-2 font-mono",
-                        hidden && MASKED_TEXT,
-                      )}
-                    />
-                    {secret && (
-                      <RevealButton
-                        name={row.name}
-                        revealed={!hidden}
-                        onToggle={() =>
-                          updateRow(row.id, { revealed: !row.revealed })
+                  <li
+                    key={row.id}
+                    className="flex flex-col gap-2 rounded-lg border border-line bg-sunken p-2 sm:flex-row sm:items-start sm:border-0 sm:bg-transparent sm:p-0"
+                  >
+                    <div className="flex items-center gap-1 sm:contents">
+                      <Input
+                        value={row.name}
+                        onChange={(e) =>
+                          updateRow(row.id, { name: e.target.value })
                         }
-                        className="mt-1"
+                        placeholder={t.exact.fieldName}
+                        aria-label={t.exact.fieldName}
+                        className="min-w-0 flex-1 font-mono sm:w-44 sm:flex-none"
+                        autoComplete="off"
                       />
-                    )}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 shrink-0 mt-1"
-                      aria-label={t.exact.removeField(row.name)}
-                      onClick={() =>
-                        setRows((current) =>
-                          current.filter((r) => r.id !== row.id),
-                        )
-                      }
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger sm:order-last"
+                        aria-label={t.exact.removeField(row.name)}
+                        onClick={() =>
+                          setRows((current) =>
+                            current.filter((r) => r.id !== row.id),
+                          )
+                        }
+                      >
+                        <X className="size-4" aria-hidden />
+                      </Button>
+                    </div>
+                    <div className="flex min-w-0 flex-1 items-start gap-1">
+                      <Textarea
+                        value={row.value}
+                        onChange={(e) =>
+                          updateRow(row.id, { value: e.target.value })
+                        }
+                        placeholder={t.exact.fieldValue}
+                        aria-label={t.exact.fieldValue}
+                        rows={lineCount(row.value)}
+                        spellCheck={false}
+                        autoComplete="off"
+                        className={cn(
+                          "h-auto min-h-9 flex-1 resize-y py-2 font-mono",
+                          hidden && MASKED_TEXT,
+                        )}
+                      />
+                      {secret && (
+                        <RevealButton
+                          name={row.name}
+                          revealed={!hidden}
+                          onToggle={() =>
+                            updateRow(row.id, { revealed: !row.revealed })
+                          }
+                          className="size-9"
+                        />
+                      )}
+                    </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
             <Button
               type="button"
               variant="outline"
@@ -641,24 +627,78 @@ function RecordDialog({
                 setRows((current) => [...current, makeRow(nextRowId.current++)])
               }
             >
-              <Plus className="size-3.5 mr-1" /> {t.exact.addField}
+              <Plus aria-hidden /> {t.exact.addField}
             </Button>
+          </fieldset>
+
+          <div className="grid grid-cols-1 gap-4">
+            <Field id="exact-description" label={t.exact.descriptionLabel}>
+              <Textarea
+                id="exact-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </Field>
+            <Field id="exact-tags" label={t.exact.tagsLabel}>
+              <Input
+                id="exact-tags"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder={t.exact.tagsPlaceholder}
+                autoComplete="off"
+              />
+            </Field>
           </div>
+
           {error && (
-            <p className="text-sm text-onSurface-danger-primary">{error}</p>
+            <p
+              className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
+              role="alert"
+            >
+              {error}
+            </p>
           )}
-          <Button onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving
-              ? t.common.saving
-              : record
-                ? t.common.save
-                : t.common.create}
-          </Button>
-        </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {t.common.cancel}
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving && <Loader2 className="animate-spin" aria-hidden />}
+              {isSaving
+                ? t.common.saving
+                : record
+                  ? t.common.save
+                  : t.common.create}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
 }
+
+// Filters behind "More filters": where a record came from, and which keys it is under.
+type SourceField = "prefix" | "project" | "device" | "agent" | "cwd";
+const SOURCE_FIELDS: SourceField[] = [
+  "prefix",
+  "project",
+  "device",
+  "agent",
+  "cwd",
+];
+const NO_SOURCE: Record<SourceField, string> = {
+  prefix: "",
+  project: "",
+  device: "",
+  agent: "",
+  cwd: "",
+};
 
 export default function ExactRecordsPage() {
   const [userInput, setUserInput] = useState("");
@@ -666,7 +706,8 @@ export default function ExactRecordsPage() {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState(ALL_KINDS);
   const [tag, setTag] = useState("");
-  const [project, setProject] = useState("");
+  const [source, setSource] = useState(NO_SOURCE);
+  const [showMore, setShowMore] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<ExactRecord | null>(null);
   const [sheetTab, setSheetTab] = useState("fields");
@@ -677,7 +718,7 @@ export default function ExactRecordsPage() {
   );
   const debouncedQuery = useDebounce(query.trim(), 300);
   const debouncedTag = useDebounce(tag.trim(), 300);
-  const debouncedProject = useDebounce(project.trim(), 300);
+  const debouncedSource = useDebounce(source, 300);
   const latestRequest = useRef(0);
   const lastPage = useRef<RecordPage>(EMPTY_PAGE);
   const { t, dateLocale } = useI18n();
@@ -720,7 +761,10 @@ export default function ExactRecordsPage() {
       if (debouncedQuery) params.q = debouncedQuery;
       if (kind !== ALL_KINDS) params.kind = kind;
       if (debouncedTag) params.tag = debouncedTag;
-      if (debouncedProject) params.project = debouncedProject;
+      for (const field of SOURCE_FIELDS) {
+        const value = debouncedSource[field].trim();
+        if (value) params[field] = value;
+      }
       const res = await api.get<{ results: ExactRecord[] }>(
         EXACT_ENDPOINTS.RECORDS,
         { params },
@@ -744,7 +788,7 @@ export default function ExactRecordsPage() {
     debouncedQuery,
     kind,
     debouncedTag,
-    debouncedProject,
+    debouncedSource,
     page,
     refetch,
   ]);
@@ -774,6 +818,11 @@ export default function ExactRecordsPage() {
   const openEdit = (record: ExactRecord) => {
     setEditing(record);
     setDialogOpen(true);
+  };
+
+  const openRecord = (record: ExactRecord) => {
+    setSelected(record);
+    setSheetTab("fields");
   };
 
   const handleSaved = (record: ExactRecord) => {
@@ -806,13 +855,24 @@ export default function ExactRecordsPage() {
       ? format(new Date(value), t.common.dateTimeFormat, { locale: dateLocale })
       : t.common.none;
 
+  const relative = (value: string | null) =>
+    value
+      ? formatDistanceToNow(new Date(value), {
+          addSuffix: true,
+          locale: dateLocale,
+        })
+      : t.common.none;
+
   const columns = [
     {
       key: "key" as keyof ExactRecord,
       label: t.exact.columns.key,
-      width: 200,
+      width: 220,
       render: (value: string) => (
-        <code className="block truncate font-mono text-xs" title={value}>
+        <code
+          className="block truncate font-mono text-[13px] text-ink"
+          title={value}
+        >
           {value}
         </code>
       ),
@@ -820,9 +880,9 @@ export default function ExactRecordsPage() {
     {
       key: "kind" as keyof ExactRecord,
       label: t.exact.columns.kind,
-      width: 90,
+      width: 100,
       render: (value: string) => (
-        <Badge variant="outline" className="font-mono text-xs">
+        <Badge variant="outline" className="font-mono">
           {value}
         </Badge>
       ),
@@ -830,9 +890,12 @@ export default function ExactRecordsPage() {
     {
       key: "title" as keyof ExactRecord,
       label: t.exact.columns.title,
-      width: 200,
+      width: "auto" as const,
       render: (value: string | null) => (
-        <span className="block truncate" title={value ?? ""}>
+        <span
+          className={cn("block truncate", !value && "text-ink-3")}
+          title={value ?? ""}
+        >
           {value || t.common.none}
         </span>
       ),
@@ -840,18 +903,20 @@ export default function ExactRecordsPage() {
     {
       key: "tags" as keyof ExactRecord,
       label: t.exact.columns.tags,
-      width: 140,
+      width: 160,
+      hideBelow: "xl" as const,
       render: (value: string[]) => (
-        <div className="flex gap-1 overflow-hidden" title={value.join(", ")}>
-          {value.slice(0, 3).map((item) => (
-            <Badge key={item} variant="outline" className="text-xs">
+        <div
+          className="flex items-center gap-1 overflow-hidden"
+          title={value.join(", ")}
+        >
+          {value.slice(0, 2).map((item) => (
+            <Badge key={item} variant="secondary">
               {item}
             </Badge>
           ))}
-          {value.length > 3 && (
-            <span className="text-xs text-onSurface-default-tertiary">
-              +{value.length - 3}
-            </span>
+          {value.length > 2 && (
+            <span className="text-xs text-ink-3">+{value.length - 2}</span>
           )}
         </div>
       ),
@@ -859,191 +924,251 @@ export default function ExactRecordsPage() {
     {
       key: "project" as keyof ExactRecord,
       label: t.source.column,
-      width: 130,
+      width: 140,
+      hideBelow: "xl" as const,
       render: (_: unknown, row: ExactRecord) => <SourceCell source={row} />,
     },
     {
       key: "updated_at" as keyof ExactRecord,
       label: t.exact.columns.updated,
-      width: 110,
-      render: (value: string | null) =>
-        value ? (
-          <span
-            className="text-xs text-onSurface-default-secondary"
-            title={formatWhen(value)}
-          >
-            {formatDistanceToNow(new Date(value), {
-              addSuffix: true,
-              locale: dateLocale,
-            })}
-          </span>
-        ) : (
-          t.common.none
-        ),
+      width: 130,
+      render: (value: string | null) => (
+        <span className="text-ink-3" title={formatWhen(value)}>
+          {relative(value)}
+        </span>
+      ),
     },
   ];
 
+  const activeSourceFilters = SOURCE_FIELDS.filter((f) =>
+    debouncedSource[f].trim(),
+  ).length;
   const filtered =
     !!debouncedQuery ||
     kind !== ALL_KINDS ||
     !!debouncedTag ||
-    !!debouncedProject;
+    activeSourceFilters > 0;
+
+  const clearFilters = () => {
+    setQuery("");
+    setKind(ALL_KINDS);
+    setTag("");
+    setSource(NO_SOURCE);
+    setPage(0);
+  };
+
+  const sourcePlaceholders: Record<SourceField, string> = {
+    prefix: t.exact.prefixPlaceholder,
+    project: t.source.project,
+    device: t.source.device,
+    agent: t.source.agent,
+    cwd: t.exact.folderPlaceholder,
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-72">
-          <h1 className="text-xl font-semibold font-fustat">{t.exact.title}</h1>
-          <p className="text-sm text-onSurface-default-secondary mt-1">
-            {t.exact.subtitle}
-          </p>
-        </div>
-        <Button size="sm" onClick={openCreate} disabled={!userId}>
-          <Plus className="size-4 mr-1" /> {t.exact.add}
-        </Button>
-      </div>
+    <>
+      <PageHeader
+        title={t.exact.title}
+        description={t.exact.subtitle}
+        actions={
+          <Button onClick={openCreate} disabled={!userId}>
+            <Plus aria-hidden /> {t.exact.add}
+          </Button>
+        }
+      />
 
-      <div className="flex flex-wrap gap-3">
-        <Input
-          value={userInput}
-          onChange={(e) => setUserInput(e.target.value)}
-          onBlur={commitUser}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitUser();
-          }}
-          placeholder={t.exact.userPlaceholder}
-          aria-label={t.exact.userLabel}
-          list="exact-user-options"
-          className="w-full sm:w-48"
-          autoComplete="off"
-        />
-        <datalist id="exact-user-options">
-          {users.map((user) => (
-            <option key={user.id} value={user.id} />
-          ))}
-        </datalist>
-        <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-onSurface-default-tertiary" />
-          <Input
+      <Panel>
+        <FilterBar>
+          <div className="relative xs:col-span-2 md:w-44">
+            <UserRound
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3"
+              aria-hidden
+            />
+            <Input
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onBlur={commitUser}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitUser();
+              }}
+              placeholder={t.exact.userPlaceholder}
+              aria-label={t.exact.userLabel}
+              list="exact-user-options"
+              className="pl-9"
+              autoComplete="off"
+            />
+            <datalist id="exact-user-options">
+              {users.map((user) => (
+                <option key={user.id} value={user.id} />
+              ))}
+            </datalist>
+          </div>
+          <SearchInput
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
+            onValueChange={(value) => {
+              setQuery(value);
               setPage(0);
             }}
             placeholder={t.exact.searchPlaceholder}
             aria-label={t.exact.searchPlaceholder}
-            className="pl-9"
-            autoComplete="off"
+            containerClassName="xs:col-span-2 md:min-w-[180px] md:flex-1"
+            disabled={!userId}
           />
-        </div>
-        <Select
-          value={kind}
-          onValueChange={(value) => {
-            setKind(value);
-            setPage(0);
-          }}
-        >
-          <SelectTrigger
-            className="w-full sm:w-40"
-            aria-label={t.exact.kindFilter}
+          <Select
+            value={kind}
+            onValueChange={(value) => {
+              setKind(value);
+              setPage(0);
+            }}
+            disabled={!userId}
           >
-            <SelectValue placeholder={t.exact.allKinds} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_KINDS}>{t.exact.allKinds}</SelectItem>
-            {kindOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          value={tag}
-          onChange={(e) => {
-            setTag(e.target.value);
-            setPage(0);
-          }}
-          placeholder={t.exact.tagPlaceholder}
-          aria-label={t.exact.tagPlaceholder}
-          className="w-full sm:w-32"
-          autoComplete="off"
-        />
-        <Input
-          value={project}
-          onChange={(e) => {
-            setProject(e.target.value);
-            setPage(0);
-          }}
-          placeholder={t.source.projectFilter}
-          aria-label={t.source.projectFilter}
-          className="w-full sm:w-32"
-          autoComplete="off"
-        />
-      </div>
+            <SelectTrigger className="md:w-32" aria-label={t.exact.kindFilter}>
+              <SelectValue placeholder={t.exact.allKinds} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_KINDS}>{t.exact.allKinds}</SelectItem>
+              {kindOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            value={tag}
+            onChange={(e) => {
+              setTag(e.target.value);
+              setPage(0);
+            }}
+            placeholder={t.exact.tagPlaceholder}
+            aria-label={t.exact.tagPlaceholder}
+            className="md:w-28"
+            autoComplete="off"
+            disabled={!userId}
+          />
+          <Button
+            variant="outline"
+            onClick={() => setShowMore((v) => !v)}
+            aria-expanded={showMore}
+            disabled={!userId}
+            className={cn(
+              "shrink-0",
+              activeSourceFilters > 0 && "border-brand text-brand-text",
+            )}
+          >
+            <SlidersHorizontal aria-hidden />
+            {t.memories.moreFilters}
+            {activeSourceFilters > 0 && (
+              <span className="tabular grid size-5 place-items-center rounded-full bg-brand-soft text-xs">
+                {activeSourceFilters}
+              </span>
+            )}
+          </Button>
+          {filtered && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="justify-self-start text-ink-3 md:ml-auto"
+            >
+              <X aria-hidden />
+              {t.common.clearFilters}
+            </Button>
+          )}
+        </FilterBar>
 
-      {!userId ? (
-        <EmptyState
-          title={t.exact.chooseUserTitle}
-          description={t.exact.chooseUserDescription}
-        />
-      ) : isLoading && records.length === 0 ? (
-        <TableSkeleton rows={5} columns={5} />
-      ) : records.length === 0 ? (
-        <EmptyState
-          title={filtered ? t.exact.noMatchesTitle : t.exact.emptyTitle}
-          description={
-            filtered ? t.exact.noMatchesDescription : t.exact.emptyDescription
-          }
-        />
-      ) : (
-        <>
-          <Card className="border-memBorder-primary overflow-hidden">
+        {showMore && userId && (
+          <div className="grid grid-cols-1 gap-2 border-b border-line bg-subtle/40 px-5 py-3 xs:grid-cols-2 sm:px-6 lg:grid-cols-3 2xl:grid-cols-5">
+            {SOURCE_FIELDS.map((field) => (
+              <Input
+                key={field}
+                value={source[field]}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSource((current) => ({ ...current, [field]: value }));
+                  setPage(0);
+                }}
+                placeholder={sourcePlaceholders[field]}
+                aria-label={sourcePlaceholders[field]}
+                className={cn(field === "prefix" && "font-mono")}
+                autoComplete="off"
+              />
+            ))}
+          </div>
+        )}
+
+        {!userId ? (
+          <EmptyState
+            title={t.exact.chooseUserTitle}
+            description={t.exact.chooseUserDescription}
+            icon={UserRound}
+          />
+        ) : isLoading && records.length === 0 ? (
+          <TableSkeleton rows={5} columns={5} />
+        ) : records.length === 0 ? (
+          <EmptyState
+            title={filtered ? t.exact.noMatchesTitle : t.exact.emptyTitle}
+            description={
+              filtered ? t.exact.noMatchesDescription : t.exact.emptyDescription
+            }
+            icon={KeyRound}
+          >
+            {filtered ? (
+              <Button variant="outline" onClick={clearFilters}>
+                {t.common.clearFilters}
+              </Button>
+            ) : (
+              <Button onClick={openCreate}>
+                <Plus aria-hidden /> {t.exact.add}
+              </Button>
+            )}
+          </EmptyState>
+        ) : (
+          <>
             <DataTable
               data={records}
               columns={columns}
               getRowKey={(row) => row.id}
-              onRowClick={(row) => {
-                setSelected(row);
-                setSheetTab("fields");
-              }}
+              onRowClick={openRecord}
+              getRowLabel={(row) => row.title || row.key}
               getRowClassName={(row) =>
-                selected?.id === row.id
-                  ? "bg-surface-default-tertiary"
-                  : undefined
+                selected?.id === row.id ? "bg-brand-soft" : undefined
               }
+              renderMobileCard={(row) => (
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <code className="min-w-0 truncate font-mono text-[13px] font-medium text-ink">
+                      {row.key}
+                    </code>
+                    <Badge variant="outline" className="shrink-0 font-mono">
+                      {row.kind}
+                    </Badge>
+                  </div>
+                  {row.title && (
+                    <p className="truncate text-sm text-ink-2">{row.title}</p>
+                  )}
+                  <p className="truncate text-xs text-ink-3">
+                    {[
+                      row.tags.length ? row.tags.join(", ") : null,
+                      relative(row.updated_at),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+              )}
             />
-          </Card>
-          {(page > 0 || hasMore) && (
-            <div className="flex items-center justify-between text-sm text-onSurface-default-tertiary">
-              <span>
-                {t.exact.pageRange(
-                  page * PAGE_SIZE + 1,
-                  page * PAGE_SIZE + records.length,
-                )}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  {t.common.previous}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!hasMore}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  {t.common.next}
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              shown={records.length}
+              hasMore={hasMore}
+              onPageChange={setPage}
+              disabled={isLoading}
+            />
+          </>
+        )}
+      </Panel>
 
       <Sheet
         open={!!selected}
@@ -1051,9 +1176,9 @@ export default function ExactRecordsPage() {
           if (!open) setSelected(null);
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle className="break-all pr-6 font-mono text-base">
+        <SheetContent className="w-full gap-0 p-0 sm:max-w-lg">
+          <SheetHeader className="border-b border-line px-5 py-4 sm:px-6">
+            <SheetTitle className="break-all pr-8 font-mono text-[15px]">
               {selected?.key}
             </SheetTitle>
             <SheetDescription className="sr-only">
@@ -1061,68 +1186,77 @@ export default function ExactRecordsPage() {
             </SheetDescription>
           </SheetHeader>
           {selected && (
-            <Tabs value={sheetTab} onValueChange={setSheetTab} className="mt-4">
-              <TabsList>
-                <TabsTrigger value="fields">{t.exact.fieldsTab}</TabsTrigger>
-                <TabsTrigger value="history">{t.exact.historyTab}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="fields" className="mt-4 space-y-4">
-                <RecordSummary
-                  key={`${selected.id}-${selected.version}`}
-                  record={selected}
-                />
-                <SourceDetails source={selected} />
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-onSurface-default-tertiary">
-                      {t.exact.version}
-                    </Label>
-                    <p className="text-sm">{selected.version}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-onSurface-default-tertiary">
-                      {t.exact.created}
-                    </Label>
-                    <p className="text-xs">{formatWhen(selected.created_at)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-onSurface-default-tertiary">
-                      {t.exact.updated}
-                    </Label>
-                    <p className="text-xs">{formatWhen(selected.updated_at)}</p>
-                  </div>
+            <>
+              <Tabs
+                value={sheetTab}
+                onValueChange={setSheetTab}
+                className="flex min-h-0 flex-1 flex-col"
+              >
+                <div className="border-b border-line px-5 py-2 sm:px-6">
+                  <TabsList>
+                    <TabsTrigger value="fields">
+                      {t.exact.fieldsTab}
+                    </TabsTrigger>
+                    <TabsTrigger value="history">
+                      {t.exact.historyTab}
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEdit(selected)}
-                  >
-                    <Pencil className="size-3.5 mr-1" />
-                    {t.common.edit}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-onSurface-danger-primary"
-                    onClick={() => setRecordToDelete(selected)}
-                  >
-                    <Trash2 className="size-3.5 mr-1" />
-                    {t.exact.deleteRecord}
-                  </Button>
+                <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+                  <TabsContent value="fields" className="mt-0 space-y-6">
+                    <RecordSummary
+                      key={`${selected.id}-${selected.version}`}
+                      record={selected}
+                    />
+                    <SourceDetails source={selected} />
+                    <dl className="grid grid-cols-3 gap-3 rounded-lg bg-sunken px-3 py-3 text-xs">
+                      <div className="min-w-0 space-y-0.5">
+                        <dt className="text-ink-3">{t.exact.version}</dt>
+                        <dd className="tabular font-medium text-ink">
+                          {selected.version}
+                        </dd>
+                      </div>
+                      <div className="min-w-0 space-y-0.5">
+                        <dt className="text-ink-3">{t.exact.created}</dt>
+                        <dd className="text-ink-2">
+                          {formatWhen(selected.created_at)}
+                        </dd>
+                      </div>
+                      <div className="min-w-0 space-y-0.5">
+                        <dt className="text-ink-3">{t.exact.updated}</dt>
+                        <dd className="text-ink-2">
+                          {formatWhen(selected.updated_at)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </TabsContent>
+                  <TabsContent value="history" className="mt-0">
+                    {sheetTab === "history" && (
+                      <HistoryList
+                        key={selected.key}
+                        userId={userId}
+                        recordKey={selected.key}
+                        version={selected.version}
+                      />
+                    )}
+                  </TabsContent>
                 </div>
-              </TabsContent>
-              <TabsContent value="history" className="mt-4">
-                {sheetTab === "history" && (
-                  <HistoryList
-                    key={selected.key}
-                    userId={userId}
-                    recordKey={selected.key}
-                    version={selected.version}
-                  />
-                )}
-              </TabsContent>
-            </Tabs>
+              </Tabs>
+              <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line px-5 py-3 sm:px-6">
+                <Button
+                  variant="ghost"
+                  className="text-danger hover:bg-danger-soft hover:text-danger"
+                  onClick={() => setRecordToDelete(selected)}
+                >
+                  <Trash2 aria-hidden />
+                  {t.exact.deleteRecord}
+                </Button>
+                <Button variant="outline" onClick={() => openEdit(selected)}>
+                  <Pencil aria-hidden />
+                  {t.common.edit}
+                </Button>
+              </div>
+            </>
           )}
         </SheetContent>
       </Sheet>
@@ -1144,6 +1278,6 @@ export default function ExactRecordsPage() {
         itemName={recordToDelete?.key ?? ""}
         confirmButtonText={t.common.delete}
       />
-    </div>
+    </>
   );
 }

@@ -17,19 +17,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-surface-default-primary group-[.toaster]:text-foreground group-[.toaster]:border-memBorder-primary group-[.toaster]:shadow-lg group-[.toaster]:rounded-md group-[.toaster]:pointer-events-auto",
+            "group toast group-[.toaster]:bg-panel group-[.toaster]:text-ink group-[.toaster]:border-line group-[.toaster]:shadow-elev-3 group-[.toaster]:rounded-lg group-[.toaster]:pointer-events-auto",
           title: "group-[.toast]:text-sm group-[.toast]:font-semibold",
-          description:
-            "group-[.toast]:text-muted-foreground group-[.toast]:text-sm",
+          description: "group-[.toast]:text-ink-3 group-[.toast]:text-sm",
           icon: "hidden",
           success:
-            "group-[.toaster]:border-l-4 group-[.toaster]:border-l-[var(--surface-positive-primary)]",
+            "group-[.toaster]:border-l-4 group-[.toaster]:border-l-[var(--success)]",
           error:
-            "group-[.toaster]:border-l-4 group-[.toaster]:border-l-[var(--surface-danger-primary)]",
+            "group-[.toaster]:border-l-4 group-[.toaster]:border-l-[var(--danger)]",
           actionButton:
-            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton:
-            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+            "group-[.toast]:bg-action group-[.toast]:text-action-ink",
+          cancelButton: "group-[.toast]:bg-subtle group-[.toast]:text-ink-2",
         },
       }}
       {...props}

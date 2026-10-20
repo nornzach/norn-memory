@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Copy, Loader2 } from "lucide-react";
 import { CopyToClipboard } from "react-copy-to-clipboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Segmented } from "@/components/ui/segmented";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "@/components/ui/use-toast";
+import { getErrorMessage } from "@/lib/error-message";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +25,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api } from "@/utils/api";
-import { ENTITY_ENDPOINTS } from "@/utils/api-endpoints";
+import { API_KEY_ENDPOINTS, ENTITY_ENDPOINTS } from "@/utils/api-endpoints";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { Entity } from "@/types/api";
+import { ApiKey, ApiKeySecret, Entity } from "@/types/api";
 import { useI18n } from "@/i18n/provider";
+import {
+  AgentSetupValues,
+  buildAgentSetupPrompt,
+  buildAgentUpdatePrompt,
+} from "@/lib/agent-setup-prompt";
 
-const KEY_PLACEHOLDER = "<PASTE_YOUR_NORN_M_API_KEY>";
-const AGENT_PLACEHOLDER =
-  "<your own short lowercase name, e.g. claude-code, omp, devin>";
+type Mode = "setup" | "update";
+// Key picker choices besides a key's id.
+const PASTE = "__paste__";
+const KEEP = "__keep__";
 const DEVICE_SUGGESTIONS = [
   "mac",
   "windows",
@@ -68,97 +84,17 @@ function guessDevice(): string {
   return "";
 }
 
-export interface AgentSetupValues {
-  url: string;
-  apiKey: string;
-  userId: string;
-  device: string;
-  agent: string;
-}
-
-/** A prompt an agent can follow to register this server as an MCP server and check the connection. */
-export function buildAgentSetupPrompt(values: AgentSetupValues): string {
-  const url = values.url.trim();
-  const key = values.apiKey.trim() || KEY_PLACEHOLDER;
-  const headers: Record<string, string> = { "X-API-Key": key };
-  if (values.userId.trim()) headers["X-Norn-M-User-Id"] = values.userId.trim();
-  if (values.device.trim()) headers["X-Norn-M-Device"] = values.device.trim();
-  headers["X-Norn-M-Agent"] = values.agent.trim() || AGENT_PLACEHOLDER;
-
-  const headerLines = Object.entries(headers)
-    .map(([name, value]) => `  ${name}: ${value}`)
-    .join("\n");
-  const claudeHeaders = Object.entries(headers)
-    .map(([name, value]) => `--header "${name}: ${value}"`)
-    .join(" ");
-  const devinEntry = JSON.stringify(
-    { "norn-m": { url, transport: "http", headers } },
-    null,
-    2,
-  );
-  const ompEntry = JSON.stringify(
-    { "norn-m": { type: "http", url, headers } },
-    null,
-    2,
-  );
-  const listTools = JSON.stringify({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "tools/list",
-  });
-
-  return `Connect yourself to my self-hosted Norn-M memory server over MCP, then check that it works.
-
-## Server
-- MCP endpoint (streamable HTTP): ${url}
-- Send these headers on every request:
-${headerLines}
-${headers["X-Norn-M-Agent"] === AGENT_PLACEHOLDER ? "  (Replace the X-Norn-M-Agent placeholder with your own name.)\n" : ""}
-## Steps
-1. Check that the server is reachable and the key works. The reply should be JSON listing tools such as search_memories and exact_set:
-   curl -s -X POST ${url} -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -H "X-API-Key: ${key}" -d '${listTools}'
-   If it fails, stop and tell me: a connection error means the URL is wrong or the server is down, and 401 means the key is wrong.
-2. Register the server as "norn-m" in your own MCP configuration, at user (global) scope so it works in every project. Use the method for the agent you are:
-   - Claude Code: run
-     claude mcp add --transport http --scope user norn-m ${url} ${claudeHeaders}
-     If "norn-m" already exists, run claude mcp remove norn-m --scope user first.
-   - Devin CLI: add this entry under "mcpServers" in ~/.config/devin/mcp_config.json, then run devin mcp get norn-m:
-${indent(devinEntry, 6)}
-   - omp (oh-my-pi): add this entry under "mcpServers" in ~/.omp/agent/mcp.json. Keep "type": "http", or omp treats it as a local command:
-${indent(ompEntry, 6)}
-   - Any other agent: add a remote MCP server named "norn-m" that uses streamable HTTP with the URL and headers above, wherever your agent keeps its MCP configuration. If you are not sure where that is, ask me instead of guessing.
-   When you edit a JSON config file, keep every server already in it and keep the file valid JSON. Create the file if it does not exist.
-3. Confirm the server is registered with your own tooling (for example claude mcp list), and tell me whether I need to restart you to load the new tools.
-4. Once the norn-m tools are loaded, call search_memories with the query "setup check" to confirm they work. Do not store anything during setup.
-
-## Using the memory afterwards
-- Call search_memories before answering anything that depends on my preferences, history, projects or earlier decisions.
-- Save durable facts, preferences and decisions with add_memory. Pass project (the project or repository name, such as the git repository's folder name) and cwd (your current working directory) when the memory belongs to the work at hand.
-- Anything that must come back exactly (passwords, API keys, server IPs, URLs, accounts, dates) goes in exact_set and exact_get, never add_memory.
-- Never repeat the API key back to me.`;
-}
-
-function indent(text: string, spaces: number): string {
-  const pad = " ".repeat(spaces);
-  return text
-    .split("\n")
-    .map((line) => pad + line)
-    .join("\n");
-}
-
 interface AgentSetupDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Prefilled when opened right after creating a key. */
-  initialKey?: string;
-  initialUserId?: string;
+  /** The key to start with, e.g. one just created or picked from the list. */
+  initialKeyId?: string;
 }
 
 export function AgentSetupDialog({
   open,
   onOpenChange,
-  initialKey = "",
-  initialUserId = "",
+  initialKeyId = "",
 }: AgentSetupDialogProps) {
   const { t } = useI18n();
   const [values, setValues] = useState<AgentSetupValues>({
@@ -168,7 +104,12 @@ export function AgentSetupDialog({
     device: "",
     agent: "",
   });
+  const [mode, setMode] = useState<Mode>("setup");
   const [copied, setCopied] = useState(false);
+  const [keyChoice, setKeyChoice] = useState("");
+  const [loadingKey, setLoadingKey] = useState(false);
+  // Only the latest pick may fill in the key, however the requests finish.
+  const keyRequest = useRef(0);
 
   const { data: entities = [] } = useApiQuery<Entity[]>(
     async () => {
@@ -182,26 +123,115 @@ export function AgentSetupDialog({
     [entities],
   );
 
+  const { data: apiKeys = [], isLoading: keysLoading } = useApiQuery<ApiKey[]>(
+    async () => (await api.get<ApiKey[]>(API_KEY_ENDPOINTS.BASE)).data ?? [],
+    {
+      initialData: [],
+      enabled: open,
+    },
+  );
+
+  const chooseKey = useCallback(
+    async (choice: string, known?: ApiKey) => {
+      const request = ++keyRequest.current;
+      setKeyChoice(choice);
+      setCopied(false);
+      setValues((v) => ({ ...v, apiKey: "" }));
+      if (!choice || choice === PASTE || choice === KEEP) return;
+      setLoadingKey(true);
+      try {
+        const res = await api.get<ApiKeySecret>(API_KEY_ENDPOINTS.KEY(choice));
+        if (request !== keyRequest.current) return;
+        // A key limited to one user can only be used for that user.
+        const onlyUser =
+          known?.user_ids.length === 1 ? known.user_ids[0] : undefined;
+        setValues((v) => ({
+          ...v,
+          apiKey: res.data.key,
+          userId: onlyUser ?? v.userId,
+        }));
+      } catch (err) {
+        if (request !== keyRequest.current) return;
+        setKeyChoice(PASTE);
+        toast({
+          title: t.agentSetup.keyLoadFailed,
+          description: getErrorMessage(err),
+          variant: "destructive",
+        });
+      } finally {
+        if (request === keyRequest.current) setLoadingKey(false);
+      }
+    },
+    [t],
+  );
+
   // Reset each time the dialog opens, so a key from an earlier opening never lingers.
   useEffect(() => {
     if (!open) return;
     setValues({
       url: defaultMcpUrl(),
-      apiKey: initialKey,
-      userId: initialUserId,
+      apiKey: "",
+      userId: "",
       device: guessDevice(),
       agent: "",
     });
+    setMode("setup");
     setCopied(false);
-  }, [open, initialKey, initialUserId]);
+    setKeyChoice("");
+    if (initialKeyId) void chooseKey(initialKeyId);
+  }, [open, initialKeyId, chooseKey]);
+
+  // With exactly one key to choose from, choose it.
+  const usableKeys = useMemo(
+    () => apiKeys.filter((k) => k.retrievable),
+    [apiKeys],
+  );
+  useEffect(() => {
+    if (open && mode === "setup" && !keyChoice && usableKeys.length === 1) {
+      void chooseKey(usableKeys[0].id, usableKeys[0]);
+    }
+  }, [open, mode, keyChoice, usableKeys, chooseKey]);
+
+  // The key list arrives after a key passed in by id was fetched; apply its user limit then.
+  useEffect(() => {
+    const picked = apiKeys.find((k) => k.id === keyChoice);
+    if (picked?.user_ids.length === 1) {
+      setValues((v) => (v.userId ? v : { ...v, userId: picked.user_ids[0] }));
+    }
+  }, [apiKeys, keyChoice]);
 
   useEffect(() => {
-    if (open && !values.userId && users.length === 1) {
+    if (open && mode === "setup" && !values.userId && users.length === 1) {
       setValues((v) => ({ ...v, userId: users[0] }));
     }
-  }, [open, users, values.userId]);
+  }, [open, mode, users, values.userId]);
 
-  const prompt = buildAgentSetupPrompt(values);
+  // An update changes only what is filled in, so its optional fields start blank.
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setCopied(false);
+    if (next === "update") {
+      keyRequest.current++;
+      setLoadingKey(false);
+      setKeyChoice(KEEP);
+    } else {
+      setKeyChoice("");
+    }
+    setValues((v) =>
+      next === "update"
+        ? { ...v, apiKey: "", userId: "", device: "" }
+        : {
+            ...v,
+            userId: v.userId || (users.length === 1 ? users[0] : ""),
+            device: v.device || guessDevice(),
+          },
+    );
+  };
+
+  const updating = mode === "update";
+  const prompt = updating
+    ? buildAgentUpdatePrompt(values)
+    : buildAgentSetupPrompt(values);
   const set =
     (field: keyof AgentSetupValues) =>
     (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -209,14 +239,27 @@ export function AgentSetupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t.agentSetup.title}</DialogTitle>
-          <DialogDescription>{t.agentSetup.description}</DialogDescription>
+          <DialogDescription>
+            {updating
+              ? t.agentSetup.updateDescription
+              : t.agentSetup.description}
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 mt-2">
+        <div className="space-y-4">
+          <Segmented
+            label={t.agentSetup.modeLabel}
+            value={mode}
+            onChange={switchMode}
+            options={[
+              { value: "setup", label: t.agentSetup.modeSetup },
+              { value: "update", label: t.agentSetup.modeUpdate },
+            ]}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="agent-setup-url">{t.agentSetup.serverUrl}</Label>
               <Input
                 id="agent-setup-url"
@@ -225,28 +268,83 @@ export function AgentSetupDialog({
                 className="font-mono text-sm"
                 autoComplete="off"
               />
-              <p className="text-xs text-onSurface-default-tertiary">
-                {t.agentSetup.serverUrlHint}
-              </p>
+              <p className="text-xs text-ink-3">{t.agentSetup.serverUrlHint}</p>
             </div>
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="agent-setup-key">{t.agentSetup.apiKey}</Label>
-              <Input
-                id="agent-setup-key"
-                type="password"
-                value={values.apiKey}
-                onChange={set("apiKey")}
-                placeholder={t.agentSetup.apiKeyPlaceholder}
-                className="font-mono text-sm"
-                autoComplete="off"
-              />
+              <div className="relative">
+                <Select
+                  value={keyChoice}
+                  onValueChange={(choice) =>
+                    void chooseKey(
+                      choice,
+                      apiKeys.find((k) => k.id === choice),
+                    )
+                  }
+                >
+                  <SelectTrigger id="agent-setup-key">
+                    <SelectValue
+                      placeholder={
+                        keysLoading ? t.common.loading : t.agentSetup.chooseKey
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {updating && (
+                      <SelectItem value={KEEP}>
+                        {t.agentSetup.keepCurrentKey}
+                      </SelectItem>
+                    )}
+                    {apiKeys.map((key) => (
+                      <SelectItem
+                        key={key.id}
+                        value={key.id}
+                        disabled={!key.retrievable}
+                      >
+                        {key.label}
+                        <span className="ml-2 font-mono text-xs text-ink-3">
+                          {key.key_prefix}…
+                          {!key.retrievable &&
+                            ` · ${t.agentSetup.keyUnavailable}`}
+                        </span>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={PASTE}>
+                      {t.agentSetup.pasteKey}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {loadingKey && (
+                  <Loader2
+                    className="pointer-events-none absolute right-9 top-1/2 size-4 -translate-y-1/2 animate-spin text-ink-3"
+                    aria-hidden
+                  />
+                )}
+              </div>
+              {keyChoice === PASTE && (
+                <Input
+                  id="agent-setup-key-paste"
+                  type="password"
+                  value={values.apiKey}
+                  onChange={set("apiKey")}
+                  placeholder={t.agentSetup.apiKeyPlaceholder}
+                  aria-label={t.agentSetup.apiKeyPlaceholder}
+                  className="font-mono text-sm"
+                  autoComplete="off"
+                  autoFocus
+                />
+              )}
+              {!keysLoading && apiKeys.length === 0 && (
+                <p className="text-xs text-ink-3">{t.agentSetup.noKeys}</p>
+              )}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label htmlFor="agent-setup-user">{t.agentSetup.userId}</Label>
               <Input
                 id="agent-setup-user"
                 value={values.userId}
                 onChange={set("userId")}
+                placeholder={updating ? t.agentSetup.keepCurrent : undefined}
                 list="agent-setup-users"
                 autoComplete="off"
               />
@@ -256,12 +354,13 @@ export function AgentSetupDialog({
                 ))}
               </datalist>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label htmlFor="agent-setup-device">{t.agentSetup.device}</Label>
               <Input
                 id="agent-setup-device"
                 value={values.device}
                 onChange={set("device")}
+                placeholder={updating ? t.agentSetup.keepCurrent : undefined}
                 list="agent-setup-devices"
                 autoComplete="off"
               />
@@ -271,13 +370,17 @@ export function AgentSetupDialog({
                 ))}
               </datalist>
             </div>
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="agent-setup-agent">{t.agentSetup.agent}</Label>
               <Input
                 id="agent-setup-agent"
                 value={values.agent}
                 onChange={set("agent")}
-                placeholder={t.agentSetup.agentPlaceholder}
+                placeholder={
+                  updating
+                    ? t.agentSetup.agentUpdatePlaceholder
+                    : t.agentSetup.agentPlaceholder
+                }
                 list="agent-setup-agents"
                 autoComplete="off"
               />
@@ -288,29 +391,23 @@ export function AgentSetupDialog({
               </datalist>
             </div>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Label htmlFor="agent-setup-prompt">{t.agentSetup.prompt}</Label>
             <Textarea
               id="agent-setup-prompt"
               value={prompt}
               readOnly
               rows={12}
-              className="font-mono text-xs"
+              className="scrollbar-thin resize-none bg-sunken font-mono text-xs leading-5"
             />
-            {!values.apiKey.trim() && (
-              <p className="text-xs text-onSurface-default-tertiary">
-                {t.agentSetup.missingKey}
-              </p>
+            {!updating && !values.apiKey.trim() && (
+              <p className="text-xs text-ink-3">{t.agentSetup.missingKey}</p>
             )}
-            {!values.userId.trim() && (
-              <p className="text-xs text-onSurface-default-tertiary">
-                {t.agentSetup.missingUser}
-              </p>
+            {!updating && !values.userId.trim() && (
+              <p className="text-xs text-ink-3">{t.agentSetup.missingUser}</p>
             )}
             {values.apiKey.trim() && (
-              <p className="text-xs text-onSurface-danger-primary">
-                {t.agentSetup.keyWarning}
-              </p>
+              <p className="text-xs text-warning">{t.agentSetup.keyWarning}</p>
             )}
           </div>
           <CopyToClipboard
@@ -321,11 +418,7 @@ export function AgentSetupDialog({
             }}
           >
             <Button className="w-full" disabled={!values.url.trim()}>
-              {copied ? (
-                <Check className="size-4 mr-1" />
-              ) : (
-                <Copy className="size-4 mr-1" />
-              )}
+              {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
               {copied ? t.agentSetup.copied : t.agentSetup.copy}
             </Button>
           </CopyToClipboard>

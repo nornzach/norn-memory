@@ -1,10 +1,20 @@
-import React from "react";
+import { cn } from "@/lib/utils";
 
-export function Spinner({ size = "small", className = "" }) {
-  const spinnerSize = size === "small" ? "w-4 h-4" : "w-6 h-6";
+export function Spinner({
+  size = "small",
+  className,
+}: {
+  size?: "small" | "large";
+  className?: string;
+}) {
   return (
-    <div
-      className={`${spinnerSize} ${className} animate-spin rounded-full border-y-2 border-memBorder-primary`}
-    ></div>
+    <span
+      role="status"
+      className={cn(
+        "inline-block animate-spin rounded-full border-2 border-line-strong border-t-brand",
+        size === "small" ? "size-4" : "size-6",
+        className,
+      )}
+    />
   );
 }

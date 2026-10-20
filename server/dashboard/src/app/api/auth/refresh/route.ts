@@ -70,6 +70,15 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE() {
   const cookieStore = await cookies();
+  const refreshToken = cookieStore.get(COOKIE_NAME)?.value;
   cookieStore.delete(COOKIE_NAME);
+  if (refreshToken) {
+    // Best effort: revoke it server-side too, so a copied cookie can't resume the session.
+    await fetch(`${getServerApiUrl()}${AUTH_ENDPOINTS.LOGOUT}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }).catch(() => undefined);
+  }
   return NextResponse.json({ ok: true });
 }

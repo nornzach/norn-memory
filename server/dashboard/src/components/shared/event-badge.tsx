@@ -57,18 +57,14 @@ export function EventBadge({
   return (
     <div
       className={cn(
-        "inline-flex min-w-0 max-w-full items-center justify-center gap-1 overflow-hidden rounded-sm px-1.5 py-0.5",
-        variant === "secondary"
-          ? "bg-surface-default-fg-secondary"
-          : "bg-surface-default-tertiary",
+        "inline-flex min-w-0 max-w-full items-center justify-center gap-1 overflow-hidden rounded-md px-1.5 py-0.5",
+        variant === "secondary" ? "border border-line bg-panel" : "bg-subtle",
       )}
       aria-label={`${event} ${badgeVariant} count`}
     >
-      {showIcon && (
-        <Icon className="size-3.5 shrink-0 text-onSurface-default-secondary" />
-      )}
+      {showIcon && <Icon className="size-3.5 shrink-0 text-ink-3" />}
       {content && (
-        <span className="min-w-0 truncate font-dm-mono text-xs font-normal leading-[18px] text-onSurface-default-secondary">
+        <span className="tabular min-w-0 truncate text-xs font-medium leading-[18px] text-ink-2">
           {content}
         </span>
       )}

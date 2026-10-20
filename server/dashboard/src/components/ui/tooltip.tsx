@@ -22,16 +22,13 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 10, ...props }, ref) => (
+>(({ className, sideOffset = 6, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 overflow-hidden rounded-md px-2 py-1 text-[10px] font-semibold data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-        "bg-primary text-primary-foreground dark:bg-surface-default-tertiary dark:text-onSurface-default-primary border border-memNeutral-700 dark:border-memBorder-secondary",
-        "font-fustat [&_p]:font-fustat [&_span]:font-fustat",
-        "[&_p]:text-[10px] [&_p]:font-semibold [&_span]:text-[10px] [&_span]:font-semibold",
+        "z-50 max-w-xs overflow-hidden rounded-md bg-ink px-2 py-1 text-xs font-medium text-ink-inverse shadow-elev-2 animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
         className,
       )}
       {...props}

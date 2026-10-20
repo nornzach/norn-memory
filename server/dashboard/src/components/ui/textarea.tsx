@@ -5,10 +5,7 @@ import { Label } from "@/components/ui/label";
 import { fieldLabelClassName } from "@/constants/ui-components";
 import { TextareaProps } from "@/types/ui-components";
 
-/**
- * Same style as default input (textField): rounded-lg, border-memBorder-primary,
- * bg-surface-default-primary, font-fustat, text-onSurface-default-primary. Height 129px.
- */
+/** Multi-line field styled like Input; grows by rows, resizable vertically. */
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
     {
@@ -29,7 +26,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       <textarea
         id={id}
         className={cn(
-          "flex h-[129px] w-full min-w-0 rounded-lg border border-memBorder-primary bg-surface-default-primary px-3 py-2.5 font-fustat text-sm text-onSurface-default-primary placeholder:text-onSurface-default-tertiary focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-none",
+          "flex min-h-[112px] w-full min-w-0 resize-y rounded-lg border border-line-strong bg-panel px-3 py-2.5 text-sm leading-6 text-ink shadow-elev-1 transition-[border-color,box-shadow] placeholder:text-ink-3 focus-visible:border-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-50",
           textareaClassName,
           className,
         )}

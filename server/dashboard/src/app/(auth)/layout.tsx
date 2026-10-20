@@ -31,7 +31,7 @@ export default async function AuthLayout({
       )}
       suppressHydrationWarning
     >
-      <body className="font-fustat" suppressHydrationWarning>
+      <body className="font-sans" suppressHydrationWarning>
         <I18nProvider initialLocale={locale}>
           <AuthProvider>
             <ThemeProvider
