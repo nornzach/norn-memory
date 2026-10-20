@@ -25,7 +25,7 @@ make bootstrap
 
 This starts the stack, waits for the API and dashboard to be ready, creates the first admin, and generates the first API key.
 
-> The generated credentials print once in the `=== Ready ===` block. Save the password and API key before closing the terminal — the API key cannot be recovered afterwards.
+> The generated credentials print once in the `=== Ready ===` block. Save the password before closing the terminal. The API key can be shown again on the dashboard's API Keys page.
 
 > `make bootstrap` skips the setup wizard, so the use-case → custom-instructions step doesn't run. To add custom instructions afterwards, `POST /configure` with `{"custom_instructions": "..."}`, or run the Browser-first flow on a fresh install.
 
@@ -105,16 +105,16 @@ Wire the command into cron or a systemd timer in production. The `created_at` co
 Once logged in, the dashboard exposes:
 
 - **Requests** — live audit log of API calls (method, path, status, latency).
-- **Memories** — browse memories, filter by user ID.
+- **Memories** — browse memories as cards or a list, filter by user, agent, category or source (project, device, agent, folder), and edit a memory's text, categories and expiry date. Expired memories are hidden until you switch on "Show expired".
 - **Entities** — list every `user_id`, `agent_id`, and `run_id` that owns memories, with counts. Delete an entity to cascade-delete its memories.
-- **API Keys** — create, label, and revoke per-user keys.
-- **Categories** — define categories; the configured LLM tags new memories with them automatically.
+- **API Keys** — create, rename, re-scope, and revoke per-user keys.
+- **Categories** — define categories; the configured LLM tags new memories with them automatically. Tag older memories, or re-tag all of them after changing the categories.
 - **Consolidation** — the LLM proposes merging near-duplicate memories and removing outdated ones; you review and apply.
 - **Webhooks** — signed HTTP callbacks when memories are created, updated, or deleted.
 - **Analytics** — request volume, success rate, latency, and memories per category.
-- **Export** — download memories as JSON or CSV, filtered by user, agent, or category.
-- **Configuration** — runtime LLM and embedder override, including any OpenAI-compatible endpoint (base URL, model, API key), with a connection test. Changes persist to the app database and reapply on restart, layered over the values from your `.env`.
-- **Settings** — account profile and password.
+- **Export & import** — download memories as JSON or CSV, filtered by user, agent, or category, and import a JSON export back, from this server or another. Admins can also back up and restore exact records, values included.
+- **Configuration** — runtime LLM and embedder override, including any OpenAI-compatible endpoint (base URL, model, API key), with a connection test, and the custom instructions that steer what gets remembered. Changes persist to the app database and reapply on restart, layered over the values from your `.env`.
+- **Settings** — your profile (name, email, last sign-in), password, signed-in browsers (sign out the others), theme and language, and deleting every memory.
 
 ## No telemetry
 

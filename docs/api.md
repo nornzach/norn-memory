@@ -43,7 +43,7 @@ Send the returned `access_token` as a bearer token, and exchange the refresh tok
 
 ### Create and use an API key
 
-Create a key on the dashboard's **API Keys** page, or with `POST /api-keys` and a JWT. The full `nmsk_...` value is shown **once**.
+Create a key on the dashboard's **API Keys** page, or with `POST /api-keys` and a JWT. Its owner can show the full `nmsk_...` value again at any time (the dashboard's eye button, or `GET /api-keys/{id}/key`). The server checks requests against a bcrypt hash and keeps a copy encrypted with a key derived from `JWT_SECRET` only for showing it; keys created before copies were kept, or before `JWT_SECRET` last changed, still work but can't be shown again (`retrievable: false` in the list).
 
 ```bash
 curl -X POST http://localhost:8888/memories \
@@ -111,7 +111,7 @@ Operators: `eq`, `ne`, `in`, `nin`, `gt`, `gte`, `lt`, `lte`, `contains`, `icont
 
 ## MCP for agents
 
-The server speaks the [Model Context Protocol](https://modelcontextprotocol.io) at `/mcp` over streamable HTTP, so Claude Code and other MCP-capable agents share one memory without a custom client. It authenticates exactly like the REST API, and a scoped key keeps its limits. See [Connecting agents](agents.md) for setup.
+The server speaks the [Model Context Protocol](https://modelcontextprotocol.io) at `/mcp` over streamable HTTP, so Claude Code and other MCP-capable agents share one memory without a custom client. It authenticates exactly like the REST API, and a scoped key keeps its limits. See [Connecting agents](agents.md) for setup. The memory hook script that setup installs is served, without authentication, at `GET /agent-hooks/norn_m_hook.py`.
 
 | Tool | Arguments | REST equivalent |
 |---|---|---|
@@ -190,14 +190,14 @@ The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. 
 | `POST` | `/configure/test` | Admin only. Send one request to the LLM and one to the embedder as configured by the body, without saving |
 | `GET` | `/configure` | Current memory configuration |
 | `GET` | `/configure/providers` | LLM and embedder providers bundled in the image |
-| `POST` | `/memories` | Create memories |
-| `GET` | `/memories` | List memories, filtered by `user_id`, `agent_id`, `run_id`, `category`, `project`, `device`, `agent` or `cwd` |
+| `POST` | `/memories` | Create memories. `expiration_date` (`YYYY-MM-DD`) hides them after that day |
+| `GET` | `/memories` | List memories, filtered by `user_id`, `agent_id`, `run_id`, `category`, `project`, `device`, `agent` or `cwd`. Expired memories are left out unless `show_expired=true` |
 | `GET` | `/memories/{memory_id}` | Get one memory |
-| `PUT` | `/memories/{memory_id}` | Update a memory |
+| `PUT` | `/memories/{memory_id}` | Update a memory's `text`, `metadata` or `expiration_date` (`null` clears it) |
 | `DELETE` | `/memories/{memory_id}` | Delete a memory |
 | `DELETE` | `/memories` | Delete all memories for an identifier |
 | `GET` | `/memories/{memory_id}/history` | A memory's change history |
-| `POST` | `/search` | Search memories |
+| `POST` | `/search` | Search memories. `show_expired: true` includes expired ones |
 | `POST` | `/reset` | Delete every memory |
 
 ### Accounts and keys
@@ -208,12 +208,17 @@ The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. 
 | `POST` | `/auth/register` | Register the first admin. Closed once an admin exists |
 | `POST` | `/auth/login` | Exchange email and password for access and refresh JWTs |
 | `POST` | `/auth/refresh` | Exchange a refresh token for a new access token |
-| `GET` / `PATCH` | `/auth/me` | Get or update the current user |
+| `GET` / `PATCH` | `/auth/me` | Get or update the current user, including `last_login_at` |
 | `POST` | `/auth/change-password` | Change the caller's password |
+| `POST` | `/auth/logout` | Revoke one refresh token: `{"refresh_token": "..."}` |
+| `GET` | `/auth/sessions` | `{active: n}`, the refresh tokens that can still be used (one per signed-in browser) |
+| `POST` | `/auth/sign-out-others` | Revoke every refresh token except the one in the body; returns `{signed_out: n}`. Other browsers keep their access token until it expires (30 minutes) |
 | `GET` | `/api-keys` | List the caller's API keys |
-| `POST` | `/api-keys` | Create a key, optionally scoped; the full `nmsk_...` value is returned once |
+| `POST` | `/api-keys` | Create a key, optionally scoped; returns the full `nmsk_...` value |
+| `PUT` | `/api-keys/{id}` | Change a key's `label`, `access` and scope (the same fields as creating one). The secret stays the same |
+| `GET` | `/api-keys/{id}/key` | The full key, for the user who created it. `409` when it can't be shown again (see `retrievable`) |
 | `DELETE` | `/api-keys/{id}` | Revoke a key |
-| `GET` | `/requests?limit=N` | Recent API call log |
+| `GET` | `/requests?limit=N&key=Laptop` | Recent calls made with an API key (dashboard browsing isn't logged). Each entry has `key_label`: the label the key had at the time, `admin` for `ADMIN_API_KEY`, or `null` for calls logged before keys were recorded and calls with a key that didn't work. `key` filters to one label |
 
 ### Entities
 
@@ -232,7 +237,7 @@ Admin only. The server tags each new or updated memory in the background: the co
 | `POST` | `/categories` | Create: `{"name": "Health", "description": "..."}` |
 | `PATCH` | `/categories/{id}` | Rename or re-describe; a rename updates tagged memories |
 | `DELETE` | `/categories/{id}` | Delete and remove from tagged memories |
-| `POST` | `/categories/backfill?retag_all=false` | Tag existing memories in the background, up to 500 per call |
+| `POST` | `/categories/backfill?retag_all=false` | Tag untagged memories in the background, up to 500 per call. `retag_all=true` re-tags every memory, replacing their categories |
 
 ### Webhooks
 
@@ -284,8 +289,9 @@ Any API key, within its scope. `{key}` may contain `/`.
 | `DELETE` | `/exact/records/{key}` | Delete; the last state stays in history |
 | `GET` | `/exact/history/{key}` | The record and its earlier versions |
 | `POST` | `/exact/batch` | Up to 1000 records in one transaction |
+| `GET` | `/exact/export?user_id=` | Admin only. Every user's records, or one user's, with values, as a JSON download: `{exported_at, count, exact_records: [...]}`. Each record carries its `user_id`; send each user's records back through `POST /exact/batch` to restore them |
 
-### Analytics and export
+### Analytics, export and import
 
 Admin only.
 
@@ -293,3 +299,4 @@ Admin only.
 |---|---|---|
 | `GET` | `/analytics?range=7d` | Request totals, success rate, latency, requests over time, per-endpoint breakdown, memories per category. `range` is `24h`, `7d` or `30d` |
 | `GET` | `/export?format=json` | Download memories as `json` or `csv`, filtered like `GET /memories` |
+| `POST` | `/import` | Store up to 100 memories from the `memories` array of a JSON export, verbatim (`infer=false`) with their owner, categories and metadata. `skip_duplicates` (default `true`) skips text that already exists for the same owner. Returns `{imported, skipped, failed: [{index, error}]}` |
