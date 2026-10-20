@@ -110,6 +110,37 @@ class TestRewriteTagged:
 # ---------------------------------------------------------------------------
 
 
+class TestBackfill:
+    ROWS = [SimpleNamespace(id=f"m{i}", payload={"data": f"memory {i}", "categories": ["Work"]}) for i in range(5)] + [
+        SimpleNamespace(id="new", payload={"data": "untagged"})
+    ]
+
+    def _queue(self, retag_all, limit):
+        from fastapi import BackgroundTasks
+
+        from routers import categories
+
+        db = MagicMock()
+        db.execute.return_value.first.return_value = ("some-category",)
+        tasks = BackgroundTasks()
+        with (
+            patch.object(categories, "list_rows", return_value=self.ROWS),
+            patch.object(categories, "BACKFILL_LIMIT", limit),
+        ):
+            result = categories.backfill_categories(tasks, retag_all=retag_all, _auth=None, db=db)
+        categories._backfill_lock.release()
+        return result, tasks.tasks[0].args[0] if tasks.tasks else []
+
+    def test_untagged_only_by_default(self):
+        result, items = self._queue(retag_all=False, limit=500)
+        assert result.queued == 1 and items == [("new", "untagged")]
+
+    def test_retag_all_is_not_capped(self):
+        # A cap would redo the same first memories on every run and never reach the rest.
+        result, items = self._queue(retag_all=True, limit=2)
+        assert result.queued == 6 and [i for i, _ in items] == ["m0", "m1", "m2", "m3", "m4", "new"]
+
+
 class TestWebhookSigning:
     def test_receiver_can_verify_signature(self):
         import webhooks

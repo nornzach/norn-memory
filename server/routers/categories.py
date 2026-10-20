@@ -157,7 +157,11 @@ def backfill_categories(
     db: Session = Depends(get_db),
 ):
     """Tag existing memories in the background. Memories already tagged (even with no
-    matching category) are skipped unless `retag_all` is set."""
+    matching category) are skipped unless `retag_all` is set.
+
+    Untagged memories are taken BACKFILL_LIMIT at a time, since each run leaves them tagged and the
+    next run picks up where it stopped. A re-tag takes every memory at once: a cap would redo the
+    same first ones on every run."""
     if db.execute(select(Category.id).limit(1)).first() is None:
         raise HTTPException(status_code=400, detail="Create at least one category first.")
     if not _backfill_lock.acquire(blocking=False):
@@ -168,7 +172,8 @@ def backfill_categories(
         payload = getattr(row, "payload", None) or {}
         if payload.get("data") and (retag_all or "categories" not in payload):
             items.append((str(row.id), payload["data"]))
-    items = items[:BACKFILL_LIMIT]
+    if not retag_all:
+        items = items[:BACKFILL_LIMIT]
     if not items:
         _backfill_lock.release()
         return BackfillResponse(queued=0, message="Every memory is already tagged.")
