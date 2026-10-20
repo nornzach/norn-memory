@@ -43,7 +43,8 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
-TOKEN_RE = re.compile(r"[A-Za-z0-9_+/=-]{32,}")
+MIN_TOKEN_LENGTH = 32
+TOKEN_RE = re.compile(rf"[A-Za-z0-9_+/=-]{{{MIN_TOKEN_LENGTH},}}")
 HEX_OR_UUID_RE = re.compile(r"[0-9a-fA-F-]+")
 MIN_TOKEN_ENTROPY = 4.0
 # Share of adjacent characters that switch between lower, upper, digit and symbol. Random keys sit
@@ -69,6 +70,10 @@ def _looks_random(token: str) -> bool:
     and identifiers, paths, commit SHAs and UUIDs don't."""
     if HEX_OR_UUID_RE.fullmatch(token):
         return False
+    # An absolute path mixes cases, digits and separators even when every folder name is ordinary, so its
+    # folder names are judged one by one. A key inside a path is still a long folder name of its own.
+    if token.startswith("/") and token.count("/") >= 2:
+        return any(len(part) >= MIN_TOKEN_LENGTH and _looks_random(part) for part in token.split("/"))
     if not (any(c.islower() for c in token) and any(c.isupper() for c in token) and any(c.isdigit() for c in token)):
         return False
     switches = sum(_char_class(a) != _char_class(b) for a, b in zip(token, token[1:]))

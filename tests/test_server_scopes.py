@@ -156,6 +156,7 @@ class TestFindSecrets:
             (lambda: "postgres://norn_m:" + secrets.token_hex(6) + "@db:5432/norn_m", "password in a URL"),
             (lambda: "password=" + secrets.token_hex(6), "credential assignment"),
             (lambda: "the deploy token is " + _random_token(), "high-entropy token"),
+            (lambda: "key file: /srv/keys/" + _random_token() + "/id", "high-entropy token"),
         ],
     )
     def test_detects_credentials(self, make_text, label):
@@ -168,6 +169,9 @@ class TestFindSecrets:
             "deployed commit 3f2a9c1b7e4d5a6f8b9c0d1e2f3a4b5c6d7e8f90 to prod",
             "memory id 0b6f1c1e-3f7a-4d1c-9a43-6a1f2b3c4d5e",
             "config lives at /usr/local/lib/python3.11/site-packages/norn_m/configs/base.py",
+            # Absolute paths mix cases, digits and separators; their folder names are judged one by one.
+            "/private/tmp/claude-502/-Users-zach-AiProject-mem0/4525b857-1da0-455b-b8f9-4230498b9c0b/scratchpad/ui",
+            "worked in /Users/zach/AiProject/norn-memory/server/dashboard/src/components/self-hosted",
             "call get_memory_instance_with_DefaultConfig2 in tests",
             "the cluster is ProdClusterEastUS2Primary01Backup",
             "https://github.com/nornzach/norn-memory/blob/main/server/main.py",
