@@ -623,11 +623,12 @@ def get_all_memories(
                 and auth_type not in {"admin_api_key", "disabled"}
             ):
                 raise HTTPException(status_code=403, detail="Admin role required to list all memories.")
-            # Admin all-memory listing is intentionally raw; scoped get_all below applies expiry visibility.
+            # Expired memories are hidden here too unless asked for, like in get_all below.
             limit = top_k if top_k is not None else ALL_MEMORIES_LIMIT
+            listed = {"category": category, "source": source, "show_expired": show_expired}
             if scope is None:
-                return {"results": list_memories(limit, category=category, source=source)}
-            return {"results": scope.filter(list_memories(SCAN_LIMIT, category=category, source=source))[:limit]}
+                return {"results": list_memories(limit, **listed)}
+            return {"results": scope.filter(list_memories(SCAN_LIMIT, **listed))[:limit]}
         params = {"filters": {**ids, **provenance.vector_filters(source)}}
         if top_k is not None:
             params["top_k"] = top_k

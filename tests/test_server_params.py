@@ -640,11 +640,26 @@ class TestGetMemories:
     def test_get_memories_admin_top_k_zero_not_defaulted(self, client, mock_memory):
         mock_memory.vector_store.list.return_value = []
 
-        response = client.get("/memories?top_k=0")
+        response = client.get("/memories?top_k=0&show_expired=true")
 
         assert response.status_code == 200
         _, kwargs = mock_memory.vector_store.list.call_args
         assert kwargs["top_k"] == 0
+
+    def test_admin_listing_hides_expired_unless_asked(self, client, mock_memory):
+        from types import SimpleNamespace
+
+        rows = [
+            SimpleNamespace(id="old", payload={"data": "a", "user_id": "u", "expiration_date": "2000-01-01"}),
+            SimpleNamespace(id="live", payload={"data": "b", "user_id": "u", "expiration_date": "2999-01-01"}),
+            SimpleNamespace(id="forever", payload={"data": "c", "user_id": "u"}),
+        ]
+        mock_memory.vector_store.list.return_value = [rows]
+
+        hidden = client.get("/memories").json()["results"]
+        assert [m["id"] for m in hidden] == ["live", "forever"]
+        shown = client.get("/memories?show_expired=true").json()["results"]
+        assert [m["id"] for m in shown] == ["old", "live", "forever"]
 
     def test_get_memories_rejects_top_k_above_limit(self, client, mock_memory):
         response = client.get("/memories?user_id=test_routing_user&top_k=1001")

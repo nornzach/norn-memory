@@ -3,6 +3,7 @@
 Shared by main.py and the routers so none of them has to import main.
 """
 
+from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 import provenance
@@ -41,6 +42,17 @@ def serialize_memory(row: Any) -> Dict[str, Any]:
     }
 
 
+def is_expired(memory: Mapping[str, Any]) -> bool:
+    """Whether a serialized memory's expiration_date is before today (UTC), as the SDK decides it."""
+    value = memory.get("expiration_date")
+    if not value:
+        return False
+    try:
+        return date.fromisoformat(str(value)) < datetime.now(timezone.utc).date()
+    except ValueError:
+        return False
+
+
 def list_rows(limit: int = SCAN_LIMIT) -> list[Any]:
     results = get_memory_instance().vector_store.list(top_k=limit)
     return results[0] if results and isinstance(results, list) and isinstance(results[0], list) else results or []
@@ -54,12 +66,21 @@ def list_memories(
     run_id: Optional[str] = None,
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
+    show_expired: bool = True,
 ) -> list[Dict[str, Any]]:
     """Serialized memories, optionally filtered. Filters are applied after the scan, so
     `limit` caps how many rows are scanned when any filter is set. `source` takes
-    provenance.query_filters() (device, agent, project, folder)."""
+    provenance.query_filters() (device, agent, project, folder). Expired memories are
+    included unless show_expired is False, so exports and counts see everything."""
     filtered = any([user_id, agent_id, run_id, category, source])
-    memories = [serialize_memory(row) for row in list_rows(SCAN_LIMIT if filtered else limit)]
+    if filtered:
+        scan = SCAN_LIMIT
+    elif not show_expired:
+        # Only expiry to filter: a wider window than the limit, the way the SDK's get_all fetches.
+        scan = min(SCAN_LIMIT, max(limit * 4, 60))
+    else:
+        scan = limit
+    memories = [serialize_memory(row) for row in list_rows(scan)]
     if user_id:
         memories = [m for m in memories if m["user_id"] == user_id]
     if agent_id:
@@ -71,6 +92,8 @@ def list_memories(
     if source:
         matches = provenance.matcher(source)
         memories = [m for m in memories if matches(m)]
+    if not show_expired:
+        memories = [m for m in memories if not is_expired(m)]
     return memories[:limit]
 
 
