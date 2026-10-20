@@ -19,6 +19,7 @@ class RequestLogItem(BaseModel):
     status_code: int
     latency_ms: float
     auth_type: str
+    key_label: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -32,15 +33,10 @@ def list_requests(
     _auth=Depends(require_admin),
     db: Session = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=200),
+    key: str | None = Query(default=None, description="Only calls made with the API key of this label."),
 ):
-    logs = (
-        db.execute(
-            select(RequestLog)
-            .where(RequestLog.auth_type.in_(API_KEY_AUTH_TYPES))
-            .order_by(RequestLog.created_at.desc())
-            .limit(limit)
-        )
-        .scalars()
-        .all()
-    )
+    query = select(RequestLog).where(RequestLog.auth_type.in_(API_KEY_AUTH_TYPES))
+    if key:
+        query = query.where(RequestLog.key_label == key)
+    logs = db.execute(query.order_by(RequestLog.created_at.desc()).limit(limit)).scalars().all()
     return logs

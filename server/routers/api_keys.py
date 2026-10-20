@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+import key_vault
 from auth import generate_api_key, require_auth
 from db import get_db
 from models import APIKey, User
@@ -58,12 +59,30 @@ class KeyListItem(KeyScopes):
     key_prefix: str
     created_at: datetime
     last_used_at: datetime | None
+    retrievable: bool = Field(False, description="Whether GET /api-keys/{id}/key can show the full key.")
 
     model_config = {"from_attributes": True}
 
 
+class KeySecretResponse(BaseModel):
+    id: str
+    key: str
+
+
 def _scopes_of(key: APIKey) -> dict:
     return {"access": key.access or "read_write", **{f: getattr(key, f) or [] for f in SCOPE_FIELDS}}
+
+
+def _list_item(key: APIKey) -> KeyListItem:
+    return KeyListItem(
+        id=str(key.id),
+        label=key.label,
+        key_prefix=key.key_prefix,
+        created_at=key.created_at,
+        last_used_at=key.last_used_at,
+        retrievable=key_vault.unseal(key.key_ciphertext) is not None,
+        **_scopes_of(key),
+    )
 
 
 @router.get("", response_model=list[KeyListItem])
@@ -77,17 +96,7 @@ def list_keys(user: User = Depends(require_auth), db: Session = Depends(get_db))
         .scalars()
         .all()
     )
-    return [
-        KeyListItem(
-            id=str(k.id),
-            label=k.label,
-            key_prefix=k.key_prefix,
-            created_at=k.created_at,
-            last_used_at=k.last_used_at,
-            **_scopes_of(k),
-        )
-        for k in keys
-    ]
+    return [_list_item(k) for k in keys]
 
 
 @router.post("", response_model=CreateKeyResponse, status_code=201)
@@ -96,6 +105,7 @@ def create_key(body: CreateKeyRequest, user: User = Depends(require_auth), db: S
     api_key = APIKey(
         key_prefix=prefix,
         key_hash=key_hash,
+        key_ciphertext=key_vault.seal(full_key),
         label=body.label,
         created_by=user.id,
         access=body.access,
@@ -115,8 +125,7 @@ def create_key(body: CreateKeyRequest, user: User = Depends(require_auth), db: S
     )
 
 
-@router.delete("/{key_id}", response_model=MessageResponse)
-def revoke_key(key_id: str, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+def _own_key(key_id: str, user: User, db: Session) -> APIKey:
     try:
         key_uuid = uuid.UUID(key_id)
     except (TypeError, ValueError):
@@ -124,6 +133,49 @@ def revoke_key(key_id: str, user: User = Depends(require_auth), db: Session = De
     api_key = db.get(APIKey, key_uuid)
     if api_key is None or api_key.created_by != user.id:
         raise HTTPException(status_code=404, detail="API key not found.")
+    return api_key
+
+
+class UpdateKeyRequest(KeyScopes):
+    label: str = Field(..., min_length=1, max_length=255)
+
+
+@router.put("/{key_id}", response_model=KeyListItem)
+def update_key(key_id: str, body: UpdateKeyRequest, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """Rename a key or change its access and scope. The secret itself never changes."""
+    api_key = _own_key(key_id, user, db)
+    if api_key.revoked_at is not None:
+        raise HTTPException(status_code=400, detail="API key is revoked.")
+    api_key.label = body.label.strip()
+    api_key.access = body.access
+    for field in SCOPE_FIELDS:
+        setattr(api_key, field, getattr(body, field) or None)
+    db.commit()
+    db.refresh(api_key)
+    return _list_item(api_key)
+
+
+@router.get("/{key_id}/key", response_model=KeySecretResponse)
+def get_key(key_id: str, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """The full key, for the user who created it, so it can be copied into another agent."""
+    api_key = _own_key(key_id, user, db)
+    if api_key.revoked_at is not None:
+        raise HTTPException(status_code=400, detail="API key is revoked.")
+    full_key = key_vault.unseal(api_key.key_ciphertext)
+    if full_key is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This key can't be shown again: it was created before keys were kept, or the server's "
+                "JWT_SECRET has changed since. It still works. Create a new key if you need to copy one."
+            ),
+        )
+    return KeySecretResponse(id=str(api_key.id), key=full_key)
+
+
+@router.delete("/{key_id}", response_model=MessageResponse)
+def revoke_key(key_id: str, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    api_key = _own_key(key_id, user, db)
     if api_key.revoked_at is not None:
         raise HTTPException(status_code=400, detail="API key is already revoked.")
 

@@ -358,7 +358,9 @@ def _should_log_request(request: Request) -> bool:
     return not path.startswith(SKIPPED_REQUEST_LOG_PREFIXES)
 
 
-def _persist_request_log(method: str, path: str, status_code: int, latency_ms: float, auth_type: str) -> None:
+def _persist_request_log(
+    method: str, path: str, status_code: int, latency_ms: float, auth_type: str, key_label: str | None = None
+) -> None:
     session = SessionLocal()
 
     try:
@@ -369,6 +371,7 @@ def _persist_request_log(method: str, path: str, status_code: int, latency_ms: f
                 status_code=status_code,
                 latency_ms=latency_ms,
                 auth_type=auth_type,
+                key_label=key_label,
             )
         )
         session.commit()
@@ -406,6 +409,7 @@ async def log_requests(request: Request, call_next):
                 status_code,
                 round((time.perf_counter() - start) * 1000, 2),
                 getattr(request.state, "auth_type", "none"),
+                getattr(request.state, "api_key_label", None),
             )
 
 

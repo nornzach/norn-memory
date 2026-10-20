@@ -35,6 +35,9 @@ class APIKey(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_new_uuid)
     key_prefix: Mapped[str] = mapped_column(String(12))
     key_hash: Mapped[str] = mapped_column(Text)
+    # An encrypted copy of the key, so its owner can see it again (see key_vault.py). NULL for keys
+    # created before copies were kept.
+    key_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
     label: Mapped[str] = mapped_column(String(255))
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     # "read" or "read_write". Empty or NULL allowlists mean no restriction on that field (see scopes.py).
@@ -57,6 +60,7 @@ class RequestLog(Base):
     status_code: Mapped[int] = mapped_column(Integer)
     latency_ms: Mapped[float] = mapped_column(Float)
     auth_type: Mapped[str] = mapped_column(String(32), default="none")
+    key_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

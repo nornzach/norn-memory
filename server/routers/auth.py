@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ from auth import (
     verify_password,
 )
 from db import get_db
-from models import User
+from models import RefreshTokenJti, User
 from rate_limit import limiter
 from schemas import MessageResponse
 
@@ -72,8 +72,21 @@ class UserResponse(BaseModel):
     email: str
     role: str
     created_at: datetime
+    last_login_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SessionsResponse(BaseModel):
+    active: int
+
+
+class SignOutOthersRequest(BaseModel):
+    refresh_token: str
+
+
+class SignOutOthersResponse(BaseModel):
+    signed_out: int
 
 
 class SetupStatusResponse(BaseModel):
@@ -204,3 +217,55 @@ def change_password(
     db_user.password_hash = hash_password(body.new_password)
     db.commit()
     return MessageResponse(message="Password updated.")
+
+
+def _live_sessions(user_id: uuid.UUID):
+    """Refresh tokens that can still be exchanged: one per signed-in browser."""
+    now = datetime.now(timezone.utc)
+    return (
+        RefreshTokenJti.user_id == user_id,
+        RefreshTokenJti.used_at.is_(None),
+        RefreshTokenJti.expires_at > now,
+    )
+
+
+@router.get("/sessions", response_model=SessionsResponse)
+def sessions(user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    count = db.scalar(select(func.count()).select_from(RefreshTokenJti).where(*_live_sessions(user.id)))
+    return SessionsResponse(active=count or 0)
+
+
+@router.post("/sign-out-others", response_model=SignOutOthersResponse)
+def sign_out_others(body: SignOutOthersRequest, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """Revoke every refresh token except the caller's. Other browsers keep their access token until it expires."""
+    payload = decode_token(body.refresh_token)
+    if payload.get("type") != "refresh" or payload.get("sub") != str(user.id):
+        raise HTTPException(status_code=400, detail="That refresh token does not belong to this account.")
+    try:
+        keep = uuid.UUID(payload.get("jti", ""))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="That refresh token does not belong to this account.")
+    result = db.execute(
+        update(RefreshTokenJti)
+        .where(*_live_sessions(user.id), RefreshTokenJti.jti != keep)
+        .values(used_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+    return SignOutOthersResponse(signed_out=result.rowcount or 0)
+
+
+@router.post("/logout", response_model=MessageResponse)
+def logout(body: RefreshRequest, db: Session = Depends(get_db)):
+    """Revoke one refresh token, so a signed-out browser cannot be resumed from a copied cookie."""
+    try:
+        payload = decode_token(body.refresh_token)
+        jti = uuid.UUID(payload.get("jti", ""))
+    except (HTTPException, TypeError, ValueError):
+        return MessageResponse(message="Signed out.")
+    db.execute(
+        update(RefreshTokenJti)
+        .where(RefreshTokenJti.jti == jti, RefreshTokenJti.used_at.is_(None))
+        .values(used_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+    return MessageResponse(message="Signed out.")
