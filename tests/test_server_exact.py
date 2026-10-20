@@ -475,6 +475,7 @@ def app(store):
 
     with ExitStack() as stack:
         stack.enter_context(patch.object(auth, "ADMIN_API_KEY", ADMIN_KEY))
+        stack.enter_context(patch.object(auth, "_get_default_user", return_value=None))
         stack.enter_context(patch.object(main.webhooks, "emit_memory_results"))
         stack.enter_context(patch.object(main.categorizer, "categorize_memories"))
         stack.enter_context(patch.object(main, "_persist_request_log"))
@@ -528,6 +529,31 @@ class TestRestRoutes:
         resp = _rest(app, "POST", "/exact/batch", json={"records": records})
         assert resp.json() == {"created": 5, "updated": 0, "unchanged": 0}
         assert len(_rest(app, "GET", "/exact/records", params={"prefix": "site/"}).json()["results"]) == 5
+
+    def test_export_round_trips_through_batch(self, app):
+        _rest(app, "PUT", "/exact/records/server/hk1", json={"kind": "server", "fields": {"password": TRICKY_PASSWORD}})
+        _rest(app, "PUT", "/exact/records/site/github.com", json={"user_id": "other", "tags": ["dev"]})
+
+        resp = _rest(app, "GET", "/exact/export")
+        assert resp.status_code == 200
+        assert resp.headers["content-disposition"].startswith('attachment; filename="norn-m-exact-records-')
+        body = resp.json()
+        assert body["count"] == 2
+        assert [(r["user_id"], r["key"]) for r in body["exact_records"]] == [
+            ("other", "site/github.com"),
+            ("zach", "server/hk1"),
+        ]
+        only_zach = _rest(app, "GET", "/exact/export", params={"user_id": "zach"}).json()["exact_records"]
+        assert [r["key"] for r in only_zach] == ["server/hk1"]
+
+        exported = body["exact_records"][1]
+        assert _rest(app, "DELETE", "/exact/records/server/hk1").json()["deleted"] is True
+        restored = _rest(app, "POST", "/exact/batch", json={"user_id": "zach", "records": [exported]})
+        assert restored.json() == {"created": 1, "updated": 0, "unchanged": 0}
+        assert _rest(app, "GET", "/exact/records/server/hk1").json()["fields"] == {"password": TRICKY_PASSWORD}
+
+    def test_export_needs_an_admin(self, app):
+        assert app.client.get("/exact/export").status_code == 401
 
     def test_conflict_and_validation_errors(self, app):
         _rest(app, "PUT", "/exact/records/server/hk1", json={"fields": {"ip": "1"}})

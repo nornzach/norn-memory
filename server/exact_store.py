@@ -307,6 +307,15 @@ def get_record(user_id: str, key: str) -> Optional[Dict[str, Any]]:
         return serialize(record) if record else None
 
 
+def export_records(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Every record, or one user's, ordered by user and key: the body of an export file."""
+    stmt = select(ExactRecord).order_by(ExactRecord.user_id, ExactRecord.key)
+    if user_id:
+        stmt = stmt.where(ExactRecord.user_id == user_id)
+    with SessionLocal() as db:
+        return [serialize(record) for record in db.scalars(stmt)]
+
+
 def search_records(
     user_id: str,
     query: Optional[str] = None,

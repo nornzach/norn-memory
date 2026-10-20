@@ -4,11 +4,12 @@ Keys contain "/", so record routes take the key as the rest of the path: /exact/
 Values only ever travel in request and response bodies, never in the URL.
 """
 
+from datetime import datetime, timezone
 from typing import Optional
 
 import exact_store
 import provenance
-from auth import get_key_scope
+from auth import get_key_scope, require_admin
 from exact_store import BatchPut, RecordPut
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -50,6 +51,24 @@ def search_records(
         offset=offset,
     )
     return {"results": results}
+
+
+@router.get("/export", summary="Export exact records as JSON")
+def export_records(
+    user_id: Optional[str] = Query(None, description="Only this user's records. Without it, every user's."),
+    _admin=Depends(require_admin),
+):
+    """A backup of exact records, values included, in the shape POST /exact/batch takes back per user_id.
+    Admins only: unlike a memory export, this file holds passwords and keys verbatim."""
+    records = exact_store.export_records(user_id.strip() if user_id else None)
+    stamp = datetime.now(timezone.utc)
+    return JSONResponse(
+        content={"exported_at": stamp.isoformat(), "count": len(records), "exact_records": records},
+        headers={
+            "Content-Disposition": f'attachment; filename="norn-m-exact-records-{stamp:%Y%m%d-%H%M%S}.json"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get("/records/{key:path}", summary="Get an exact record")
