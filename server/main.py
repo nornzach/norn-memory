@@ -47,6 +47,7 @@ from routers import entities as entities_router
 from routers import exact as exact_router
 from routers import export as export_router
 from routers import imports as imports_router
+from routers import agent_hooks as agent_hooks_router
 from routers import requests as requests_router
 from routers import webhooks as webhooks_router
 from schemas import MessageResponse
@@ -232,6 +233,7 @@ app.include_router(webhooks_router.router)
 app.include_router(analytics_router.router)
 app.include_router(export_router.router)
 app.include_router(imports_router.router)
+app.include_router(agent_hooks_router.router)
 app.include_router(exact_router.router)
 
 
