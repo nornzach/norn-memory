@@ -21,8 +21,8 @@ import provenance
 from auth import api_key_header, bearer_scheme, request_scope, verify_auth
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from memory_store import ALL_MEMORIES_LIMIT
@@ -94,7 +94,7 @@ ExactUserId = Annotated[
 class _AuthenticatedEndpoint:
     """ASGI endpoint that runs the REST API's auth before handing the request to the MCP session manager."""
 
-    def __init__(self, server: FastMCP) -> None:
+    def __init__(self, server: MCPServer) -> None:
         self.server = server
 
     async def __call__(self, scope, receive, send) -> None:
@@ -107,7 +107,33 @@ class _AuthenticatedEndpoint:
             return
         # Request state lives in the ASGI scope, so the tools see it through ctx.request_context.request.
         request.state.user = user
-        await self.server.session_manager.handle_request(scope, receive, send)
+        await self.server.session_manager.handle_request(scope, receive, _log_rejections(request, send))
+
+
+def _log_rejections(request: Request, send):
+    """Wrap `send` to log why the MCP transport refused a request (4xx). The access log only shows the
+    status; the reason is in the response body. Request bodies and credentials are never logged."""
+    status = 0
+    body = b""
+
+    async def wrapped(message) -> None:
+        nonlocal status, body
+        if message["type"] == "http.response.start":
+            status = message["status"]
+        elif message["type"] == "http.response.body" and 400 <= status < 500 and len(body) < 2048:
+            body += message.get("body", b"")
+            if not message.get("more_body"):
+                logger.warning(
+                    "MCP %s %s rejected with %s (protocol version %s): %s",
+                    request.method,
+                    request.url.path,
+                    status,
+                    request.headers.get("mcp-protocol-version", "none"),
+                    body[:500].decode("utf-8", "replace"),
+                )
+        await send(message)
+
+    return wrapped
 
 
 def _request(ctx: Context) -> Request:
@@ -164,7 +190,7 @@ async def _matching_exact_records(
     return [r for r in results if exact_store.well_matched(r)]
 
 
-def _register_tools(server: FastMCP, api: ModuleType) -> None:
+def _register_tools(server: MCPServer, api: ModuleType) -> None:
     @server.tool(annotations=ToolAnnotations(title="Search memories", readOnlyHint=True, openWorldHint=False))
     async def search_memories(
         ctx: Context,
@@ -451,19 +477,18 @@ def _record_write(**values: Any) -> "exact_store.RecordWrite":
         raise ToolError(f"Invalid record: {exc}") from exc
 
 
-def mount(app: FastAPI, api: ModuleType) -> FastMCP:
+def mount(app: FastAPI, api: ModuleType) -> MCPServer:
     """Serve the memory tools at /mcp on `app`. `api` is the module holding the REST handlers (main)."""
-    server = FastMCP(
-        "norn-m",
-        instructions=INSTRUCTIONS,
+    server = MCPServer("norn-m", instructions=INSTRUCTIONS)
+    _register_tools(server, api)
+    # Creates server.session_manager; the Starlette app it returns is unused, as /mcp is routed below.
+    server.streamable_http_app(
         # Stateless JSON responses: any worker can answer any request, and simple clients need no SSE.
         stateless_http=True,
         json_response=True,
         # Auth is the gate here, as on the REST API, and phones reach the server by LAN IP or hostname.
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
-    _register_tools(server, api)
-    server.streamable_http_app()  # creates server.session_manager
     app.add_route(MCP_PATH, _AuthenticatedEndpoint(server), include_in_schema=False)
 
     parent_lifespan = app.router.lifespan_context

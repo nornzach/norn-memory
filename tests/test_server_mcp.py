@@ -78,8 +78,24 @@ def _rpc(client, method, params=None, headers=None):
     return client.post("/mcp", json=body, headers={**MCP_HEADERS, "X-API-Key": ADMIN_KEY, **(headers or {})})
 
 
-def _call_tool(client, name, arguments, headers=None):
-    resp = _rpc(client, "tools/call", {"name": name, "arguments": arguments}, headers)
+def _modern_rpc(client, method, params=None, version="2026-07-28"):
+    """A protocol 2026-07-28 request: no initialize handshake; every request carries its protocol version
+    and client capabilities in params._meta, mirrored by the MCP-Protocol-Version and Mcp-Method headers."""
+    params = {
+        **(params or {}),
+        "_meta": {"io.modelcontextprotocol/protocolVersion": version, "io.modelcontextprotocol/clientCapabilities": {}},
+    }
+    headers = {"MCP-Protocol-Version": version, "Mcp-Method": method}
+    if method == "tools/call":
+        headers["Mcp-Name"] = params["name"]
+    return _rpc(client, method, params, headers)
+
+
+def _call_tool(client, name, arguments, headers=None, rpc=None):
+    if rpc is not None:
+        resp = rpc(client, "tools/call", {"name": name, "arguments": arguments})
+    else:
+        resp = _rpc(client, "tools/call", {"name": name, "arguments": arguments}, headers)
     assert resp.status_code == 200, resp.text
     return resp.json()["result"]
 
@@ -126,6 +142,35 @@ class TestMcpProtocol:
         assert tools["search_memories"]["annotations"]["readOnlyHint"] is True
         assert tools["delete_memory"]["annotations"]["destructiveHint"] is True
 
+    def test_protocol_2026_07_28_is_served_without_a_handshake(self, mcp_client):
+        # Current Claude Code speaks 2026-07-28; mcp 1.x answered it with 400 and the client fell back.
+        client, _ = mcp_client
+
+        resp = _modern_rpc(client, "tools/list")
+
+        assert resp.status_code == 200, resp.text
+        tools = {t["name"]: t for t in resp.json()["result"]["tools"]}
+        assert {"search_memories", "add_memory", "exact_get"} <= set(tools)
+        assert tools["search_memories"]["annotations"]["readOnlyHint"] is True
+
+    def test_protocol_2026_07_28_tool_calls_run_as_the_authenticated_caller(self, mcp_client):
+        client, mocks = mcp_client
+        mocks.list_all.return_value = [{"id": M1}]
+
+        result = _call_tool(client, "list_memories", {"limit": 5}, rpc=_modern_rpc)
+
+        # Listing every scope needs an admin, so this passing shows the REST auth result reached the tool.
+        assert result["structuredContent"] == {"results": [{"id": M1}]}
+        mocks.list_all.assert_called_once()
+
+    def test_protocol_2025_06_18_is_still_served(self, mcp_client):
+        client, _ = mcp_client
+
+        resp = _rpc(client, "tools/list", headers={"MCP-Protocol-Version": "2025-06-18"})
+
+        assert resp.status_code == 200, resp.text
+        assert "search_memories" in {t["name"] for t in resp.json()["result"]["tools"]}
+
 
 class TestMcpAuth:
     def test_missing_credentials_are_rejected(self, mcp_client):
@@ -140,6 +185,20 @@ class TestMcpAuth:
         assert resp.status_code == 401
         assert resp.headers["WWW-Authenticate"] == "Bearer"
 
+    def test_transport_rejection_reason_is_logged(self, mcp_client, caplog):
+        # The access log only shows "400"; the reason (here a protocol version newer than the SDK) is in the body.
+        client, _ = mcp_client
+
+        with caplog.at_level("WARNING", logger="mcp_server"):
+            resp = _modern_rpc(client, "tools/list", version="2099-01-01")
+
+        assert resp.status_code == 400
+        [record] = [r for r in caplog.records if r.name == "mcp_server"]
+        message = record.getMessage()
+        assert "rejected with 400 (protocol version 2099-01-01)" in message
+        assert "Unsupported protocol version" in message
+        assert ADMIN_KEY not in message
+
     def test_invalid_bearer_token_is_rejected(self, mcp_client):
         client, mocks = mcp_client
 
@@ -152,7 +211,8 @@ class TestMcpAuth:
         assert resp.status_code == 401
         mocks.memory.get.assert_not_called()
 
-    def test_api_key_scopes_apply_to_tools(self, mcp_client):
+    @pytest.mark.parametrize("rpc", [_rpc, _modern_rpc], ids=["handshake", "2026-07-28"])
+    def test_api_key_scopes_apply_to_tools(self, mcp_client, rpc):
         import mcp_server
         from scopes import KeyScope
 
@@ -162,7 +222,7 @@ class TestMcpAuth:
             request.state.key_scope = KeyScope.build(access="read")
 
         with patch.object(mcp_server, "verify_auth", read_only_key):
-            result = _call_tool(client, "add_memory", {"text": "I like green tea", "user_id": "alice"})
+            result = _call_tool(client, "add_memory", {"text": "I like green tea", "user_id": "alice"}, rpc=rpc)
 
         assert "read-only" in _error_text(result)
         mocks.memory.add.assert_not_called()
@@ -301,7 +361,7 @@ class TestGetListDelete:
         result = _call_tool(client, "list_memories", {"limit": 5})
 
         assert result["structuredContent"] == {"results": [{"id": M1}]}
-        mocks.list_all.assert_called_once_with(5, category=None, source={})
+        mocks.list_all.assert_called_once_with(5, category=None, source={}, show_expired=False)
 
     def test_delete_memory_emits_the_webhook(self, mcp_client):
         client, mocks = mcp_client

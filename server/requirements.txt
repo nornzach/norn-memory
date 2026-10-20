@@ -2,7 +2,7 @@
 # never from PyPI. The Dockerfiles do this before installing these requirements.
 fastapi==0.115.8
 uvicorn==0.34.0
-pydantic[email]==2.10.4
+pydantic[email]==2.14.1
 python-dotenv==1.2.2
 psycopg[binary]>=3.2.8,<4.0.0
 psycopg-pool>=3.2.6,<4.0.0
@@ -25,5 +25,5 @@ cryptography>46.0.4
 slowapi>=0.1.9,<1.0
 
 # MCP endpoint at /mcp (optional: without it the server runs and skips /mcp).
-# <2 because mcp 2.x needs Starlette 1.x, which the fastapi pin above does not support.
-mcp>=1.12,<2
+# 2.x serves protocol 2026-07-28 (current Claude Code); 1.x answers it with 400. It needs pydantic>=2.12.
+mcp>=2.3,<3
