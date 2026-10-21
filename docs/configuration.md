@@ -6,10 +6,10 @@ The server reads `server/.env`. Copy `server/.env.example` and fill in at least 
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `OPENAI_API_KEY` | With the default providers | Key for the default LLM and embedder. Use `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` or `DEEPSEEK_API_KEY` when you switch providers |
+| `OPENAI_API_KEY` | With the default providers | Key for the default LLM and embedder. Use `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `DEEPSEEK_API_KEY` or `DASHSCOPE_API_KEY` (Qwen) when you switch providers |
 | `NORN_M_DEFAULT_LLM_PROVIDER` / `NORN_M_DEFAULT_LLM_MODEL` | No | Startup LLM. Defaults to `openai` / `gpt-5-mini` |
 | `NORN_M_DEFAULT_EMBEDDER_PROVIDER` / `NORN_M_DEFAULT_EMBEDDER_MODEL` | No | Startup embedder. Defaults to `openai` / `text-embedding-3-small` |
-| `NORN_M_DEFAULT_EMBEDDER_DIMS` | No | Embedding width, used for the pgvector column. Defaults to `1536`; `768` for Gemini. Changing it after memories exist needs a new `POSTGRES_COLLECTION_NAME` |
+| `NORN_M_DEFAULT_EMBEDDER_DIMS` | No | Embedding width, used for the pgvector column. Defaults to `1536`; `768` for Gemini. Qwen sends it as the requested size (256 to 2560 for `qwen3.7-text-embedding`). Changing it after memories exist needs a new `POSTGRES_COLLECTION_NAME` |
 | `JWT_SECRET` | Yes | Signs dashboard tokens. Generate one with `openssl rand -base64 48` |
 | `POSTGRES_PASSWORD` | Yes | Password for the bundled Postgres. Compose refuses to start without it |
 | `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER` | No | Postgres connection for memories. Default to the bundled container |
@@ -31,9 +31,11 @@ The image bundles these providers:
 | | Providers |
 |---|---|
 | LLM | `openai`, `anthropic`, `gemini`, `deepseek` |
-| Embedder | `openai`, `gemini` |
+| Embedder | `openai`, `gemini`, `qwen` |
 
 Any OpenAI-compatible endpoint (a local model server, a proxy, another vendor) works through the `openai` provider with a custom base URL.
+
+`qwen` is Qwen (Qianwen / Alibaba Cloud DashScope) through its OpenAI-compatible endpoint, `https://maas.qianwenaiapi.com/compatible-mode/v1`. It defaults to `qwen3.7-text-embedding`; `text-embedding-v4` works too. Set `DASHSCOPE_BASE_URL` (or `qwen_base_url` in the embedder config) for another DashScope region. Requests carry at most 10 texts, so larger batches are split.
 
 Change providers at runtime on the dashboard's **Configuration** page, which tests the connection before saving. Saved settings persist in the app database, reapply on restart, and take precedence over the defaults from `.env`. The same is available through `POST /configure` (see [the API](api.md#memories)).
 

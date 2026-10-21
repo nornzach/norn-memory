@@ -20,6 +20,8 @@ class BaseEmbedderConfig(ABC):
         ollama_base_url: Optional[str] = None,
         # Openai specific
         openai_base_url: Optional[str] = None,
+        # Qwen (DashScope) specific
+        qwen_base_url: Optional[str] = None,
         # Huggingface specific
         model_kwargs: Optional[dict] = None,
         huggingface_base_url: Optional[str] = None,
@@ -58,6 +60,9 @@ class BaseEmbedderConfig(ABC):
         :type huggingface_base_url: Optional[str], optional
         :param openai_base_url: Openai base URL to be use, defaults to "https://api.openai.com/v1"
         :type openai_base_url: Optional[str], optional
+        :param qwen_base_url: Qwen (DashScope) OpenAI-compatible base URL, defaults to
+            "https://maas.qianwenaiapi.com/compatible-mode/v1"
+        :type qwen_base_url: Optional[str], optional
         :param azure_kwargs: key-value arguments for the AzureOpenAI embedding model, defaults a dict inside init
         :type azure_kwargs: Optional[Dict[str, Any]], defaults a dict inside init
         :param http_client_proxies: The proxy server settings used to create self.http_client, defaults to None
@@ -78,6 +83,9 @@ class BaseEmbedderConfig(ABC):
         self.api_key = api_key
         self.openai_base_url = openai_base_url
         self.embedding_dims = embedding_dims
+
+        # Qwen (DashScope) specific
+        self.qwen_base_url = qwen_base_url
 
         # AzureOpenAI specific
         self.http_client_proxies = http_client_proxies

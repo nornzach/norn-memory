@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import {
   OPENAI_COMPATIBLE,
+  EMBEDDER_MODEL_PLACEHOLDERS,
   PROVIDER_LABELS,
   ProviderForm,
   ProviderSection,
@@ -161,7 +162,8 @@ export function ProviderFields({
               isEmbedder
                 ? compatible
                   ? "bge-m3"
-                  : "text-embedding-3-small"
+                  : (EMBEDDER_MODEL_PLACEHOLDERS[form.kind] ??
+                    "text-embedding-3-small")
                 : compatible
                   ? "qwen2.5-72b-instruct"
                   : "gpt-4.1-nano-2025-04-14"

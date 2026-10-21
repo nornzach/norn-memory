@@ -162,6 +162,7 @@ class EmbedderFactory:
         "langchain": "norn_m.embeddings.langchain.LangchainEmbedding",
         "aws_bedrock": "norn_m.embeddings.aws_bedrock.AWSBedrockEmbedding",
         "fastembed": "norn_m.embeddings.fastembed.FastEmbedEmbedding",
+        "qwen": "norn_m.embeddings.qwen.QwenEmbedding",
     }
 
     @classmethod
