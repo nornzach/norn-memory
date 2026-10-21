@@ -1,0 +1,73 @@
+# Production stack for the cloud server. Everything binds to 127.0.0.1; Caddy fronts it on 443.
+#   docker compose -f docker-compose.prod.yaml up -d --build
+name: norn-m
+
+services:
+  norn-m:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8888:8000"
+    env_file:
+      - .env
+    networks:
+      - norn_m_network
+    volumes:
+      - ./history:/app/history
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 5"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DASHBOARD_URL=${PUBLIC_URL:?Set PUBLIC_URL in .env}
+      - APP_DB_NAME=norn_m_app
+      - AUTH_DISABLED=false
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    shm_size: "128mb"
+    networks:
+      - norn_m_network
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d postgres -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_db:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+
+  norn-m-dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:30001:3000"
+    networks:
+      - norn_m_network
+    environment:
+      - NEXT_PUBLIC_API_URL=${PUBLIC_URL}
+      - API_INTERNAL_URL=http://norn-m:8000
+      - NEXT_PUBLIC_INSTANCE_NAME=Norn-M
+    depends_on:
+      norn-m:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_db:
+
+networks:
+  norn_m_network:
+    driver: bridge
