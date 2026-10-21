@@ -30,6 +30,9 @@ def _classify_one(exc: BaseException) -> tuple[str, str]:
     module = getattr(type(exc), "__module__", "") or ""
     status = getattr(exc, "status_code", None)
 
+    # norn_m raises LLMError LLM_002 when the extraction reply is still malformed JSON after a retry.
+    if name == "LLMError" and getattr(exc, "error_code", None) == "LLM_002":
+        return ("provider_bad_response", "Provider returned a malformed reply. Retry the request.")
     if name in _AUTH_NAMES or status in (401, 403):
         return (
             "provider_auth_failed",

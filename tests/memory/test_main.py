@@ -50,19 +50,18 @@ class TestAddToVectorStoreErrors:
         return memory
 
     def test_empty_llm_response_fact_extraction(self, mocker, mock_memory, caplog):
-        """Test invalid JSON response from LLM during extraction"""
+        """Invalid JSON from the LLM is retried once, then raised instead of dropped as []."""
         # Setup
         mock_memory.llm.generate_response.return_value = "invalid json"
 
         # Execute
-        with caplog.at_level(logging.ERROR):
-            result = mock_memory._add_to_vector_store(
+        with caplog.at_level(logging.ERROR), pytest.raises(LLMError):
+            mock_memory._add_to_vector_store(
                 messages=[{"role": "user", "content": "test"}], metadata={}, filters={}, infer=True
             )
 
-        # Verify — v3 single-pass pipeline makes 1 LLM call, returns [] on parse error
-        assert mock_memory.llm.generate_response.call_count == 1
-        assert result == []
+        # Verify — the extraction call is retried once before giving up
+        assert mock_memory.llm.generate_response.call_count == 2
         assert any("Error parsing extraction response" in record.message for record in caplog.records), "Expected error message not found in logs"
 
     def test_empty_llm_response_memory_actions(self, mock_memory, caplog):
@@ -260,16 +259,15 @@ class TestAsyncAddToVectorStoreErrors:
 
     @pytest.mark.asyncio
     async def test_async_empty_llm_response_fact_extraction(self, mock_async_memory, caplog, mocker):
-        """Test invalid JSON response from LLM during extraction (async)"""
+        """Invalid JSON from the LLM is retried once, then raised instead of dropped as [] (async)."""
         mocker.patch("norn_m.utils.factory.EmbedderFactory.create", return_value=MagicMock())
         mock_async_memory.llm.generate_response.return_value = "invalid json"
 
-        with caplog.at_level(logging.ERROR):
-            result = await mock_async_memory._add_to_vector_store(
+        with caplog.at_level(logging.ERROR), pytest.raises(LLMError):
+            await mock_async_memory._add_to_vector_store(
                 messages=[{"role": "user", "content": "test"}], metadata={}, effective_filters={}, infer=True
             )
-        assert mock_async_memory.llm.generate_response.call_count == 1
-        assert result == []
+        assert mock_async_memory.llm.generate_response.call_count == 2
         assert any("Error parsing extraction response" in record.message for record in caplog.records), "Expected error message not found in logs"
 
     @pytest.mark.asyncio

@@ -423,6 +423,51 @@ def _payload_is_expired(payload: Optional[Dict[str, Any]]) -> bool:
         return False
 
 
+def _parse_extraction_response(response: Any) -> list:
+    """Return the ``memory`` list from an extraction reply; raise ValueError if the reply is malformed.
+
+    An empty reply or an empty ``memory`` list is a genuine "nothing to remember" and returns [].
+    """
+    response = remove_code_blocks(response)
+    if not response:
+        return []
+    try:
+        parsed = json.loads(response, strict=False)
+    except json.JSONDecodeError:
+        parsed = json.loads(extract_json(response), strict=False)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
+    memories = parsed.get("memory") or []
+    if not isinstance(memories, list):
+        raise ValueError(f"expected 'memory' to be a list, got {type(memories).__name__}")
+    return memories
+
+
+def _extract_memories(llm, llm_messages: list) -> list:
+    """Run the extraction LLM call and parse its reply, retrying once with the same prompts if it is malformed.
+
+    Shared by Memory and AsyncMemory (the latter runs it in a thread). Raises LLMError when the call fails or
+    the reply is still malformed after the retry, so the fact is never silently dropped as "nothing extracted".
+    """
+    for attempt in (1, 2):
+        try:
+            response = llm.generate_response(messages=llm_messages, response_format={"type": "json_object"})
+        except Exception as e:
+            # Re-raise so callers can implement provider fallback / retry. A silent ``return []`` would make
+            # "LLM unavailable" (429/5xx/timeout) indistinguishable from "LLM extracted no facts".
+            logger.error(f"LLM extraction failed: {e}")
+            raise LLMError(f"LLM extraction failed: {e}") from e
+        try:
+            return _parse_extraction_response(response)
+        except ValueError as e:
+            if attempt == 1:
+                logger.warning(f"Malformed extraction response, retrying once: {e}")
+                continue
+            logger.error(f"Error parsing extraction response after retry: {e}")
+            # LLM_002 lets the server report this as a bad provider reply rather than an outage.
+            raise LLMError(f"LLM returned a malformed extraction response: {e}", error_code="LLM_002") from e
+
+
 logger = logging.getLogger(__name__)
 
 _UNSET = object()
@@ -887,36 +932,13 @@ class Memory(MemoryBase):
             custom_instructions=custom_instr,
         )
 
-        try:
-            response = self.llm.generate_response(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
-            )
-        except Exception as e:
-            # Re-raise so callers can implement provider fallback / retry.
-            # The original silent ``return []`` made upstream callers unable to
-            # distinguish "LLM unavailable" (429/5xx/timeout) from "LLM
-            # extracted no facts" -- both surfaced as an empty list.
-            logger.error(f"LLM extraction failed: {e}")
-            raise LLMError(f"LLM extraction failed: {e}") from e
-
-        # Parse response
-        try:
-            response = remove_code_blocks(response)
-            if not response or not response.strip():
-                extracted_memories = []
-            else:
-                try:
-                    extracted_memories = json.loads(response, strict=False).get("memory", [])
-                except json.JSONDecodeError:
-                    extracted_json = extract_json(response)
-                    extracted_memories = json.loads(extracted_json, strict=False).get("memory", [])
-        except Exception as e:
-            logger.error(f"Error parsing extraction response: {e}")
-            extracted_memories = []
+        extracted_memories = _extract_memories(
+            self.llm,
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
 
         if not extracted_memories:
             # Save messages even if nothing extracted
@@ -2474,35 +2496,14 @@ class AsyncMemory(MemoryBase):
             custom_instructions=custom_instr,
         )
 
-        try:
-            response = await asyncio.to_thread(
-                self.llm.generate_response,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
-            )
-        except Exception as e:
-            # Re-raise so callers can implement provider fallback / retry
-            # (see sync counterpart for rationale).
-            logger.error(f"LLM extraction failed (async): {e}")
-            raise LLMError(f"LLM extraction failed: {e}") from e
-
-        # Parse response
-        try:
-            response = remove_code_blocks(response)
-            if not response or not response.strip():
-                extracted_memories = []
-            else:
-                try:
-                    extracted_memories = json.loads(response, strict=False).get("memory", [])
-                except json.JSONDecodeError:
-                    extracted_json = extract_json(response)
-                    extracted_memories = json.loads(extracted_json, strict=False).get("memory", [])
-        except Exception as e:
-            logger.error(f"Error parsing extraction response (async): {e}")
-            extracted_memories = []
+        extracted_memories = await asyncio.to_thread(
+            _extract_memories,
+            self.llm,
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
 
         if not extracted_memories:
             await asyncio.to_thread(self.db.save_messages, messages, session_scope)

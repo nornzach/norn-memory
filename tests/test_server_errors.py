@@ -19,6 +19,8 @@ pytest.importorskip("httpx", reason="httpx not installed")
 
 from fastapi.testclient import TestClient
 
+from norn_m.exceptions import LLMError
+
 SERVER_DIR = Path(__file__).resolve().parent.parent / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
@@ -101,4 +103,19 @@ class TestEntityIds:
     def test_a_provider_failure_while_listing_is_still_a_502(self, server):
         server.memory.get_all.side_effect = RuntimeError("database went away")
         resp = _rest(server, "GET", "/memories", params={"user_id": "alice"})
+        assert resp.status_code == 502
+
+
+class TestAddExtractionFailures:
+    BODY = {"messages": [{"role": "user", "content": "hi"}], "user_id": "alice"}
+
+    def test_a_malformed_extraction_reply_is_a_retryable_502_not_a_400(self, server):
+        server.memory.add.side_effect = LLMError("LLM returned a malformed extraction response", error_code="LLM_002")
+        resp = _rest(server, "POST", "/memories", json=self.BODY)
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "provider_bad_response"
+
+    def test_a_failed_extraction_call_is_still_a_502(self, server):
+        server.memory.add.side_effect = LLMError("LLM extraction failed: boom")
+        resp = _rest(server, "POST", "/memories", json=self.BODY)
         assert resp.status_code == 502
