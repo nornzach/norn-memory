@@ -5,7 +5,7 @@ import os
 import sys
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import categorizer
 import config_check
@@ -34,7 +34,7 @@ from errors import (
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from memory_store import ALL_MEMORIES_LIMIT, SCAN_LIMIT, list_memories
+from memory_store import ALL_MEMORIES_LIMIT, PAGE_SIZE_LIMIT, list_memories, list_source_values, query_memories
 from models import RequestLog, User
 from pydantic import BaseModel, Field
 from rate_limit import limiter
@@ -588,6 +588,14 @@ def add_memory(
     return JSONResponse(content=response)
 
 
+def _require_list_all(request: Request, auth: Any, scope: Optional[KeyScope]) -> None:
+    """Listing without an entity id spans every owner: admins only, unless a scoped key limits it."""
+    auth_type = getattr(request.state, "auth_type", "none")
+    needs_admin = scope is None or not scope.restricts_entities
+    if needs_admin and auth is not None and auth.role != "admin" and auth_type not in {"admin_api_key", "disabled"}:
+        raise HTTPException(status_code=403, detail="Admin role required to list all memories.")
+
+
 @app.get("/memories", summary="Get memories")
 def get_all_memories(
     request: Request,
@@ -599,50 +607,93 @@ def get_all_memories(
     agent: Optional[str] = Query(None, description="Only memories written by this agent."),
     project: Optional[str] = Query(None, description="Only memories recorded for this project."),
     cwd: Optional[str] = Query(None, description="Only memories recorded in this folder or one under it."),
+    # The paging parameters are Annotated so their defaults are plain values: the MCP list tool calls
+    # this function directly and leaves them out.
+    q: Annotated[
+        Optional[str], Query(max_length=200, description="Only memories whose text contains this (any case).")
+    ] = None,
     top_k: Optional[int] = Query(None, ge=0, le=ALL_MEMORIES_LIMIT),
+    page_size: Annotated[
+        Optional[int],
+        Query(
+            ge=1,
+            le=PAGE_SIZE_LIMIT,
+            description="Return one page of this many memories, newest first, with the total that match.",
+        ),
+    ] = None,
+    offset: Annotated[int, Query(ge=0, description="With page_size: how many matching memories to skip.")] = 0,
     show_expired: bool = Query(False),
     _auth=Depends(verify_auth),
     scope: Optional[KeyScope] = Depends(get_key_scope),
 ):
     """Retrieve stored memories. Lists all memories when no identifier is provided (admin only).
 
+    With page_size, returns `{"results", "total", "offset", "page_size"}`: one page, newest first.
+
     A scoped API key only ever sees memories inside its scope; with no identifier it lists its
     whole scope instead."""
     ids = _scope(user_id, agent_id, run_id)
     source = provenance.query_filters(device=device, agent=agent, project=project, cwd=cwd)
+    text = (q or "").strip() or None
     if scope is not None:
         scope.check_ids(ids)
         ids = scope.default_ids(ids)
     try:
+        listed = {"category": category, "source": source, "show_expired": show_expired}
+        if text:
+            listed["text"] = text
         if not ids:
-            auth_type = getattr(request.state, "auth_type", "none")
-            needs_admin = scope is None or not scope.restricts_entities
-            if (
-                needs_admin
-                and _auth is not None
-                and _auth.role != "admin"
-                and auth_type not in {"admin_api_key", "disabled"}
-            ):
-                raise HTTPException(status_code=403, detail="Admin role required to list all memories.")
+            _require_list_all(request, _auth, scope)
+        if page_size is not None:
+            results, total = query_memories(page_size, offset, **ids, **listed, scope=scope)
+            return {"results": results, "total": total, "offset": offset, "page_size": page_size}
+        if not ids:
             # Expired memories are hidden here too unless asked for, like in get_all below.
             limit = top_k if top_k is not None else ALL_MEMORIES_LIMIT
-            listed = {"category": category, "source": source, "show_expired": show_expired}
             if scope is None:
                 return {"results": list_memories(limit, **listed)}
-            return {"results": scope.filter(list_memories(SCAN_LIMIT, **listed))[:limit]}
+            return {"results": scope.filter(list_memories(limit, **listed, scope=scope))[:limit]}
         params = {"filters": {**ids, **provenance.vector_filters(source)}}
         if top_k is not None:
             params["top_k"] = top_k
         params["show_expired"] = show_expired
         response = get_memory_instance().get_all(**params)
-        if category and isinstance(response, dict):
-            response["results"] = [m for m in response.get("results", []) if _has_category(m, category)]
+        if isinstance(response, dict) and isinstance(response.get("results"), list):
+            if category:
+                response["results"] = [m for m in response["results"] if _has_category(m, category)]
+            if text:
+                needle = text.lower()
+                response["results"] = [
+                    m for m in response["results"] if needle in str((m or {}).get("memory") or "").lower()
+                ]
         response = _keep_source(response, source)
         return scope.filter_response(response, ids) if scope is not None else response
     except HTTPException:
         raise
     except (ValueError, NornMValidationError) as e:
         raise _client_error(e)
+    except Exception:
+        raise upstream_error()
+
+
+@app.get("/memories/sources", summary="Devices, agents, projects and folders that memories came from")
+def get_memory_sources(
+    request: Request,
+    user_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    _auth=Depends(verify_auth),
+    scope: Optional[KeyScope] = Depends(get_key_scope),
+):
+    """The distinct device, agent, project and cwd values on the memories you can list, for filter menus."""
+    ids = _scope(user_id, agent_id, run_id)
+    if scope is not None:
+        scope.check_ids(ids)
+        ids = scope.default_ids(ids)
+    if not ids:
+        _require_list_all(request, _auth, scope)
+    try:
+        return list_source_values(scope=scope, **ids)
     except Exception:
         raise upstream_error()
 

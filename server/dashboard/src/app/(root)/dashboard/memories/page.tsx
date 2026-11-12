@@ -51,9 +51,9 @@ import { Category, Entity, Memory, Provenance } from "@/types/api";
 import { useI18n } from "@/i18n/provider";
 
 const PAGE_SIZE = 20;
-// Keep in sync with ALL_MEMORIES_LIMIT in server/main.py.
-const MEMORY_FETCH_LIMIT = 1000;
 const SEARCH_LIMIT = 50;
+// How long typing pauses before the list asks the server for matching text.
+const TEXT_FILTER_DELAY_MS = 300;
 const ANY = "__any__";
 type SourceFilter = "project" | "device" | "agent" | "cwd";
 const SOURCE_FILTERS: SourceFilter[] = ["project", "device", "agent", "cwd"];
@@ -77,6 +77,14 @@ function sourceMatches(
 }
 
 type ScoredMemory = Memory & { score?: number };
+type MemoryPage = { results: Memory[]; total: number };
+const EMPTY_PAGE: MemoryPage = { results: [], total: 0 };
+const NO_SOURCE_VALUES: Record<SourceFilter, string[]> = {
+  project: [],
+  device: [],
+  agent: [],
+  cwd: [],
+};
 type ViewMode = "cards" | "list";
 const VIEW_KEY = "norn_m.memories.view";
 
@@ -137,27 +145,71 @@ export default function MemoriesPage() {
   const [selected, setSelected] = useState<Memory | null>(null);
   const [toDelete, setToDelete] = useState<Memory | null>(null);
   const [adding, setAdding] = useState(false);
-  const [page, setPage] = useState(0);
+  const [typed, setTyped] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setTyped(query.trim()),
+      TEXT_FILTER_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Everything the server filters the list by. The page number belongs to one set of filters,
+  // so changing any of them starts again at the first page.
+  const textFilter = semantic ? "" : typed;
+  const listKey = JSON.stringify([
+    owner,
+    category,
+    showExpired,
+    sourceFilter,
+    textFilter,
+  ]);
+  const [paging, setPaging] = useState({ key: listKey, page: 0 });
+  const page = paging.key === listKey ? paging.page : 0;
+  const setPage = (next: number) => setPaging({ key: listKey, page: next });
 
   const {
-    data: memories = [],
+    data: listing = EMPTY_PAGE,
     isLoading,
     error,
     refetch,
-  } = useApiQuery<Memory[]>(
+  } = useApiQuery<MemoryPage>(
     async () => {
       const params: Record<string, string | number> = {
-        top_k: MEMORY_FETCH_LIMIT,
+        page_size: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
         ...ownerParams(owner),
       };
       if (category !== ANY) params.category = category;
       if (showExpired) params.show_expired = "true";
+      for (const field of SOURCE_FILTERS) {
+        if (sourceFilter[field] !== ANY) params[field] = sourceFilter[field];
+      }
+      if (textFilter) params.q = textFilter;
       const res = await api.get(MEMORY_ENDPOINTS.BASE, { params });
-      const raw = res.data?.results ?? res.data ?? [];
-      return Array.isArray(raw) ? raw : [];
+      const raw = res.data?.results;
+      return {
+        results: Array.isArray(raw) ? raw : [],
+        total: Number(res.data?.total ?? 0),
+      };
     },
-    { errorToast: t.memories.loadFailed, initialData: [] },
+    { errorToast: t.memories.loadFailed, initialData: EMPTY_PAGE },
   );
+  const memories = listing.results;
+
+  const { data: sourceValues = NO_SOURCE_VALUES, refetch: refetchSources } =
+    useApiQuery<Record<SourceFilter, string[]>>(
+      async () => ({
+        ...NO_SOURCE_VALUES,
+        ...(
+          await api.get(MEMORY_ENDPOINTS.SOURCES, {
+            params: ownerParams(owner),
+          })
+        ).data,
+      }),
+      { initialData: NO_SOURCE_VALUES },
+    );
 
   const { data: categories = [] } = useApiQuery<Category[]>(
     async () => (await api.get<Category[]>(CATEGORY_ENDPOINTS.BASE)).data ?? [],
@@ -176,17 +228,33 @@ export default function MemoriesPage() {
   if (ownerType === "agent" && ownerId && !agents.includes(ownerId))
     agents.unshift(ownerId);
 
-  // useApiQuery fetches on mount; refetch when the server-side filters change after that.
-  const firstRun = useRef(true);
+  // useApiQuery fetches on mount; after that, refetch when the filters or the page change.
+  const firstScope = useRef(true);
   useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
+    if (firstScope.current) {
+      firstScope.current = false;
       return;
     }
-    setPage(0);
     setSemantic(null);
+  }, [owner, category, showExpired]);
+
+  const firstOwner = useRef(true);
+  useEffect(() => {
+    if (firstOwner.current) {
+      firstOwner.current = false;
+      return;
+    }
+    void refetchSources();
+  }, [owner, refetchSources]);
+
+  const firstList = useRef(true);
+  useEffect(() => {
+    if (firstList.current) {
+      firstList.current = false;
+      return;
+    }
     void refetch();
-  }, [owner, category, showExpired, refetch]);
+  }, [listKey, page, refetch]);
 
   const runSemanticSearch = async () => {
     const q = query.trim();
@@ -219,40 +287,36 @@ export default function MemoriesPage() {
     () => new Map(base.map((m) => [m.id, memorySource(m)])),
     [base],
   );
+  // Keep a chosen value selectable even when the server no longer lists it.
   const sourceOptions = useMemo(() => {
     const options = {} as Record<SourceFilter, string[]>;
     for (const field of SOURCE_FILTERS) {
-      const values = new Set<string>();
-      memories.forEach((m) => {
-        const value = memorySource(m)[field];
-        if (value) values.add(value);
-      });
+      const values = new Set(sourceValues[field] ?? []);
+      if (sourceFilter[field] !== ANY) values.add(sourceFilter[field]);
       options[field] = Array.from(values).sort();
     }
     return options;
-  }, [memories]);
+  }, [sourceValues, sourceFilter]);
 
-  const needle = semantic ? "" : query.trim().toLowerCase();
-  const visible = useMemo(
+  // The server filters and pages the list; semantic results (at most SEARCH_LIMIT) are
+  // filtered and paged here.
+  const visible = useMemo<ScoredMemory[]>(
     () =>
-      base.filter((m) => {
-        const source: Provenance = sources.get(m.id) ?? {};
-        if (
-          !SOURCE_FILTERS.every((f) =>
-            sourceMatches(f, source[f], sourceFilter[f]),
-          )
-        )
-          return false;
-        if (
-          category !== ANY &&
-          semantic &&
-          !getCategories(m).includes(category)
-        )
-          return false;
-        return !needle || m.memory?.toLowerCase().includes(needle);
-      }),
-    [base, sources, sourceFilter, needle, category, semantic],
+      semantic
+        ? semantic.results.filter((m) => {
+            const source: Provenance = sources.get(m.id) ?? {};
+            if (
+              !SOURCE_FILTERS.every((f) =>
+                sourceMatches(f, source[f], sourceFilter[f]),
+              )
+            )
+              return false;
+            return category === ANY || getCategories(m).includes(category);
+          })
+        : memories,
+    [semantic, memories, sources, sourceFilter, category],
   );
+  const total = semantic ? visible.length : listing.total;
 
   const activeSourceFilters =
     SOURCE_FILTERS.filter((f) => sourceFilter[f] !== ANY).length +
@@ -273,7 +337,12 @@ export default function MemoriesPage() {
     setPage(0);
   };
 
-  const pageRows = visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageRows = semantic
+    ? visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+    : visible;
+  // An empty result with only a category chosen means the category has no memories yet.
+  const onlyCategory =
+    category !== ANY && activeSourceFilters === 0 && !textFilter;
 
   const handleDelete = async () => {
     if (!toDelete) return;
@@ -288,7 +357,10 @@ export default function MemoriesPage() {
         });
       }
       setToDelete(null);
-      void refetch();
+      // Deleting the last row of a later page moves back a page, which refetches.
+      if (!semantic && pageRows.length === 1 && page > 0) setPage(page - 1);
+      else void refetch();
+      void refetchSources();
     } catch (err) {
       toast({
         title: t.memories.deleteFailed,
@@ -383,8 +455,8 @@ export default function MemoriesPage() {
       <PageHeader
         title={t.memories.title}
         meta={
-          !isLoading && !semantic && memories.length > 0
-            ? t.memories.count(visible.length, memories.length)
+          !isLoading && !semantic && total > 0
+            ? t.memories.count(total, total)
             : undefined
         }
         description={t.memories.subtitle}
@@ -599,7 +671,7 @@ export default function MemoriesPage() {
 
         {isLoading || searching ? (
           <TableSkeleton rows={6} columns={5} />
-        ) : memories.length === 0 && !anyFilter ? (
+        ) : total === 0 && !anyFilter ? (
           <EmptyState
             title={t.memories.emptyTitle}
             description={t.memories.emptyDescription}
@@ -625,12 +697,12 @@ export default function MemoriesPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             title={
-              category !== ANY && memories.length === 0
+              onlyCategory
                 ? t.memories.emptyCategoryTitle
                 : t.memories.emptyFilterTitle
             }
             description={
-              category !== ANY && memories.length === 0
+              onlyCategory
                 ? t.memories.emptyCategoryDescription
                 : activeSourceFilters > 0
                   ? t.memories.emptyFilterDescription
@@ -734,7 +806,7 @@ export default function MemoriesPage() {
               page={page}
               pageSize={PAGE_SIZE}
               shown={pageRows.length}
-              total={visible.length}
+              total={total}
               onPageChange={setPage}
             />
           </>

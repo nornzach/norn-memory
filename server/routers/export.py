@@ -9,7 +9,7 @@ from auth import get_key_scope, require_admin_or_scoped
 from errors import upstream_error
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from memory_store import SCAN_LIMIT, list_memories
+from memory_store import list_memories
 from scopes import KeyScope
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -79,7 +79,7 @@ def export_memories(
         scope.check_ids(filters)
     source = provenance.query_filters(device=device, agent=agent, project=project, cwd=cwd)
     try:
-        memories = list_memories(SCAN_LIMIT, **filters, source=source)
+        memories = list_memories(None, **filters, source=source, scope=scope)
     except Exception:
         raise upstream_error()
     if scope is not None:

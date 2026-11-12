@@ -7,9 +7,14 @@ from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 import provenance
+from norn_m.vector_stores.pgvector import OutputData, PGVector, sql
+from scopes import ENTITY_FIELDS
 from server_state import get_memory_instance
 
 ALL_MEMORIES_LIMIT = 1000
+# Largest page GET /memories?page_size= returns.
+PAGE_SIZE_LIMIT = 200
+# How far listings scan on vector stores other than pgvector, which can't filter or page in SQL.
 SCAN_LIMIT = 10_000
 RESERVED_PAYLOAD_KEYS = {
     "data",
@@ -53,27 +58,101 @@ def is_expired(memory: Mapping[str, Any]) -> bool:
         return False
 
 
-def list_rows(limit: int = SCAN_LIMIT) -> list[Any]:
-    results = get_memory_instance().vector_store.list(top_k=limit)
-    return results[0] if results and isinstance(results, list) and isinstance(results[0], list) else results or []
+def _pg_store() -> Any:
+    """The vector store when it is pgvector, which lets listings page and filter in SQL; None otherwise."""
+    store = get_memory_instance().vector_store
+    return store if isinstance(store, PGVector) else None
 
 
-def list_memories(
-    limit: int = ALL_MEMORIES_LIMIT,
+def list_rows(limit: Optional[int] = None) -> list[Any]:
+    """Raw rows (id and payload), all of them unless `limit` is given."""
+    store = _pg_store()
+    if store is None:
+        results = get_memory_instance().vector_store.list(top_k=SCAN_LIMIT if limit is None else limit)
+        return results[0] if results and isinstance(results, list) and isinstance(results[0], list) else results or []
+    store._ensure_collection()
+    query = sql.SQL("SELECT id, payload FROM {}").format(store._col())
+    params: list[Any] = []
+    if limit is not None:
+        query += sql.SQL(" LIMIT %s")
+        params.append(limit)
+    with store._get_cursor() as cur:
+        cur.execute(query, params)
+        return [OutputData(id=str(row[0]), score=None, payload=row[1]) for row in cur.fetchall()]
+
+
+def _conditions(
     *,
     user_id: Optional[str] = None,
     agent_id: Optional[str] = None,
     run_id: Optional[str] = None,
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
+    text: Optional[str] = None,
     show_expired: bool = True,
+    scope: Any = None,
+) -> tuple[list[str], list[Any]]:
+    """WHERE fragments and their parameters. Each test matches the Python one it replaces
+    (provenance.matcher, is_expired, KeyScope.allows), so SQL and scanned listings agree."""
+    conditions: list[str] = []
+    params: list[Any] = []
+    for field, value in (("user_id", user_id), ("agent_id", agent_id), ("run_id", run_id)):
+        if value:
+            conditions.append("payload->>%s = %s")
+            params += [field, value]
+    if category:
+        conditions.append("payload->'categories' ? %s")
+        params.append(category)
+    for field, wanted in (source or {}).items():
+        if field != "cwd":
+            conditions.append("payload->>%s = %s")
+            params += [field, wanted]
+        elif wanted in ("/", "\\"):
+            conditions.append("coalesce(payload->>'cwd', '') <> ''")
+        else:
+            # The folder itself, or anything under it with either slash style (provenance.under).
+            conditions.append("(payload->>'cwd' = %s OR left(payload->>'cwd', %s) IN (%s, %s))")
+            params += [wanted, len(wanted) + 1, wanted + "/", wanted + "\\"]
+    if text:
+        conditions.append("strpos(lower(payload->>'data'), lower(%s)) > 0")
+        params.append(text)
+    if not show_expired:
+        conditions.append(
+            "NOT (coalesce(payload->>'expiration_date', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
+            " AND payload->>'expiration_date' < %s)"
+        )
+        params.append(datetime.now(timezone.utc).date().isoformat())
+    if scope is not None:
+        for field in ENTITY_FIELDS:
+            allowed = scope.allowed(field)
+            if allowed:
+                conditions.append("payload->>%s = ANY(%s)")
+                params += [field, sorted(allowed)]
+        if scope.categories:
+            conditions.append("payload->'categories' ?| %s")
+            params.append(sorted(scope.categories))
+    return conditions, params
+
+
+def _where(conditions: list[str]) -> Any:
+    # The fragments are fixed strings from _conditions(); every value travels as a parameter.
+    return sql.SQL(" WHERE " + " AND ".join(conditions) if conditions else "")
+
+
+def _scan_memories(
+    limit: Optional[int],
+    *,
+    user_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    category: Optional[str] = None,
+    source: Optional[Mapping[str, str]] = None,
+    text: Optional[str] = None,
+    show_expired: bool = True,
+    scope: Any = None,
 ) -> list[Dict[str, Any]]:
-    """Serialized memories, optionally filtered. Filters are applied after the scan, so
-    `limit` caps how many rows are scanned when any filter is set. `source` takes
-    provenance.query_filters() (device, agent, project, folder). Expired memories are
-    included unless show_expired is False, so exports and counts see everything."""
-    filtered = any([user_id, agent_id, run_id, category, source])
-    if filtered:
+    """The listing without SQL, for vector stores other than pgvector: filters after a capped scan."""
+    if limit is None or any([user_id, agent_id, run_id, category, source, text, scope]):
         scan = SCAN_LIMIT
     elif not show_expired:
         # Only expiry to filter: a wider window than the limit, the way the SDK's get_all fetches.
@@ -92,9 +171,110 @@ def list_memories(
     if source:
         matches = provenance.matcher(source)
         memories = [m for m in memories if matches(m)]
+    if text:
+        needle = text.lower()
+        memories = [m for m in memories if needle in (m["memory"] or "").lower()]
     if not show_expired:
         memories = [m for m in memories if not is_expired(m)]
-    return memories[:limit]
+    if scope is not None:
+        memories = scope.filter(memories)
+    # Newest first, as the SQL listing orders them; rows without created_at keep their order, last.
+    memories.sort(key=lambda m: str(m.get("created_at") or ""), reverse=True)
+    return memories
+
+
+def query_memories(
+    limit: Optional[int] = ALL_MEMORIES_LIMIT,
+    offset: int = 0,
+    *,
+    user_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    category: Optional[str] = None,
+    source: Optional[Mapping[str, str]] = None,
+    text: Optional[str] = None,
+    show_expired: bool = True,
+    scope: Any = None,
+) -> tuple[list[Dict[str, Any]], int]:
+    """One page of serialized memories, newest first, and how many match in all.
+
+    `limit=None` returns every match. `source` takes provenance.query_filters() (device, agent,
+    project, folder), `text` is a case-insensitive substring of the memory, and `scope` a KeyScope.
+    Expired memories are included unless show_expired is False, so exports and counts see everything."""
+    filters = dict(
+        user_id=user_id,
+        agent_id=agent_id,
+        run_id=run_id,
+        category=category,
+        source=source,
+        text=text,
+        show_expired=show_expired,
+        scope=scope,
+    )
+    store = _pg_store()
+    if store is None:
+        memories = _scan_memories(None if offset else limit, **filters)
+        end = None if limit is None else offset + limit
+        return memories[offset:end], len(memories)
+
+    conditions, params = _conditions(**filters)
+    where = _where(conditions)
+    store._ensure_collection()
+    page = sql.SQL("SELECT id, payload FROM {}{} ORDER BY payload->>'created_at' DESC NULLS LAST, id").format(
+        store._col(), where
+    )
+    page_params = list(params)
+    if limit is not None:
+        page += sql.SQL(" LIMIT %s")
+        page_params.append(limit)
+    if offset:
+        page += sql.SQL(" OFFSET %s")
+        page_params.append(offset)
+    with store._get_cursor() as cur:
+        cur.execute(page, page_params)
+        rows = cur.fetchall()
+        if limit is None and not offset:
+            total = len(rows)
+        else:
+            cur.execute(sql.SQL("SELECT count(*) FROM {}{}").format(store._col(), where), params)
+            total = cur.fetchone()[0]
+    return [serialize_memory(OutputData(id=str(row[0]), score=None, payload=row[1])) for row in rows], total
+
+
+def list_memories(limit: Optional[int] = ALL_MEMORIES_LIMIT, **filters: Any) -> list[Dict[str, Any]]:
+    """Serialized memories, newest first; query_memories() without the total. `limit=None` returns all."""
+    return query_memories(limit, **filters)[0]
+
+
+SOURCE_VALUES_LIMIT = 500
+
+
+def list_source_values(*, scope: Any = None, **ids: Optional[str]) -> Dict[str, list[str]]:
+    """The provenance values (device, agent, project, folder) present on memories, for filter menus."""
+    store = _pg_store()
+    if store is None:
+        values: Dict[str, set[str]] = {field: set() for field in provenance.FIELDS}
+        for memory in _scan_memories(None, scope=scope, **ids):
+            for field in provenance.FIELDS:
+                value = (memory["metadata"] or {}).get(field)
+                if isinstance(value, str) and value:
+                    values[field].add(value)
+        return {field: sorted(found)[:SOURCE_VALUES_LIMIT] for field, found in values.items()}
+
+    conditions, params = _conditions(scope=scope, **ids)
+    store._ensure_collection()
+    result: Dict[str, list[str]] = {}
+    with store._get_cursor() as cur:
+        for field in provenance.FIELDS:
+            where = _where(conditions + ["coalesce(payload->>%s, '') <> ''"])
+            cur.execute(
+                sql.SQL('SELECT DISTINCT payload->>%s COLLATE "C" AS value FROM {}{} ORDER BY value LIMIT %s').format(
+                    store._col(), where
+                ),
+                [field, *params, field, SOURCE_VALUES_LIMIT],
+            )
+            result[field] = [row[0] for row in cur.fetchall()]
+    return result
 
 
 def iter_payloads() -> list[Dict[str, Any]]:

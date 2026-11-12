@@ -5,7 +5,7 @@ import webhooks
 from auth import require_admin
 from errors import upstream_error
 from fastapi import APIRouter, Depends, HTTPException
-from memory_store import SCAN_LIMIT, list_memories
+from memory_store import list_memories
 from pydantic import BaseModel, Field
 from server_state import get_memory_instance
 
@@ -48,7 +48,7 @@ def import_memories(body: ImportRequest, _auth=Depends(require_admin)):
     """Admin only. Takes the `memories` array of a JSON export, at most 100 per call. Each memory is
     stored verbatim (infer=false) with its owner, categories and metadata, so nothing is re-tagged."""
     try:
-        existing = {(m["user_id"], m["agent_id"], m["run_id"], m["memory"]) for m in list_memories(SCAN_LIMIT)}
+        existing = {(m["user_id"], m["agent_id"], m["run_id"], m["memory"]) for m in list_memories(None)}
     except Exception:
         raise upstream_error()
 

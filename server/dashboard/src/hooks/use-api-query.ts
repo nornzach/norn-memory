@@ -27,13 +27,18 @@ export function useApiQuery<T>(
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  // Only the latest request may set state, so a slow earlier reply can't overwrite a newer one.
+  const latest = useRef(0);
 
   const run = useCallback(async () => {
+    const request = ++latest.current;
     setIsLoading(true);
     setError("");
     try {
-      setData(await fetcherRef.current());
+      const result = await fetcherRef.current();
+      if (request === latest.current) setData(result);
     } catch (err) {
+      if (request !== latest.current) return;
       const message = getErrorMessage(err, errorToast || "Request failed");
       setError(message);
       if (errorToast) {
@@ -44,7 +49,7 @@ export function useApiQuery<T>(
         });
       }
     } finally {
-      setIsLoading(false);
+      if (request === latest.current) setIsLoading(false);
     }
   }, [errorToast]);
 
