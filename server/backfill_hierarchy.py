@@ -63,21 +63,50 @@ def _score_batch(rows: List[Any], llm: Any) -> Dict[int, float]:
         ],
         response_format={"type": "json_object"},
     )
-    if isinstance(reply, dict):
-        reply = json.dumps(reply)
-    start, end = reply.find("["), reply.rfind("]")
-    scored = json.loads(reply[start : end + 1]) if start != -1 and end > start else []
-    # Index-keyed answers: a batch is only as good as the scores it actually returned.
-    # Missing or malformed entries leave their rows pending for the next run.
+    parsed = _parse_json(reply)
     out: Dict[int, float] = {}
-    for item in scored:
+
+    def take(index: Any, score: Any) -> None:
         try:
-            index, score = int(item["i"]), validate_importance(float(item["s"]))
-        except (KeyError, TypeError, ValueError):
-            continue
-        if 0 <= index < len(rows):
-            out[index] = score
+            i, s = int(index), validate_importance(float(score))
+        except (TypeError, ValueError):
+            return
+        if 0 <= i < len(rows):
+            out[i] = s
+
+    def walk(items: Any) -> None:
+        """Accept every reply shape the model has produced so far:
+        [{"i":0,"s":8}], {"i":0,"s":8}, {"scores":[...]}, {"0":8}, and plain [8,3,9]."""
+        if isinstance(items, dict):
+            if "i" in items and "s" in items:
+                take(items["i"], items["s"])
+            else:
+                for key, value in items.items():
+                    if isinstance(value, (int, float)) and key.lstrip("-").isdigit():
+                        take(key, value)
+                    elif isinstance(value, (dict, list)):
+                        walk(value)
+        elif isinstance(items, list):
+            positional = all(not isinstance(v, (dict, list)) for v in items)
+            for position, value in enumerate(items):
+                if isinstance(value, dict):
+                    walk(value)
+                elif positional:
+                    take(position, value)
+
+    walk(parsed)
     return out
+
+
+def _parse_json(reply: Any) -> Any:
+    if isinstance(reply, (dict, list)):
+        return reply
+    start = min((i for i in (reply.find("["), reply.find("{")) if i != -1), default=-1)
+    end = max(reply.rfind("]"), reply.rfind("}"))
+    try:
+        return json.loads(reply[start : end + 1]) if start != -1 and end > start else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
 
 
 def main() -> int:
