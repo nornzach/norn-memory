@@ -42,6 +42,7 @@ from memory_store import (
     PAGE_SIZE_LIMIT,
     context_values,
     list_memories,
+    record_access,
     list_source_values,
     query_memories,
 )
@@ -847,7 +848,13 @@ def search_memories(search_req: SearchRequest, scope: Optional[KeyScope] = Depen
         if search_req.show_expired is not None:
             params["show_expired"] = search_req.show_expired
         response = _keep_source(get_memory_instance().search(query=search_req.query, filters=filters, **params), source)
-        return scope.filter_response(response, filters) if scope is not None else response
+        response = scope.filter_response(response, filters) if scope is not None else response
+        try:
+            hits = response.get("results", []) if isinstance(response, dict) else []
+            record_access([r.get("id") for r in hits if isinstance(r, dict) and r.get("id")])
+        except Exception:
+            logging.getLogger(__name__).warning("record_access failed for /search", exc_info=True)
+        return response
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:

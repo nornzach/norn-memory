@@ -62,10 +62,11 @@ const LAYER_VARIANT: Record<string, "default" | "brand" | "info" | "secondary" |
   L4: "outline",
 };
 
-const EVENT_VARIANT: Record<string, "success" | "info" | "destructive"> = {
+const EVENT_VARIANT: Record<string, "success" | "info" | "destructive" | "warning"> = {
   ADD: "success",
   UPDATE: "info",
   DELETE: "destructive",
+  LAYER: "warning",
 };
 
 export function MemorySheet({

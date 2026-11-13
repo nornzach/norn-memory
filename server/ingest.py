@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import categorizer
+import evolve
 import webhooks
 from db import SessionLocal
 from models import IngestJob
@@ -41,6 +42,7 @@ MAX_ATTEMPTS = 3
 RETRY_DELAYS = (timedelta(seconds=30), timedelta(minutes=2))  # before the 2nd and the 3rd attempt
 LEASE = timedelta(minutes=10)
 POLL_SECONDS = 30
+EVOLVE_EVERY = timedelta(minutes=int(os.environ.get("NORN_M_EVOLVE_INTERVAL_MIN", "60")))
 PRUNE_EVERY = timedelta(hours=1)
 
 logger = logging.getLogger(__name__)
@@ -224,6 +226,7 @@ class Worker:
         self._lock = threading.Lock()
         self._current: Optional[tuple[uuid.UUID, int]] = None
         self._pruned_at: Optional[datetime] = None
+        self._evolved_at: Optional[datetime] = None
 
     def start(self) -> None:
         if not _flag(WORKER_ENV):
@@ -259,6 +262,19 @@ class Worker:
         self._wake.wait(POLL_SECONDS)
         self._wake.clear()
 
+    def _evolve_now_and_then(self) -> None:
+        if os.environ.get("NORN_M_EVOLVE_ENABLED", "1").lower() in {"0", "false", "no", "off"}:
+            return
+        now = _utcnow()
+        if self._evolved_at is None or now - self._evolved_at >= EVOLVE_EVERY:
+            self._evolved_at = now
+            try:
+                stats = evolve.evolve_tick(now)
+                if any(stats[k] for k in ("promoted", "demoted", "expired", "errors")):
+                    logger.info("Hierarchy evolution: %s", stats)
+            except Exception:
+                logger.exception("Hierarchy evolution tick failed")
+
     def _prune_now_and_then(self) -> None:
         now = _utcnow()
         if self._pruned_at is None or now - self._pruned_at >= PRUNE_EVERY:
@@ -271,6 +287,7 @@ class Worker:
         while not self._stop.is_set():
             try:
                 self._prune_now_and_then()
+                self._evolve_now_and_then()
                 claimed = claim()
             except Exception:
                 logger.exception("Ingest worker could not read the job queue")

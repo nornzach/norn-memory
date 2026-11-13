@@ -3,6 +3,7 @@
 Shared by main.py and the routers so none of them has to import main.
 """
 
+import logging
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -10,6 +11,8 @@ import provenance
 from norn_m.vector_stores.pgvector import OutputData, PGVector, sql
 from scopes import ENTITY_FIELDS
 from server_state import get_memory_instance
+
+logger = logging.getLogger(__name__)
 
 ALL_MEMORIES_LIMIT = 1000
 # Largest page GET /memories?page_size= returns.
@@ -354,6 +357,52 @@ def list_memories(limit: Optional[int] = ALL_MEMORIES_LIMIT, **filters: Any) -> 
 
 
 SOURCE_VALUES_LIMIT = 500
+
+
+ACCESS_TRACK_LIMIT = 100  # never touch more rows than one search returns
+
+
+def record_access(memory_ids: Iterable[str]) -> int:
+    """Count a retrieval hit: access_count + 1 and last_accessed_at = now, for the evolution tick.
+
+    One statement, not read-modify-write, so two searches hitting the same memory don't lose a
+    count. Best-effort: a failure only means the tick sees the memory as less used, it never
+    breaks a search.
+    """
+    ids = list(dict.fromkeys(str(i) for i in memory_ids))[:ACCESS_TRACK_LIMIT]
+    if not ids:
+        return 0
+    store = _pg_store()
+    if store is None:
+        updated = 0
+        for row in list_rows():
+            if str(getattr(row, "id", "")) not in ids:
+                continue
+            payload = dict(getattr(row, "payload", None) or {})
+            try:
+                count = int(payload.get("access_count") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            payload["access_count"] = count + 1
+            payload["last_accessed_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                store_update = get_memory_instance().vector_store.update
+                store_update(vector_id=str(row.id), payload=payload)
+                updated += 1
+            except Exception:
+                logger.warning("record_access could not update %s", row.id)
+        return updated
+    store._ensure_collection()
+    with store._get_cursor(commit=True) as cur:
+        cur.execute(
+            sql.SQL(
+                "UPDATE {} SET payload = payload || jsonb_build_object("
+                "'access_count', COALESCE((payload->>'access_count')::int, 0) + 1,"
+                "'last_accessed_at', %s) WHERE id = ANY(%s)"
+            ).format(store._col()),
+            [datetime.now(timezone.utc).isoformat(), ids],
+        )
+        return cur.rowcount
 
 
 def context_values(*, scope: Any = None, **ids: Optional[str]) -> list[str]:
