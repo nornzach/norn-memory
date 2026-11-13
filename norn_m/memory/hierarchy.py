@@ -4,7 +4,7 @@ This module defines the five-layer memory pyramid and provides functions
 for calculating memory weights based on recency, importance, and layer.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 

@@ -1,6 +1,5 @@
 """Unit tests for memory hierarchy module."""
 
-import pytest
 from datetime import datetime, timedelta, timezone
 
 from norn_m.memory.hierarchy import (

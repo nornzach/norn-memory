@@ -174,18 +174,14 @@ def parse_decisions(response: Any, fact_count: int, candidate_count: int) -> dic
     return decisions
 
 
-def build_plan(decisions: dict[int, Decision], facts: Sequence[str], candidates: Sequence[Candidate], l0_memories: Optional[list] = None) -> Plan:
+def build_plan(decisions: dict[int, Decision], facts: Sequence[str], candidates: Sequence[Candidate]) -> Plan:
     """Turn decisions into a plan, in fact order. A decision that conflicts with an earlier one becomes "add":
 
     - skip needs its memory to survive, so it fails if an earlier decision deleted that memory;
     - update and replace rewrite their first memory and delete the rest, so they fail if any of those
       memories was already kept by a skip, rewritten or deleted.
-    
-    L0 integration: When a candidate is marked as L0 (layer="L0"), it takes precedence in conflicts.
-    Facts that contradict L0 memories are rejected (treated as skip or forced to update the L0).
     """
     plan = Plan()
-    l0_memories = l0_memories or []
     kept: set[int] = set()
     rewritten: set[int] = set()
     deleted: set[int] = set()
@@ -213,8 +209,8 @@ def build_plan(decisions: dict[int, Decision], facts: Sequence[str], candidates:
     return plan
 
 
-def plan_from_response(response: Any, facts: Sequence[str], candidates: Sequence[Candidate], l0_memories: Optional[list] = None) -> Plan:
+def plan_from_response(response: Any, facts: Sequence[str], candidates: Sequence[Candidate]) -> Plan:
     decisions = parse_decisions(response, len(facts), len(candidates))
     if not decisions:
         logger.warning("Reconcile reply had no usable decisions; adding all %d facts", len(facts))
-    return build_plan(decisions, facts, candidates, l0_memories)
+    return build_plan(decisions, facts, candidates)

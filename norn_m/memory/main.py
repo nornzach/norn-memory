@@ -24,7 +24,7 @@ from norn_m.exceptions import LLMError, VectorStoreError
 from norn_m.exceptions import ValidationError as NornMValidationError
 from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
-from norn_m.memory.hierarchy import assign_initial_layer, validate_importance, MemoryLayer
+from norn_m.memory.hierarchy import assign_initial_layer, validate_importance
 from norn_m.memory.context import infer_context
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
@@ -1013,7 +1013,7 @@ class Memory(MemoryBase):
             
             # Context inference using context module
             if "context" not in mem_metadata:
-                mem_metadata["context"] = infer_context(metadata, agent_id, run_id)
+                mem_metadata["context"] = infer_context(metadata, filters.get("agent_id"), filters.get("run_id"))
 
             records.append((memory_id, text, embed_map[text], mem_metadata))
 
@@ -2658,7 +2658,7 @@ class AsyncMemory(MemoryBase):
             
             # Context inference using context module
             if "context" not in mem_metadata:
-                mem_metadata["context"] = infer_context(metadata, agent_id, run_id)
+                mem_metadata["context"] = infer_context(metadata, effective_filters.get("agent_id"), effective_filters.get("run_id"))
 
             records.append((memory_id, text, embed_map[text], mem_metadata))
 

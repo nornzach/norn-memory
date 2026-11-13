@@ -295,6 +295,22 @@ async def test_async_add_with_reconcile_applies_each_decision(async_memory):
     _assert_reconciled(async_memory, results)
 
 
+def test_add_stores_hierarchy_fields(sync_memory):
+    """Every stored memory carries the layer, importance and context the pyramid and ranking read."""
+    sync_memory._add_to_vector_store(
+        [{"role": "user", "content": "chat"}],
+        {"user_id": "zach", "project": "norn"},
+        {"user_id": "zach", "agent_id": "cli", "run_id": None},
+        infer=True,
+    )
+
+    payload = sync_memory.vector_store.inserted[0][1]
+    assert payload["layer"] == "L2"  # no importance from the LLM -> 5.0
+    assert payload["importance"] == 5.0
+    assert payload["context"] == "project-norn"
+    assert payload["last_accessed_at"] == payload["created_at"]
+
+
 def test_add_without_reconcile_only_adds(sync_memory):
     sync_memory.llm.generate_response.side_effect = [EXTRACTION]
 

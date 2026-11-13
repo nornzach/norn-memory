@@ -1,6 +1,5 @@
 """Integration tests for context isolation in memory hierarchy."""
 
-import pytest
 from norn_m.memory.context import (
     infer_context,
     parse_context,
@@ -8,7 +7,6 @@ from norn_m.memory.context import (
     should_cross_context_search,
     CONTEXT_CHAT,
     CONTEXT_DEBUG_PREFIX,
-    CONTEXT_PROJECT_PREFIX,
 )
 
 

@@ -194,6 +194,7 @@ The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. 
 | `GET` | `/memories` | List memories, filtered by `user_id`, `agent_id`, `run_id`, `category`, `project`, `device`, `agent` or `cwd`. Expired memories are left out unless `show_expired=true` |
 | `GET` | `/memories?page_size=20&offset=40` | One page of the same listing, newest first, as `{"results", "total", "offset", "page_size"}`. `page_size` is at most 200; `q` keeps memories whose text contains it (any case). Without `page_size`, `top_k` (at most 1000) caps a single list |
 | `GET` | `/memories/sources` | The `device`, `agent`, `project` and `cwd` values on the memories you can list, for filter menus. Takes `user_id`, `agent_id` or `run_id` |
+| `GET` | `/memories/hierarchy-stats` | Counts and average importance per memory layer (L0–L4) and how memories split across contexts, for the dashboard pyramid. Same scope rules as the listing: the ids you pass, a scoped key's ids, or every owner for an admin |
 | `GET` | `/memories/{memory_id}` | Get one memory |
 | `PUT` | `/memories/{memory_id}` | Update a memory's `text`, `metadata` or `expiration_date` (`null` clears it) |
 | `DELETE` | `/memories/{memory_id}` | Delete a memory |

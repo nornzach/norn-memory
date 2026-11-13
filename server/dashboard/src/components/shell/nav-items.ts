@@ -38,11 +38,7 @@ export function getNavGroups(t: Messages): NavGroup[] {
           href: "/dashboard/memories",
           icon: GalleryVerticalEnd,
         },
-        {
-          title: "Hierarchy",
-          href: "/dashboard/hierarchy",
-          icon: Layers,
-        },
+        { title: t.nav.hierarchy, href: "/dashboard/hierarchy", icon: Layers },
         { title: t.nav.exact, href: "/dashboard/exact", icon: LockKeyhole },
         { title: t.nav.entities, href: "/dashboard/entities", icon: Users },
       ],

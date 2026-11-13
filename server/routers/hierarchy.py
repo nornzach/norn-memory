@@ -1,204 +1,95 @@
-"""Memory hierarchy statistics and graph APIs - SECURED VERSION."""
+"""Memory hierarchy statistics for the dashboard pyramid view."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, Any, List, Optional
 import logging
+from typing import Any, Optional
 
-from norn_m import Memory
-from auth import get_key_scope
+from auth import get_key_scope, verify_auth
+from fastapi import APIRouter, Depends, HTTPException, Request
+from memory_store import list_memories
 from scopes import KeyScope
-from server_state import get_memory_instance
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/memories", tags=["hierarchy"])
 
+LAYERS = ("L0", "L1", "L2", "L3", "L4")
+LAYER_LABELS = {
+    "L0": "Canonical",
+    "L1": "Core",
+    "L2": "Episodic",
+    "L3": "Working",
+    "L4": "Transient",
+}
+# Memories written before hierarchy fields existed have neither; they are working memories at best.
+DEFAULT_LAYER = "L3"
+DEFAULT_IMPORTANCE = 5.0
+DEFAULT_CONTEXT = "chat"
+
+
+def _number(value: Any) -> float:
+    """Importance as a float; payloads are JSON, so legacy rows may hold a string or nothing."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_IMPORTANCE
+
+
+def _layer(metadata: dict[str, Any]) -> str:
+    value = metadata.get("layer")
+    return value if value in LAYERS else DEFAULT_LAYER
+
 
 @router.get("/hierarchy-stats")
-async def get_hierarchy_stats(
+def get_hierarchy_stats(
+    request: Request,
     user_id: Optional[str] = None,
     agent_id: Optional[str] = None,
     run_id: Optional[str] = None,
-    scope: KeyScope = Depends(get_key_scope),  # ← SECURITY: Require API key
-) -> Dict[str, Any]:
-    """Get memory hierarchy statistics.
-    
-    Returns counts and metrics for each layer, plus overall statistics.
-    
-    SECURITY: Requires valid API key. User can only access memories within their scope.
-    """
-    try:
-        memory = get_memory_instance()
-        
-        # SECURITY: Build filters from scope, not trusting user input directly
-        filters = {}
-        
-        # Use scope-validated user_id
-        if user_id:
-            if user_id not in scope.user_ids:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Access denied: user_id '{user_id}' not in your API key scope"
-                )
-            filters["user_id"] = user_id
-        elif scope.user_ids:
-            # If no user_id specified, use first from scope
-            filters["user_id"] = scope.user_ids[0]
-        
-        # Agent and run IDs also need validation if scope is restrictive
-        if agent_id:
-            filters["agent_id"] = agent_id
-        if run_id:
-            filters["run_id"] = run_id
-        
-        if not filters:
-            raise HTTPException(
-                status_code=400,
-                detail="At least one of user_id, agent_id, or run_id is required"
-            )
-        
-        # Get memories within allowed scope
-        search_result = memory.search(
-            query="",
-            filters=filters,
-            top_k=10000,
-        )
-        
-        memories = search_result.get("results", [])
-        
-        # SECURITY: Double-check all returned memories belong to allowed scope
-        for mem in memories:
-            mem_user_id = mem.get("user_id")
-            if mem_user_id and mem_user_id not in scope.user_ids:
-                logger.error(f"SECURITY: Memory {mem.get('id')} has user_id {mem_user_id} not in scope")
-                raise HTTPException(500, "Internal security check failed")
-        
-        # Calculate stats per layer
-        stats_by_layer = {
-            "L0": {"count": 0, "total_importance": 0, "avg_importance": 0},
-            "L1": {"count": 0, "total_importance": 0, "avg_importance": 0},
-            "L2": {"count": 0, "total_importance": 0, "avg_importance": 0},
-            "L3": {"count": 0, "total_importance": 0, "avg_importance": 0},
-            "L4": {"count": 0, "total_importance": 0, "avg_importance": 0},
-        }
-        
-        context_distribution = {}
-        
-        for memory_item in memories:
-            layer = memory_item.get("layer", "L3")
-            importance = memory_item.get("importance", 5.0)
-            context = memory_item.get("context", "chat")
-            
-            if layer in stats_by_layer:
-                stats_by_layer[layer]["count"] += 1
-                stats_by_layer[layer]["total_importance"] += importance
-            
-            context_distribution[context] = context_distribution.get(context, 0) + 1
-        
-        # Calculate averages
-        for layer_stats in stats_by_layer.values():
-            if layer_stats["count"] > 0:
-                layer_stats["avg_importance"] = round(
-                    layer_stats["total_importance"] / layer_stats["count"], 2
-                )
-        
-        # Overall stats
-        total_count = len(memories)
-        total_importance = sum(m.get("importance", 5.0) for m in memories)
-        avg_importance = round(total_importance / total_count, 2) if total_count > 0 else 0
-        
-        return {
-            "total_memories": total_count,
-            "avg_importance": avg_importance,
-            "by_layer": stats_by_layer,
-            "context_distribution": context_distribution,
-            "pyramid": [
-                {"layer": "L0", "count": stats_by_layer["L0"]["count"], "label": "Canonical"},
-                {"layer": "L1", "count": stats_by_layer["L1"]["count"], "label": "Core"},
-                {"layer": "L2", "count": stats_by_layer["L2"]["count"], "label": "Episodic"},
-                {"layer": "L3", "count": stats_by_layer["L3"]["count"], "label": "Working"},
-                {"layer": "L4", "count": stats_by_layer["L4"]["count"], "label": "Transient"},
-            ],
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting hierarchy stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    scope: Optional[KeyScope] = Depends(get_key_scope),
+    auth: Any = Depends(verify_auth),
+) -> dict[str, Any]:
+    """Counts and average importance per memory layer, plus how memories split across contexts.
 
-
-@router.get("/{memory_id}/graph")
-async def get_memory_graph(
-    memory_id: str,
-    depth: int = 2,
-    scope: KeyScope = Depends(get_key_scope),  # ← SECURITY: Require API key
-) -> Dict[str, Any]:
-    """Get memory relationship graph for visualization.
-    
-    Returns nodes and edges for a graph centered on the given memory.
-    
-    SECURITY: Requires valid API key. Verifies the memory belongs to the user's scope
-    before returning its relationship graph.
-    
-    Args:
-        memory_id: Center memory ID
-        depth: How many hops to traverse (default 2)
+    Summarizing every owner at once is an admin view, exactly like listing all memories; a scoped
+    key only sees the ids it allows.
     """
+    ids = {k: v for k, v in {"user_id": user_id, "agent_id": agent_id, "run_id": run_id}.items() if v}
+    if not ids:
+        auth_type = getattr(request.state, "auth_type", "none")
+        if (scope is None or not scope.restricts_entities) and getattr(auth, "role", None) != "admin" and auth_type not in {
+            "admin_api_key",
+            "disabled",
+        }:
+            raise HTTPException(status_code=403, detail="Admin role required to summarize all memories.")
+
     try:
-        memory = get_memory_instance()
-        
-        # SECURITY: First verify the requested memory is within scope
-        # Get the memory to check ownership
-        filters = {}
-        if scope.user_ids:
-            filters["user_id"] = scope.user_ids[0]
-        
-        search_result = memory.search(
-            query="",
-            filters=filters,
-            top_k=10000,
-        )
-        
-        memories = search_result.get("results", [])
-        memory_ids_in_scope = {m.get("id") for m in memories}
-        
-        if memory_id not in memory_ids_in_scope:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Access denied: memory {memory_id} not found in your scope"
-            )
-        
-        # Find the specific memory
-        target_memory = next((m for m in memories if m.get("id") == memory_id), None)
-        if not target_memory:
-            raise HTTPException(404, "Memory not found")
-        
-        # Build graph (placeholder - would query memory_links table in full implementation)
-        nodes = [
-            {
-                "id": memory_id,
-                "label": target_memory.get("memory", "")[:50],
-                "layer": target_memory.get("layer", "L3"),
-                "importance": target_memory.get("importance", 5.0),
-                "type": "center",
-            }
-        ]
-        
-        edges = []
-        
-        # TODO: Query memory_links table for actual relationships
-        # Ensure all linked memories also belong to the same scope
-        
-        return {
-            "nodes": nodes,
-            "edges": edges,
-            "center": memory_id,
-            "depth": depth,
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting memory graph: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        memories = list_memories(None, **ids, scope=scope)
+    except Exception:
+        logger.exception("Reading memories for hierarchy stats failed")
+        raise HTTPException(status_code=500, detail="Could not read memories.")
+
+    by_layer = {layer: {"count": 0, "total_importance": 0.0, "avg_importance": 0.0} for layer in LAYERS}
+    contexts: dict[str, int] = {}
+    for memory in memories:
+        metadata = memory.get("metadata") or {}
+        stats = by_layer[_layer(metadata)]
+        stats["count"] += 1
+        stats["total_importance"] += _number(metadata.get("importance"))
+        context = metadata.get("context") or DEFAULT_CONTEXT
+        contexts[context] = contexts.get(context, 0) + 1
+
+    for stats in by_layer.values():
+        if stats["count"]:
+            stats["avg_importance"] = round(stats["total_importance"] / stats["count"], 2)
+
+    total = len(memories)
+    total_importance = sum(stats["total_importance"] for stats in by_layer.values())
+    return {
+        "total_memories": total,
+        "avg_importance": round(total_importance / total, 2) if total else 0.0,
+        "by_layer": by_layer,
+        "context_distribution": dict(sorted(contexts.items(), key=lambda item: -item[1])),
+        "pyramid": [
+            {"layer": layer, "label": LAYER_LABELS[layer], "count": by_layer[layer]["count"]} for layer in LAYERS
+        ],
+    }

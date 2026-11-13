@@ -3,6 +3,7 @@ import account from "./account";
 import auth from "./auth";
 import common from "./common";
 import exact from "./exact";
+import hierarchy from "./hierarchy";
 import insights from "./insights";
 import manage from "./manage";
 import memories from "./memories";
@@ -20,6 +21,7 @@ const modules = [
   insights,
   manage,
   exact,
+  hierarchy,
 ];
 
 type Merge<T extends readonly { en: object }[]> = T extends readonly [
@@ -40,6 +42,7 @@ export type Messages = Merge<
     typeof insights,
     typeof manage,
     typeof exact,
+    typeof hierarchy,
   ]
 >;
 
