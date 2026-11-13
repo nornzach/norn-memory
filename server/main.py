@@ -810,12 +810,9 @@ def get_memory_contexts(
 @app.get("/memories/{memory_id}", summary="Get a memory")
 def get_memory(memory_id: str, scope: Optional[KeyScope] = Depends(get_key_scope)):
     """Retrieve a specific memory by ID."""
-    memory = _require_visible(memory_id, scope) if scope is not None else _fetch_memory(memory_id)
-    try:
-        record_access([memory_id])
-    except Exception:
-        logging.getLogger(__name__).warning("record_access failed for %s", memory_id, exc_info=True)
-    return memory
+    # Looking at a memory isn't retrieving it — access_count only counts hits
+    # a search returned, otherwise inspecting details would promote it unfairly.
+    return _require_visible(memory_id, scope) if scope is not None else _fetch_memory(memory_id)
 
 
 @app.post("/search", summary="Search memories")

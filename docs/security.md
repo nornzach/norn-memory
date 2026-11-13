@@ -55,4 +55,15 @@ used to exhaust server memory.
 - `tests/test_server_scopes.py`, `tests/test_server_auth.py` — scope and auth behaviour of the wider API.
 - `tests/test_server_memory_paging.py` — the SQL listing and hierarchy aggregates match the Python scan.
 
+## Data-handling guarantees worth knowing
+
+- A `debug-{id}` or `release-{v}` memory only answers to its own context; a generic search
+  cannot pull it out. This is enforced in the vector search path itself
+  (`should_cross_context_search` inside `_search_vector_store`), not by the caller.
+- `access_count` only counts hits the `/search` endpoint returned — opening a memory's
+  detail view does not move its evolution standing.
+- Layers change only through three paths: a caller writes it in `metadata`, the LLM
+  backfill scores it, or the hourly evolution tick moves it. Every path writes a
+  `LAYER` event to memory history.
+
 Run the server tests with `cd server && python -m pytest tests`.
