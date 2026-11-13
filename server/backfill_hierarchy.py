@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any, List
+from typing import Any, Dict, List
 
 import memory_store
 from main import DEFAULT_CONFIG
@@ -41,8 +41,8 @@ PROMPT = """Rate each memory's importance on a 1-10 scale for a long-term person
 Memories (JSON lines: index, memory):
 {items}
 
-Reply with ONLY a JSON array of integers, one importance score per memory, in the same order.
-Example: [8, 3, 9]"""
+Reply with ONLY a JSON array like [{{"i": 0, "s": 8}}, {{"i": 1, "s": 3}}] — one object per memory,
+i = the memory's index, s = its importance."""
 
 
 def _pending_rows(limit: int) -> List[Any]:
@@ -51,7 +51,7 @@ def _pending_rows(limit: int) -> List[Any]:
     return rows[:limit] if limit else rows
 
 
-def _score_batch(rows: List[Any], llm: Any) -> List[float]:
+def _score_batch(rows: List[Any], llm: Any) -> Dict[int, float]:
     items = "\n".join(
         f"{i}. {json.dumps(str((row.payload or {}).get('data') or '')[:400], ensure_ascii=False)}"
         for i, row in enumerate(rows)
@@ -66,10 +66,18 @@ def _score_batch(rows: List[Any], llm: Any) -> List[float]:
     if isinstance(reply, dict):
         reply = json.dumps(reply)
     start, end = reply.find("["), reply.rfind("]")
-    scores = json.loads(reply[start : end + 1]) if start != -1 and end > start else []
-    if len(scores) != len(rows):
-        raise ValueError(f"LLM returned {len(scores)} scores for {len(rows)} memories")
-    return [validate_importance(float(score)) for score in scores]
+    scored = json.loads(reply[start : end + 1]) if start != -1 and end > start else []
+    # Index-keyed answers: a batch is only as good as the scores it actually returned.
+    # Missing or malformed entries leave their rows pending for the next run.
+    out: Dict[int, float] = {}
+    for item in scored:
+        try:
+            index, score = int(item["i"]), validate_importance(float(item["s"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= index < len(rows):
+            out[index] = score
+    return out
 
 
 def main() -> int:
@@ -94,8 +102,16 @@ def main() -> int:
             logger.warning("backfill: batch at %d failed (%s); skipped, retry on the next run", offset, e)
             failed += len(batch)
             continue
+        if not scores:
+            logger.warning("backfill: batch at %d returned no usable scores; skipped", offset)
+            failed += len(batch)
+            continue
 
-        for row, score in zip(batch, scores):
+        for index, row in enumerate(batch):
+            score = scores.get(index)
+            if score is None:
+                failed += 1
+                continue
             payload = dict(row.payload or {})
             payload["importance"] = score
             payload["layer"] = assign_initial_layer(score).value
