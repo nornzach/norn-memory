@@ -45,6 +45,11 @@ def decide(payload: Dict[str, Any], now: datetime) -> Optional[Tuple[str, Dict[s
 
     Returns ("layer", fields-to-merge). 'expire' folds into a layer change to L4 plus an
     expiration date so the row dies by the normal expiry rules instead of a hard delete.
+
+    Demotion is checked before promotion: when both rules match, decay wins — a memory nobody
+    touches should fall, not be rescued by the age rule. A demoted memory carries `demoted_at`
+    and can only climb back through new accesses (the age rule is suppressed), which removes
+    the L2->L3->L2 ping-pong. Promotion clears the marker.
     """
     layer = payload.get("layer")
     if layer == MemoryLayer.L0_CANONICAL.value:
@@ -66,10 +71,6 @@ def decide(payload: Dict[str, Any], now: datetime) -> Optional[Tuple[str, Dict[s
     age_hours = _iso_hours(payload.get("created_at"), now)
     idle_hours = _iso_hours(payload.get("last_accessed_at") or payload.get("created_at"), now)
 
-    promoted = should_promote(current, access_count, age_hours)
-    if promoted is not None:
-        return "layer", {"layer": promoted.value, "access_count": 0}
-
     demoted = should_demote(current, idle_hours, importance)
     if demoted is None:
         # archive rule: an ignored L4 just expires rather than being deleted outright
@@ -78,10 +79,16 @@ def decide(payload: Dict[str, Any], now: datetime) -> Optional[Tuple[str, Dict[s
             return "expire", {"expiration_date": expiry}
         return None
     if demoted != current:
-        fields: Dict[str, Any] = {"layer": demoted.value}
+        fields: Dict[str, Any] = {"layer": demoted.value, "demoted_at": now.isoformat(), "access_count": 0}
         if demoted == MemoryLayer.L4_TRANSIENT and not payload.get("expiration_date"):
             fields["expiration_date"] = (now + timedelta(days=TRANSIENT_DAYS)).date().isoformat()
         return "layer", fields
+
+    # Promotion. A memory that was ever demoted proves itself again only through accesses;
+    # the age rule stays off so it can't drift back on time alone.
+    promoted = should_promote(current, access_count, 0 if payload.get("demoted_at") else age_hours)
+    if promoted is not None:
+        return "layer", {"layer": promoted.value, "access_count": 0, "demoted_at": None}
     return None
 
 
@@ -105,7 +112,10 @@ def evolve_tick(now: Optional[datetime] = None) -> Dict[str, int]:
             continue
         kind, fields = change
         try:
-            store.update(vector_id=str(row.id), payload={**payload, **fields})
+            merged = {**payload, **fields}
+            if merged.get("demoted_at") is None:
+                merged.pop("demoted_at", None)
+            store.update(vector_id=str(row.id), payload=merged)
             if kind == "layer":
                 direction = "promoted" if fields["layer"] < (payload.get("layer") or "L3") else "demoted"
                 stats["promoted" if direction == "promoted" else "demoted"] += 1

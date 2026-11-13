@@ -6,6 +6,7 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, List, Optional
 
 import categorizer
@@ -809,9 +810,12 @@ def get_memory_contexts(
 @app.get("/memories/{memory_id}", summary="Get a memory")
 def get_memory(memory_id: str, scope: Optional[KeyScope] = Depends(get_key_scope)):
     """Retrieve a specific memory by ID."""
-    if scope is not None:
-        return _require_visible(memory_id, scope)
-    return _fetch_memory(memory_id)
+    memory = _require_visible(memory_id, scope) if scope is not None else _fetch_memory(memory_id)
+    try:
+        record_access([memory_id])
+    except Exception:
+        logging.getLogger(__name__).warning("record_access failed for %s", memory_id, exc_info=True)
+    return memory
 
 
 @app.post("/search", summary="Search memories")
@@ -881,6 +885,12 @@ def update_memory(
     secret_guard.check(
         {k: v for k, v in {"text": updated_memory.text, "metadata": updated_memory.metadata}.items() if k in fields_set}
     )
+    # A layer edit is a hierarchy change, not a text change: it gets its own LAYER history event.
+    layer_from = layer_to = None
+    if "metadata" in fields_set and "layer" in (updated_memory.metadata or {}):
+        previous = get_memory_instance().get(memory_id)
+        layer_from = ((previous or {}).get("metadata") or {}).get("layer")
+        layer_to = (updated_memory.metadata or {}).get("layer")
     params = {"memory_id": memory_id}
     if "text" in fields_set:
         params["data"] = updated_memory.text
@@ -896,6 +906,19 @@ def update_memory(
         raise _client_error(e)
     except Exception:
         raise upstream_error()
+
+    if layer_to is not None and layer_to != layer_from:
+        try:
+            get_memory_instance().db.add_history(
+                memory_id,
+                None,
+                f"{layer_from or 'L3'} -> {layer_to}",
+                "LAYER",
+                created_at=(previous or {}).get("created_at"),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+        except Exception:
+            logging.getLogger(__name__).warning("layer history event failed for %s", memory_id, exc_info=True)
 
     webhooks.emit("memory.updated", {"id": memory_id, **{k: v for k, v in params.items() if k != "memory_id"}})
     # A category-limited key keeps the memory's categories; LLM re-tagging could move it out of the key's reach.
