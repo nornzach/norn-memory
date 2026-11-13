@@ -15,7 +15,7 @@ import {
 import { EmptyState } from "@/components/self-hosted/empty-state";
 import { cn } from "@/lib/utils";
 import { api } from "@/utils/api";
-import { MEMORY_ENDPOINTS } from "@/utils/api-endpoints";
+import { INGEST_ENDPOINTS, MEMORY_ENDPOINTS } from "@/utils/api-endpoints";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { useI18n } from "@/i18n/provider";
 
@@ -33,6 +33,12 @@ interface HierarchyStats {
   by_layer: Record<Layer, LayerStats>;
   context_distribution: Record<string, number>;
   exact_records: number | null;
+}
+
+interface IngestHealth {
+  pending_jobs: number;
+  failed_jobs: number;
+  last_evolved_at: string | null;
 }
 
 const LAYERS: Layer[] = ["L0", "L1", "L2", "L3", "L4"];
@@ -72,6 +78,9 @@ export default function HierarchyPage() {
   const { data, isLoading, error, refetch } = useApiQuery<HierarchyStats>(
     async () => (await api.get<HierarchyStats>(MEMORY_ENDPOINTS.HIERARCHY_STATS)).data,
     { errorToast: copy.loadFailed },
+  );
+  const { data: health } = useApiQuery<IngestHealth>(
+    async () => (await api.get<IngestHealth>(INGEST_ENDPOINTS.HEALTH)).data,
   );
 
   const layers = useMemo(
@@ -233,6 +242,17 @@ export default function HierarchyPage() {
           </PanelBody>
         </Panel>
       )}
+
+      {health ? (
+        <p className="text-xs text-ink-3">
+          {copy.pipelineHealth}:{" "}
+          {health.pending_jobs ? `${copy.jobsPending(health.pending_jobs)} · ` : ""}
+          {health.failed_jobs ? `${copy.jobsFailed(health.failed_jobs)} · ` : ""}
+          {health.last_evolved_at
+            ? copy.lastEvolved(new Date(health.last_evolved_at).toLocaleString())
+            : "--"}
+        </p>
+      ) : null}
 
       {contexts.length > 0 ? (
         <Panel>

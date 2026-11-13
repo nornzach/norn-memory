@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 import ingest
-from auth import get_key_scope, require_admin
+from auth import get_key_scope, require_admin, verify_auth
 from db import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
 from models import IngestJob
@@ -87,6 +87,12 @@ def get_job(job_id: str, scope: Optional[KeyScope] = Depends(get_key_scope), db:
     if scope is not None and not scope.allows(ingest.scope_of((job.request or {}).get("params") or {})):
         raise HTTPException(status_code=404, detail="Job not found.")
     return _job(job, JobDetail)
+
+
+@router.get("/health")
+def ingest_health(_auth=Depends(verify_auth)):
+    """Queue depth and when the hierarchy-evolution tick last ran."""
+    return ingest.worker.health()
 
 
 @router.get("/jobs", response_model=JobList)

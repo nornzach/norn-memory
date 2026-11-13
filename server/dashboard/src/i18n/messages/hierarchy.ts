@@ -20,6 +20,10 @@ const en = {
     contextHint: "Click a context to list its memories",
     allContexts: "All contexts",
     importanceHint: "1–10",
+    pipelineHealth: "Pipeline",
+    jobsPending: (n: number) => `${n} queued`,
+    jobsFailed: (n: number) => `${n} failed`,
+    lastEvolved: (when: string) => `evolved ${when}`,
     emptyTitle: "No memories yet",
     emptyDescription: "Add memories and they will be placed in a layer by importance.",
     layers: {
@@ -60,6 +64,10 @@ const zh: typeof en = {
     contextHint: "点击场景查看该场景的记忆",
     allContexts: "所有场景",
     importanceHint: "1–10",
+    pipelineHealth: "流水线",
+    jobsPending: (n: number) => `${n} 排队中`,
+    jobsFailed: (n: number) => `${n} 失败`,
+    lastEvolved: (when: string) => `上次演化 ${when}`,
     emptyTitle: "还没有记忆",
     emptyDescription: "添加记忆后，会按重要性自动归入对应层级。",
     layers: {

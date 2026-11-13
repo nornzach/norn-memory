@@ -71,6 +71,11 @@ export const CONSOLIDATION_ENDPOINTS = {
     `/consolidation/proposals/${proposalId}/dismiss`,
 } as const;
 
+export const INGEST_ENDPOINTS = {
+  BASE: "/ingest/jobs",
+  HEALTH: "/ingest/health",
+} as const;
+
 // Keys contain "/", which the server reads as part of the path; only the segments are escaped.
 const exactKeyPath = (key: string) =>
   key.split("/").map(encodeURIComponent).join("/");

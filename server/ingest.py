@@ -262,6 +262,20 @@ class Worker:
         self._wake.wait(POLL_SECONDS)
         self._wake.clear()
 
+    def health(self) -> dict:
+        """Liveness of the background pipeline, for the hierarchy page's status line."""
+        with SessionLocal() as db:
+            counts = dict(
+                db.execute(
+                    select(IngestJob.status, func.count(IngestJob.id)).group_by(IngestJob.status)
+                ).all()
+            )
+        return {
+            "pending_jobs": int(counts.get("pending", 0)) + int(counts.get("processing", 0)),
+            "failed_jobs": int(counts.get("failed", 0)),
+            "last_evolved_at": self._evolved_at.isoformat() if self._evolved_at else None,
+        }
+
     def _evolve_now_and_then(self) -> None:
         if os.environ.get("NORN_M_EVOLVE_ENABLED", "1").lower() in {"0", "false", "no", "off"}:
             return
