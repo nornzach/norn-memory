@@ -915,6 +915,65 @@ Before producing output, mentally scan the ENTIRE conversation — every single 
 A common failure mode is "first topic dominance" — the extractor captures the first major topic thoroughly, then treats subsequent topics as filler. This is WRONG. Every topic mentioned deserves extraction if it contains memorable facts. If a chunk has 8 messages covering 4 different topics, you MUST produce memories for all 4 topics — not just the first or most prominent one.
 
 
+
+
+# IMPORTANCE SCORING
+
+For EVERY extracted memory, assign an importance score from 1 to 10. This score determines how long the memory will be retained and how prominently it appears in future retrievals.
+
+## Scoring Guidelines
+
+**High Score (8-10) — Core, Long-Term Memories**
+- Foundational decisions and their rationale ("chose X over Y because...")
+- Major milestones (project launches, completions, life events)
+- Lessons learned from failures or successes
+- Stable preferences, skills, and relationships
+- Important problems and their solutions
+- User explicitly requests to remember something
+- Core principles and values
+
+**Medium Score (5-7) — Useful Context**
+- Specific implementation details (with full context)
+- Suggestions discussed but not finalized
+- Short-term plans ("will do X this week")
+- Tool or library usage records
+- Concrete events with actionable takeaways
+
+**Low Score (1-4) — Transient, Should Be Discarded**
+- Temporary states ("code uncommitted", "test running")
+- Process details ("step 1: ...", "first do A then B")
+- Routine operations ("checked email", "ran tests")
+- Completed to-do items with no lasting impact
+- Brainstorm ideas that were rejected
+- Debugging steps (unless the bug and fix are both notable)
+
+**When uncertain**, ask yourself:
+- Will this be useful in 6 months?
+- Can this be reused in future decisions?
+- Does this affect how I should behave in the future?
+
+If the answer to all three is "no", score ≤ 3.
+
+## Examples
+
+**Score 9-10**:
+- "User's core principle: all production code must have test coverage"
+- "Learned that premature optimization wastes time; profile first, then optimize"
+
+**Score 7-8**:
+- "User prefers using TypeScript for type safety in large projects"
+- "Completed Phase 1 of norn-memory refactor on 2026-11-13"
+
+**Score 4-6**:
+- "User discussed using Redis for caching but hasn't decided yet"
+- "Deployed hotfix for login bug on staging environment"
+
+**Score 1-3**:
+- "Code changes not yet committed to git"
+- "Running test suite to check for regressions"
+- "User mentioned grabbing coffee before the meeting"
+
+
 # OUTPUT FORMAT
 
 Return ONLY valid JSON parsable by json.loads(). No text, reasoning, explanations, or wrappers.
@@ -923,8 +982,8 @@ Return ONLY valid JSON parsable by json.loads(). No text, reasoning, explanation
 
 {
   "memory": [
-    {"id": "0", "text": "First extracted memory", "attributed_to": "user", "linked_memory_ids": ["uuid-of-related-existing-memory"]},
-    {"id": "1", "text": "Second extracted memory", "attributed_to": "assistant"}
+    {"id": "0", "text": "First extracted memory", "attributed_to": "user", "importance": 8, "linked_memory_ids": ["uuid-of-related-existing-memory"]},
+    {"id": "1", "text": "Second extracted memory", "attributed_to": "assistant", "importance": 5}
   ]
 }
 
@@ -934,6 +993,7 @@ Return ONLY valid JSON parsable by json.loads(). No text, reasoning, explanation
 - **text** (string, required): A contextually rich, self-contained factual statement (15-80 words).
 - **attributed_to** (string, required): Who this memory is about. Use "user" for facts stated by or about the user (preferences, plans, personal facts). Use "assistant" for information provided by the assistant (recommendations, confirmations, plans created, information researched).
 - **linked_memory_ids** (array of strings, optional): IDs of Existing Memories that this new memory relates to. Use the exact IDs from the Existing Memories list. Omit or pass [] if no existing memories are related.
+- **importance** (integer, required): Importance score from 1 to 10. Use the scoring guidelines above. When uncertain, prefer scoring conservatively (4-6) rather than too high.
 
 ## Rules
 

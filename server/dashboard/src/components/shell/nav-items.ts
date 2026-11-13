@@ -11,6 +11,7 @@ import {
   Users,
   WebhookIcon,
   Wrench,
+  Layers,
   type LucideIcon,
 } from "lucide-react";
 import type { Messages } from "@/i18n/messages";
@@ -36,6 +37,11 @@ export function getNavGroups(t: Messages): NavGroup[] {
           title: t.nav.memories,
           href: "/dashboard/memories",
           icon: GalleryVerticalEnd,
+        },
+        {
+          title: "Hierarchy",
+          href: "/dashboard/hierarchy",
+          icon: Layers,
         },
         { title: t.nav.exact, href: "/dashboard/exact", icon: LockKeyhole },
         { title: t.nav.entities, href: "/dashboard/entities", icon: Users },

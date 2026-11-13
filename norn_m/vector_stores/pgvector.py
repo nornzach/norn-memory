@@ -364,7 +364,18 @@ class PGVector(VectorStoreBase):
             )
 
             results = cur.fetchall()
-        return [OutputData(id=str(r[0]), score=max(0.0, 1.0 - float(r[1])), payload=r[2]) for r in results]
+        
+        # Convert to OutputData with vector similarity score
+        output_results = [
+            OutputData(id=str(r[0]), score=max(0.0, 1.0 - float(r[1])), payload=r[2]) 
+            for r in results
+        ]
+        
+        # Apply hierarchy-aware re-ranking if requested
+        if filters and filters.get("_apply_hierarchy_ranking"):
+            output_results = self._apply_hierarchy_ranking(output_results, filters)
+        
+        return output_results
 
     def keyword_search(self, query, top_k=5, filters=None):
         """

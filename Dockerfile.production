@@ -1,0 +1,51 @@
+# Norn-M Production Dockerfile
+FROM python:3.11-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制项目文件
+COPY . /app/
+
+# 安装Python依赖
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    sqlalchemy==2.0.23 \
+    alembic==1.12.1 \
+    psycopg2-binary==2.9.9 \
+    pydantic==2.5.0 \
+    python-jose[cryptography]==3.3.0 \
+    passlib[bcrypt]==1.7.4 \
+    python-multipart==0.0.6 \
+    slowapi==0.1.9 \
+    && pip install --no-cache-dir -e .
+
+# 创建日志目录
+RUN mkdir -p /app/logs
+
+# 切换到server目录
+WORKDIR /app/server
+
+# 暴露端口
+EXPOSE 8000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# 启动脚本
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+# 默认命令
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

@@ -24,6 +24,8 @@ from norn_m.exceptions import LLMError, VectorStoreError
 from norn_m.exceptions import ValidationError as NornMValidationError
 from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
+from norn_m.memory.hierarchy import assign_initial_layer, validate_importance, MemoryLayer
+from norn_m.memory.context import infer_context
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
     extract_json,
@@ -1001,6 +1003,17 @@ class Memory(MemoryBase):
             mem_metadata["updated_at"] = mem_metadata["created_at"]
             if mem.get("attributed_to"):
                 mem_metadata["attributed_to"] = mem["attributed_to"]
+            
+            # Hierarchy fields
+            importance = validate_importance(mem.get("importance", 5.0))
+            layer = assign_initial_layer(importance)
+            mem_metadata["importance"] = importance
+            mem_metadata["layer"] = layer.value
+            mem_metadata["last_accessed_at"] = mem_metadata["created_at"]
+            
+            # Context inference using context module
+            if "context" not in mem_metadata:
+                mem_metadata["context"] = infer_context(metadata, agent_id, run_id)
 
             records.append((memory_id, text, embed_map[text], mem_metadata))
 
@@ -1624,8 +1637,12 @@ class Memory(MemoryBase):
 
         # Step 3: Semantic search (over-fetch for scoring pool)
         internal_limit = max(limit * 4, 60)
+        
+        # Enable hierarchy-aware ranking
+        hierarchy_filters = {**filters, "_apply_hierarchy_ranking": True}
+        
         semantic_results = self.vector_store.search(
-            query=query, vectors=embeddings, top_k=internal_limit, filters=filters
+            query=query, vectors=embeddings, top_k=internal_limit, filters=hierarchy_filters
         )
 
         # Step 4: Keyword search (if store supports it)
@@ -2631,6 +2648,17 @@ class AsyncMemory(MemoryBase):
             mem_metadata["updated_at"] = mem_metadata["created_at"]
             if mem.get("attributed_to"):
                 mem_metadata["attributed_to"] = mem["attributed_to"]
+            
+            # Hierarchy fields
+            importance = validate_importance(mem.get("importance", 5.0))
+            layer = assign_initial_layer(importance)
+            mem_metadata["importance"] = importance
+            mem_metadata["layer"] = layer.value
+            mem_metadata["last_accessed_at"] = mem_metadata["created_at"]
+            
+            # Context inference using context module
+            if "context" not in mem_metadata:
+                mem_metadata["context"] = infer_context(metadata, agent_id, run_id)
 
             records.append((memory_id, text, embed_map[text], mem_metadata))
 
@@ -3262,8 +3290,12 @@ class AsyncMemory(MemoryBase):
 
         # Step 3: Semantic search (over-fetch)
         internal_limit = max(limit * 4, 60)
+        
+        # Enable hierarchy-aware ranking
+        hierarchy_filters = {**filters, "_apply_hierarchy_ranking": True}
+        
         semantic_results = await asyncio.to_thread(
-            self.vector_store.search, query=query, vectors=embeddings, top_k=internal_limit, filters=filters
+            self.vector_store.search, query=query, vectors=embeddings, top_k=internal_limit, filters=hierarchy_filters
         )
 
         # Step 4: Keyword search (if store supports it)

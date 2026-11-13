@@ -50,6 +50,7 @@ from routers import exact as exact_router
 from routers import export as export_router
 from routers import imports as imports_router
 from routers import ingest as ingest_router
+from routers import hierarchy as hierarchy_router
 from routers import agent_hooks as agent_hooks_router
 from routers import requests as requests_router
 from routers import webhooks as webhooks_router
@@ -251,6 +252,7 @@ app.include_router(analytics_router.router)
 app.include_router(export_router.router)
 app.include_router(imports_router.router)
 app.include_router(ingest_router.router)
+app.include_router(hierarchy_router.router)
 app.include_router(agent_hooks_router.router)
 app.include_router(exact_router.router)
 

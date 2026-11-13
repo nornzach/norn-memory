@@ -203,7 +203,7 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
             Field(
                 description=(
                     'Advanced metadata filters, e.g. {"categories": {"in": ["Work"]}} or '
-                    '{"AND": [...]}. user_id/agent_id/run_id above are merged in.'
+                    '{"AND": [...]}, or {"context": "project-name"} to filter by context. user_id/agent_id/run_id above are merged in.'
                 )
             ),
         ] = None,
@@ -220,6 +220,10 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         text, score and metadata, plus up to 3 exact records whose keywords match the query under
         "exact_records" (values verbatim). At least one of user_id, agent_id or run_id is required unless
         the connection sets a default user or the API key is limited to one.
+        
+        Context filtering: Pass {"context": "project-name"} in filters to search only memories from that
+        context. Memories in "chat" context are accessible from all other contexts. Debug and release
+        contexts are isolated by default.
         """
         merged = dict(filters or {})
         merged.update({k: v for k, v in {"user_id": user_id, "agent_id": agent_id, "run_id": run_id}.items() if v})
@@ -245,7 +249,7 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         run_id: RunId = None,
         metadata: Annotated[
             Optional[dict[str, Any]],
-            Field(description='Extra fields stored with the memory. Pass {"categories": [...]} to set categories.'),
+            Field(description='Extra fields stored with the memory. Pass {"categories": [...]} to set categories, or {"context": "project-name"} to set the memory context (scene/scenario).'),
         ] = None,
         infer: Annotated[
             bool,
