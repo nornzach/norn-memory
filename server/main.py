@@ -36,7 +36,14 @@ from errors import (
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from memory_store import ALL_MEMORIES_LIMIT, PAGE_SIZE_LIMIT, list_memories, list_source_values, query_memories
+from memory_store import (
+    ALL_MEMORIES_LIMIT,
+    HIERARCHY_LAYERS,
+    PAGE_SIZE_LIMIT,
+    list_memories,
+    list_source_values,
+    query_memories,
+)
 from models import RequestLog, User
 from pydantic import BaseModel, Field
 from rate_limit import limiter
@@ -515,6 +522,12 @@ def _has_category(item: Dict[str, Any], category: str) -> bool:
     return category in memory_categories(item)
 
 
+def _memory_layer(item: Dict[str, Any]) -> str:
+    """The layer a serialized memory reports, with the same legacy/unknown normalization as stats."""
+    layer = (item.get("metadata") or {}).get("layer")
+    return layer if layer in HIERARCHY_LAYERS else "L3"
+
+
 def _keep_source(response: Any, source: Dict[str, str]) -> Any:
     """Apply provenance filters exactly. The vector store already narrowed the rows, but its folder
     test is a substring match, so "/repo" would also catch "/old/repo"."""
@@ -648,6 +661,13 @@ def get_all_memories(
     run_id: Optional[str] = None,
     agent_id: Optional[str] = None,
     category: Optional[str] = Query(None, description="Only return memories tagged with this category."),
+    layer: Annotated[
+        Optional[str],
+        Query(
+            pattern="^L[0-4]$",
+            description="Only memories in this hierarchy layer (L0 canonical to L4 transient; legacy memories are L3).",
+        ),
+    ] = None,
     device: Optional[str] = Query(None, description="Only memories written from this device."),
     agent: Optional[str] = Query(None, description="Only memories written by this agent."),
     project: Optional[str] = Query(None, description="Only memories recorded for this project."),
@@ -684,7 +704,7 @@ def get_all_memories(
         scope.check_ids(ids)
         ids = scope.default_ids(ids)
     try:
-        listed = {"category": category, "source": source, "show_expired": show_expired}
+        listed = {"category": category, "layer": layer, "source": source, "show_expired": show_expired}
         if text:
             listed["text"] = text
         if not ids:
@@ -706,6 +726,8 @@ def get_all_memories(
         if isinstance(response, dict) and isinstance(response.get("results"), list):
             if category:
                 response["results"] = [m for m in response["results"] if _has_category(m, category)]
+            if layer:
+                response["results"] = [m for m in response["results"] if _memory_layer(m) == layer]
             if text:
                 needle = text.lower()
                 response["results"] = [

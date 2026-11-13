@@ -89,6 +89,7 @@ def _conditions(
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
     text: Optional[str] = None,
+    layer: Optional[str] = None,
     show_expired: bool = True,
     scope: Any = None,
 ) -> tuple[list[str], list[Any]]:
@@ -116,6 +117,18 @@ def _conditions(
     if text:
         conditions.append("strpos(lower(payload->>'data'), lower(%s)) > 0")
         params.append(text)
+    if layer:
+        # Same normalization _layer_totals uses: a stored layer outside L0..L4 counts as the default.
+        conditions.append(
+            "(CASE WHEN payload->>'layer' = ANY(ARRAY[HIERARCHY_PLACEHOLDER]) THEN payload->>'layer' "
+            "ELSE %s END) = %s"
+        )
+        params += [DEFAULT_LAYER, layer]
+        # Substitute the literal once, after params are placed: identifiers can't be parameters.
+        conditions[-1] = conditions[-1].replace(
+            "HIERARCHY_PLACEHOLDER",
+            ",".join("'" + known + "'" for known in HIERARCHY_LAYERS),
+        )
     if not show_expired:
         conditions.append(
             "NOT (coalesce(payload->>'expiration_date', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
@@ -147,12 +160,13 @@ def _scan_memories(
     run_id: Optional[str] = None,
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
+    layer: Optional[str] = None,
     text: Optional[str] = None,
     show_expired: bool = True,
     scope: Any = None,
 ) -> list[Dict[str, Any]]:
     """The listing without SQL, for vector stores other than pgvector: filters after a capped scan."""
-    if limit is None or any([user_id, agent_id, run_id, category, source, text, scope]):
+    if limit is None or any([user_id, agent_id, run_id, category, source, text, layer, scope]):
         scan = SCAN_LIMIT
     elif not show_expired:
         # Only expiry to filter: a wider window than the limit, the way the SDK's get_all fetches.
@@ -174,6 +188,13 @@ def _scan_memories(
     if text:
         needle = text.lower()
         memories = [m for m in memories if needle in (m["memory"] or "").lower()]
+    if layer:
+        memories = [
+            m
+            for m in memories
+            if (((m.get("metadata") or {}).get("layer") in HIERARCHY_LAYERS and m["metadata"]["layer"]) or DEFAULT_LAYER)
+            == layer
+        ]
     if not show_expired:
         memories = [m for m in memories if not is_expired(m)]
     if scope is not None:
@@ -192,6 +213,7 @@ def query_memories(
     run_id: Optional[str] = None,
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
+    layer: Optional[str] = None,
     text: Optional[str] = None,
     show_expired: bool = True,
     scope: Any = None,
@@ -208,6 +230,7 @@ def query_memories(
         category=category,
         source=source,
         text=text,
+        layer=layer,
         show_expired=show_expired,
         scope=scope,
     )

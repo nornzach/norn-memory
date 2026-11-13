@@ -101,7 +101,7 @@ Adding returns the new memory IDs and their events (`ADD`). Every memory belongs
 
 ## Search filters
 
-`POST /search` and `GET /memories` filter by `user_id`, `agent_id`, `run_id`, plus `category` and the [provenance](#provenance) fields `project`, `device`, `agent` and `cwd`. `POST /search` also takes a `filters` object over memory metadata:
+`POST /search` and `GET /memories` filter by `user_id`, `agent_id`, `run_id`, plus `category`, `layer` (`L0`–`L4`; memories written before hierarchy fields exist count as `L3`) and the [provenance](#provenance) fields `project`, `device`, `agent` and `cwd`. `POST /search` also takes a `filters` object over memory metadata:
 
 ```json
 {"query": "deploy", "user_id": "alice", "filters": {"categories": {"in": ["Work"]}}}

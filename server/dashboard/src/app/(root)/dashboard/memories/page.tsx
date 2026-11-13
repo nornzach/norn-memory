@@ -132,6 +132,7 @@ export default function MemoriesPage() {
   };
   const [owner, setOwner] = useState(ownerFromUrl);
   const [category, setCategory] = useState(() => urlParam("category") ?? ANY);
+  const [layer, setLayer] = useState(() => urlParam("layer") ?? ANY);
   const [sourceFilter, setSourceFilter] =
     useState<Record<SourceFilter, string>>(NO_SOURCE_FILTER);
   const [showExpired, setShowExpired] = useState(false);
@@ -161,6 +162,7 @@ export default function MemoriesPage() {
   const listKey = JSON.stringify([
     owner,
     category,
+    layer,
     showExpired,
     sourceFilter,
     textFilter,
@@ -182,6 +184,7 @@ export default function MemoriesPage() {
         ...ownerParams(owner),
       };
       if (category !== ANY) params.category = category;
+      if (layer !== ANY) params.layer = layer;
       if (showExpired) params.show_expired = "true";
       for (const field of SOURCE_FILTERS) {
         if (sourceFilter[field] !== ANY) params[field] = sourceFilter[field];
@@ -236,7 +239,7 @@ export default function MemoriesPage() {
       return;
     }
     setSemantic(null);
-  }, [owner, category, showExpired]);
+  }, [owner, category, layer, showExpired]);
 
   const firstOwner = useRef(true);
   useEffect(() => {
@@ -554,6 +557,22 @@ export default function MemoriesPage() {
               {categories.map((c) => (
                 <SelectItem key={c.id} value={c.name}>
                   {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={layer} onValueChange={setLayer}>
+            <SelectTrigger
+              className="md:w-40"
+              aria-label={t.hierarchy.layerLabel}
+            >
+              <SelectValue placeholder={t.hierarchy.allLayers} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{t.hierarchy.allLayers}</SelectItem>
+              {(["L0", "L1", "L2", "L3", "L4"] as const).map((l) => (
+                <SelectItem key={l} value={l}>
+                  {l} {t.hierarchy.layers[l]}
                 </SelectItem>
               ))}
             </SelectContent>

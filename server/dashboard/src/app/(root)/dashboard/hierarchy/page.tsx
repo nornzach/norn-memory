@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Layers, Percent, RefreshCw, Star } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Layers, Percent, RefreshCw, Star } from "lucide-react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { ErrorBanner } from "@/components/shared/error-banner";
@@ -35,14 +36,34 @@ interface HierarchyStats {
 }
 
 const LAYERS: Layer[] = ["L0", "L1", "L2", "L3", "L4"];
-// Deepest layers first: the pyramid is widest at the transient base.
 const LAYER_COLOR: Record<Layer, string> = {
-  L0: "var(--brand)",
-  L1: "var(--brand)",
-  L2: "var(--chart-requests)",
-  L3: "var(--chart-latency)",
+  L0: "var(--chart-1)",
+  L1: "var(--chart-3)",
+  L2: "var(--chart-4)",
+  L3: "var(--chart-5)",
   L4: "var(--ink-3)",
 };
+const CONTEXT_COLORS = ["var(--chart-1)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-2)"];
+
+// Pyramid geometry: the tip is a thin triangle, the base spans the whole viewBox.
+const PYRAMID_W = 320;
+const PYRAMID_H = 300;
+const SLICE_H = PYRAMID_H / LAYERS.length;
+const TIP_FRACTION = 0.1;
+
+function slicePoints(index: number): string {
+  const topFrac = TIP_FRACTION + ((1 - TIP_FRACTION) * index) / LAYERS.length;
+  const bottomFrac = TIP_FRACTION + ((1 - TIP_FRACTION) * (index + 1)) / LAYERS.length;
+  const yTop = index * SLICE_H;
+  const yBottom = yTop + SLICE_H;
+  const x = (frac: number) => ((1 - frac) / 2) * PYRAMID_W;
+  return `${x(topFrac)},${yTop} ${PYRAMID_W - x(topFrac)},${yTop} ${PYRAMID_W - x(bottomFrac)},${yBottom} ${x(bottomFrac)},${yBottom}`;
+}
+
+function sliceWidth(index: number): number {
+  const midFrac = TIP_FRACTION + ((1 - TIP_FRACTION) * (index + 0.5)) / LAYERS.length;
+  return midFrac * PYRAMID_W;
+}
 
 export default function HierarchyPage() {
   const { t } = useI18n();
@@ -73,7 +94,8 @@ export default function HierarchyPage() {
   );
 
   const widest = Math.max(1, ...layers.map((layer) => layer.count));
-  const empty = !!data && data.total_memories === 0;
+  const total = data?.total_memories ?? 0;
+  const empty = !!data && total === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,42 +129,110 @@ export default function HierarchyPage() {
         />
       </div>
 
-      <Panel>
-        <PanelHeader title={copy.distribution} />
-        <PanelBody>
-          {empty ? (
+      {empty ? (
+        <Panel>
+          <PanelBody>
             <EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {layers.map(({ layer, label, description, count, avg_importance }) => (
-                <div key={layer} className="grid grid-cols-[4.5rem_1fr_5.5rem_4rem] items-center gap-3">
-                  <div className="text-sm font-medium text-ink">
-                    {layer}
-                    <span className="ml-1 text-ink-3">{label}</span>
-                  </div>
-                  <div className="h-7 w-full rounded-md bg-subtle" title={description}>
-                    <div
-                      className="flex h-7 items-center justify-end rounded-md px-2 text-xs font-medium text-white transition-[width]"
-                      style={{
-                        width: `${Math.max(4, (count / widest) * 100)}%`,
-                        backgroundColor: LAYER_COLOR[layer],
-                      }}
+          </PanelBody>
+        </Panel>
+      ) : (
+        <Panel>
+          <PanelHeader title={copy.distribution} />
+          <PanelBody>
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-center">
+              {/* The pyramid itself: each slice is proportional in area, labelled with its layer
+                  and count when the trapezoid is wide enough to hold it. */}
+              <svg
+                viewBox={`0 0 ${PYRAMID_W} ${PYRAMID_H}`}
+                role="img"
+                aria-label={copy.distribution}
+                className="mx-auto w-full max-w-72"
+              >
+                {layers.map(({ layer, count }, index) => {
+                  const midWidth = sliceWidth(index);
+                  const label = `${layer} · ${count}`;
+                  return (
+                    <Link key={layer} href={`/dashboard/memories?layer=${layer}`}>
+                      <title>{`${layer} ${copy.layers[layer]}: ${count}`}</title>
+                      <polygon
+                        points={slicePoints(index)}
+                        fill={LAYER_COLOR[layer]}
+                        opacity={0.92}
+                        className="transition-opacity hover:opacity-100"
+                        stroke="var(--panel)"
+                        strokeWidth={2}
+                      />
+                      {midWidth > 110 ? (
+                        <text
+                          x={PYRAMID_W / 2}
+                          y={index * SLICE_H + SLICE_H / 2}
+                          dominantBaseline="central"
+                          textAnchor="middle"
+                          fill="var(--ink-inverse)" className="text-[13px] font-medium"
+                        >
+                          {label}
+                        </text>
+                      ) : midWidth > 52 ? (
+                        <text
+                          x={PYRAMID_W / 2}
+                          y={index * SLICE_H + SLICE_H / 2}
+                          dominantBaseline="central"
+                          textAnchor="middle"
+                          fill="var(--ink-inverse)" className="text-[13px] font-medium"
+                        >
+                          {layer}
+                        </text>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </svg>
+
+              {/* Per-layer rows: the numbers behind each slice, linking to the filtered listing. */}
+              <div className="flex flex-col gap-1">
+                {layers.map(({ layer, label, description, count, avg_importance }) => {
+                  const share = total ? count / total : 0;
+                  return (
+                    <Link
+                      key={layer}
+                      href={`/dashboard/memories?layer=${layer}`}
+                      title={description}
+                      className="group relative flex items-center gap-4 overflow-hidden rounded-lg px-3 py-2.5 transition-colors hover:bg-subtle"
                     >
-                      {count}
-                    </div>
-                  </div>
-                  <div className="text-right text-sm text-ink-3">
-                    {count ? `${avg_importance.toFixed(1)} / 10` : "--"}
-                  </div>
-                  <div className="text-right text-xs text-ink-3">
-                    {data && data.total_memories ? `${Math.round((count / data.total_memories) * 100)}%` : "--"}
-                  </div>
-                </div>
-              ))}
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-0 left-0 rounded-lg bg-subtle transition-[width]"
+                        style={{ width: `${Math.min(100, (count / widest) * 100)}%` }}
+                      />
+                      <span
+                        className="relative grid size-8 shrink-0 place-items-center rounded-md text-xs font-semibold text-white"
+                        style={{ backgroundColor: LAYER_COLOR[layer] }}
+                      >
+                        {layer}
+                      </span>
+                      <span className="relative min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-ink">
+                          {label}
+                        </span>
+                        <span className="block truncate text-xs text-ink-3">{description}</span>
+                      </span>
+                      <span className="relative text-right">
+                        <span className="block text-sm font-medium tabular-nums text-ink">
+                          {count.toLocaleString()}
+                        </span>
+                        <span className="block text-xs tabular-nums text-ink-3">
+                          {total ? `${Math.round(share * 100)}% · ${avg_importance.toFixed(1)}/10` : "--"}
+                        </span>
+                      </span>
+                      <ChevronRight className="relative size-4 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          )}
-        </PanelBody>
-      </Panel>
+          </PanelBody>
+        </Panel>
+      )}
 
       {contexts.length > 0 ? (
         <Panel>
@@ -169,8 +259,8 @@ export default function HierarchyPage() {
                   }}
                 />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {contexts.map((entry) => (
-                    <Cell key={entry.context} fill="var(--brand)" />
+                  {contexts.map((entry, index) => (
+                    <Cell key={entry.context} fill={CONTEXT_COLORS[index % CONTEXT_COLORS.length]} />
                   ))}
                 </Bar>
               </BarChart>

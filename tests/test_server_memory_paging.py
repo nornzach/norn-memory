@@ -58,6 +58,9 @@ def _rows():
     payloads[8]["expiration_date"] = (TODAY + timedelta(days=30)).isoformat()
     payloads[9]["expiration_date"] = TODAY.isoformat()  # expires after today, so still shown
     payloads[10]["expiration_date"] = "not a date"  # is_expired() treats it as never expiring
+    payloads[11]["layer"] = "L0"
+    payloads[12]["layer"] = "L1"
+    payloads[13]["layer"] = "L9"  # unknown stored layer normalizes to L3 like stats do
     payloads[11]["agent_id"] = "bot"
     payloads[12]["categories"] = None
     payloads += [
@@ -131,6 +134,9 @@ FILTERS = [
     {"source": {"cwd": "/repo"}},
     {"source": {"cwd": "C:\\repo"}},
     {"source": {"cwd": "/"}},
+    {"layer": "L3"},
+    {"layer": "L0"},
+    {"layer": "L3", "user_id": "zach", "show_expired": False},
     {"text": "pnpm"},
     {"text": "100%"},
     {"text": "_under"},
