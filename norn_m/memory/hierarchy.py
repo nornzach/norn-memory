@@ -6,7 +6,7 @@ for calculating memory weights based on recency, importance, and layer.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 
 class MemoryLayer(str, Enum):
@@ -211,3 +211,22 @@ def get_layer_description(layer: MemoryLayer) -> str:
 def validate_importance(importance: float) -> float:
     """Validate and clamp importance score to valid range [1, 10]."""
     return max(1.0, min(10.0, importance))
+
+
+def hierarchy_quality(payload: dict[str, Any]) -> Optional[float]:
+    """0..1 retrieval quality from a memory's stored layer and importance.
+
+    Returns None when the payload predates hierarchy fields, so search falls back to plain
+    similarity for stores that were never written by this version.
+    """
+    layer_value = payload.get("layer")
+    importance = payload.get("importance")
+    layer = next((candidate for candidate in MemoryLayer if candidate.value == layer_value), None)
+    if layer is None and importance is None:
+        return None
+    try:
+        normalized_importance = max(1.0, min(10.0, float(importance))) / 10.0
+    except (TypeError, ValueError):
+        normalized_importance = 0.5
+    normalized_layer = LAYER_BASE_WEIGHTS[layer or MemoryLayer.L3_WORKING] / 10.0
+    return 0.6 * normalized_importance + 0.4 * normalized_layer

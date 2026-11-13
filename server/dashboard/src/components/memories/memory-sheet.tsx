@@ -47,6 +47,14 @@ export const getCategories = (memory: Memory): string[] => {
   return Array.isArray(fromMetadata) ? (fromMetadata as string[]) : [];
 };
 
+const LAYER_VARIANT: Record<string, "default" | "brand" | "info" | "secondary" | "outline"> = {
+  L0: "default",
+  L1: "brand",
+  L2: "info",
+  L3: "secondary",
+  L4: "outline",
+};
+
 const EVENT_VARIANT: Record<string, "success" | "info" | "destructive"> = {
   ADD: "success",
   UPDATE: "info",
@@ -174,6 +182,16 @@ export function MemorySheet({
 
   const categories = memory ? getCategories(memory) : [];
   const expiry = memory ? expiryOf(memory) : null;
+  const meta = memory?.metadata ?? {};
+  const layer = typeof meta.layer === "string" ? meta.layer : null;
+  const importance =
+    typeof meta.importance === "number"
+      ? meta.importance
+      : typeof meta.importance === "string"
+        ? Number(meta.importance)
+        : undefined;
+  const hierarchyContext =
+    typeof meta.context === "string" && meta.context ? meta.context : null;
 
   return (
     <Sheet open={!!memory} onOpenChange={(open) => !open && onClose()}>
@@ -314,6 +332,29 @@ export function MemorySheet({
                       </span>
                     ),
                   },
+                  ...(layer
+                    ? [
+                        {
+                          label: t.hierarchy.layerLabel,
+                          value: (
+                            <span className="flex items-center gap-1.5">
+                              <Badge variant={LAYER_VARIANT[layer] ?? "secondary"}>
+                                {layer} {t.hierarchy.layers[layer as keyof typeof t.hierarchy.layers] ?? ""}
+                              </Badge>
+                              {typeof importance === "number" && (
+                                <span className="text-xs text-ink-3">
+                                  {t.hierarchy.importanceLabel}:{" "}
+                                  {importance.toFixed(1)} / 10
+                                </span>
+                              )}
+                            </span>
+                          ),
+                        },
+                        ...(hierarchyContext
+                          ? [{ label: t.hierarchy.contextLabel, value: hierarchyContext }]
+                          : []),
+                      ]
+                    : []),
                   ...(memory.user_id
                     ? [
                         {

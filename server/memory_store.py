@@ -241,6 +241,88 @@ def query_memories(
     return [serialize_memory(OutputData(id=str(row[0]), score=None, payload=row[1])) for row in rows], total
 
 
+HIERARCHY_LAYERS = ("L0", "L1", "L2", "L3", "L4")
+# Payloads written before the layer fields existed count as working memories of middling importance.
+DEFAULT_LAYER = "L3"
+DEFAULT_IMPORTANCE = 5.0
+DEFAULT_CONTEXT = "chat"
+
+
+def _layer_totals(payloads: Iterable[Mapping[str, Any]]) -> tuple[Dict[str, Dict[str, float]], Dict[str, int]]:
+    """Per-layer counts and importance sums, plus a context histogram, bucketed like the SQL below."""
+    layers = {layer: {"count": 0, "total_importance": 0.0, "avg_importance": 0.0} for layer in HIERARCHY_LAYERS}
+    contexts: Dict[str, int] = {}
+    for payload in payloads:
+        layer = payload.get("layer") if payload.get("layer") in HIERARCHY_LAYERS else DEFAULT_LAYER
+        try:
+            importance = float(payload.get("importance"))
+        except (TypeError, ValueError):
+            importance = DEFAULT_IMPORTANCE
+        layers[layer]["count"] += 1
+        layers[layer]["total_importance"] += importance
+        context = payload.get("context") or DEFAULT_CONTEXT
+        contexts[context] = contexts.get(context, 0) + 1
+    for stats in layers.values():
+        if stats["count"]:
+            stats["avg_importance"] = round(stats["total_importance"] / stats["count"], 2)
+    return layers, dict(sorted(contexts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def hierarchy_totals(
+    *,
+    user_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    show_expired: bool = False,
+    scope: Any = None,
+) -> tuple[Dict[str, Dict[str, float]], Dict[str, int]]:
+    """Layer and context totals for the whole matching set, grouped in SQL where the store allows it.
+
+    Two aggregates instead of loading every memory: the pyramid stays cheap on a store with millions
+    of rows, and a caller can't make the server materialize the table.
+    """
+    store = _pg_store()
+    if store is None:
+        rows = list_rows()
+        return _layer_totals(getattr(row, "payload", None) or {} for row in rows)
+
+    conditions, params = _conditions(
+        user_id=user_id, agent_id=agent_id, run_id=run_id, show_expired=show_expired, scope=scope
+    )
+    where = _where(conditions)
+    store._ensure_collection()
+    with store._get_cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                'SELECT coalesce(nullif(payload->>\'layer\', \'\'), %s), count(*), '
+                'sum(CASE WHEN payload->>\'importance\' ~ \'^[0-9]+(\\.[0-9]+)?$\' '
+                'THEN (payload->>\'importance\')::double precision ELSE %s END) '
+                "FROM {}{} GROUP BY 1"
+            ).format(store._col(), where),
+            [DEFAULT_LAYER, DEFAULT_IMPORTANCE, *params],
+        )
+        layer_rows = cur.fetchall()
+        cur.execute(
+            sql.SQL(
+                "SELECT coalesce(nullif(payload->>'context', ''), %s), count(*) FROM {}{} GROUP BY 1 "
+                "ORDER BY count(*) DESC, 1"
+            ).format(store._col(), where),
+            [DEFAULT_CONTEXT, *params],
+        )
+        context_rows = cur.fetchall()
+
+    layers = {layer: {"count": 0, "total_importance": 0.0, "avg_importance": 0.0} for layer in HIERARCHY_LAYERS}
+    for layer, count, total in layer_rows:
+        bucket = layer if layer in HIERARCHY_LAYERS else DEFAULT_LAYER
+        layers[bucket]["count"] += count
+        layers[bucket]["total_importance"] += float(total or 0.0)
+    for stats in layers.values():
+        if stats["count"]:
+            stats["avg_importance"] = round(stats["total_importance"] / stats["count"], 2)
+    contexts = {str(context): int(count) for context, count in context_rows}
+    return layers, contexts
+
+
 def list_memories(limit: Optional[int] = ALL_MEMORIES_LIMIT, **filters: Any) -> list[Dict[str, Any]]:
     """Serialized memories, newest first; query_memories() without the total. `limit=None` returns all."""
     return query_memories(limit, **filters)[0]

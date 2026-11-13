@@ -280,3 +280,49 @@ def test_sources_route_is_not_taken_for_a_memory_id(api):
     assert resp.json() == values
     assert listed.call_args.kwargs == {"scope": None, "user_id": "zach"}
     memory.get.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Hierarchy totals: the SQL aggregate the pyramid reads must match the Python scan
+# ---------------------------------------------------------------------------
+
+
+def _hierarchy_payloads():
+    """Payload variants the layer aggregate has to fold: layers, string importance, junk, expired."""
+    created = datetime(2026, 2, 1, tzinfo=timezone.utc).isoformat()
+    return [
+        {"data": "principle", "user_id": "zach", "layer": "L0", "importance": 10, "context": "chat", "created_at": created},
+        {"data": "skill", "user_id": "zach", "layer": "L1", "importance": "8", "context": "project-a", "created_at": created},
+        {"data": "event", "user_id": "alex", "layer": "L2", "importance": 6.5, "created_at": created},
+        {"data": "scratch", "user_id": "zach", "layer": "L4", "importance": 2, "context": "debug-1", "created_at": created},
+        {"data": "unknown layer", "user_id": "alex", "layer": "L9", "importance": 7, "created_at": created},
+        {"data": "expired", "user_id": "zach", "layer": "L2", "importance": 4, "expiration_date": "2000-01-01", "created_at": created},
+    ]
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {},
+        {"user_id": "zach"},
+        {"show_expired": False},
+        {"scope": KeyScope.build(categories=["work"])},
+        {"user_id": "zach", "show_expired": False},
+    ],
+    ids=lambda f: ",".join(f) or "none",
+)
+def test_hierarchy_totals_match_the_python_scan(pg_store, filters):
+    store, rows = pg_store
+    extras = _hierarchy_payloads()
+    ids = [str(uuid.uuid4()) for _ in extras]
+    store.insert(vectors=[[0.1, 0.2, 0.3]] * len(extras), ids=ids, payloads=extras)
+    rows.extend(SimpleNamespace(id=memory_id, payload=payload) for memory_id, payload in zip(ids, extras))
+
+    with patch.object(memory_store, "get_memory_instance", return_value=SimpleNamespace(vector_store=store)):
+        # Stats hide expired memories, like the listing does by default.
+        expected_ids = {m["id"] for m in _scanned(rows, **{"show_expired": False, **filters})}
+        payloads = [row.payload for row in rows if row.id in expected_ids]
+        layers, contexts = memory_store.hierarchy_totals(**filters)
+
+    assert (layers, contexts) == memory_store._layer_totals(payloads)
+    assert set(layers) == set(memory_store.HIERARCHY_LAYERS)

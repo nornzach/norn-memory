@@ -144,6 +144,7 @@ class TestScoreAndRank:
             "semantic_score": 0.8,
             "bm25_score": 0.6,
             "entity_boost": 0.3,
+            "hierarchy_boost": 0.0,
             "raw_score": pytest.approx(1.7),
             "max_possible_score": 2.5,
             "final_score": pytest.approx(0.68),

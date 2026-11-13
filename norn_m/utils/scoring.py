@@ -55,6 +55,9 @@ def normalize_bm25(raw_score: float, midpoint: float, steepness: float) -> float
 
 
 ENTITY_BOOST_WEIGHT = 0.5
+# Importance and layer nudge near-equal candidates apart; they never outrank a clearly more relevant
+# memory, because the boost is bounded and the semantic threshold still gates candidates first.
+HIERARCHY_BOOST_WEIGHT = 0.1
 
 
 def score_and_rank(
@@ -64,6 +67,7 @@ def score_and_rank(
     threshold: float,
     top_k: int,
     explain: bool = False,
+    hierarchy_boosts: Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
     """Score candidates additively and return top-k results.
 
@@ -93,12 +97,15 @@ def score_and_rank(
     """
     has_bm25 = bool(bm25_scores)
     has_entity = bool(entity_boosts)
+    has_hierarchy = bool(hierarchy_boosts)
 
     max_possible = 1.0
     if has_bm25:
         max_possible += 1.0
     if has_entity:
         max_possible += ENTITY_BOOST_WEIGHT
+    if has_hierarchy:
+        max_possible += HIERARCHY_BOOST_WEIGHT
 
     scored: List[Dict[str, Any]] = []
 
@@ -114,8 +121,9 @@ def score_and_rank(
         mem_id_str = str(mem_id)
         bm25_score = bm25_scores.get(mem_id_str, 0.0)
         entity_boost = entity_boosts.get(mem_id_str, 0.0)
+        hierarchy_boost = (hierarchy_boosts or {}).get(mem_id_str, 0.0)
 
-        raw_combined = semantic_score + bm25_score + entity_boost
+        raw_combined = semantic_score + bm25_score + entity_boost + hierarchy_boost
         combined = min(raw_combined / max_possible, 1.0)
 
         scored_result = {
@@ -128,6 +136,7 @@ def score_and_rank(
                 "semantic_score": semantic_score,
                 "bm25_score": bm25_score,
                 "entity_boost": entity_boost,
+                "hierarchy_boost": hierarchy_boost,
                 "raw_score": raw_combined,
                 "max_possible_score": max_possible,
                 "final_score": combined,

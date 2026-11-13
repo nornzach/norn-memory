@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+import memory_store
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -21,9 +22,9 @@ def _memory(layer=None, importance=None, context=None):
 
 @pytest.fixture
 def rows(monkeypatch):
-    """Replace the store read with fixture rows and record the filters it was asked for."""
+    """Replace the store aggregate with fixture totals and record the filters it was asked for."""
     seen = {}
-    data = [
+    payloads = [
         _memory("L0", 10, "chat"),
         _memory("L1", 8, "project-a"),
         _memory("L2", "6", "project-a"),  # legacy payloads store importance as a string
@@ -31,11 +32,11 @@ def rows(monkeypatch):
         _memory(),  # written before hierarchy fields existed
     ]
 
-    def fake_list(limit, **filters):
-        seen.update(filters, limit=limit)
-        return data
+    def fake_totals(**filters):
+        seen.update(filters)
+        return memory_store._layer_totals(payload["metadata"] for payload in payloads)
 
-    monkeypatch.setattr(hierarchy, "list_memories", fake_list)
+    monkeypatch.setattr(hierarchy, "hierarchy_totals", fake_totals)
     return seen
 
 
@@ -59,7 +60,7 @@ def test_aggregates_layers_contexts_and_legacy_rows(rows):
     assert body["by_layer"]["L4"]["avg_importance"] == 2.5
     assert body["context_distribution"] == {"chat": 3, "project-a": 2}
     assert body["avg_importance"] == round((10 + 8 + 6 + 2.5 + 5) / 5, 2)
-    assert rows["limit"] is None  # the whole store is summarized, not one page
+    assert body["pyramid"][0] == {"layer": "L0", "label": "Canonical", "count": 1}
 
 
 def test_ids_are_passed_through_and_no_admin_needed(rows):

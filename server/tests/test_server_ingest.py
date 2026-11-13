@@ -1,11 +1,7 @@
 """Staged writes: the ingest queue, worker and endpoints."""
 
-import json
-import time
-import uuid
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import ingest

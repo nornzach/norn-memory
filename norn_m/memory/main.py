@@ -24,7 +24,7 @@ from norn_m.exceptions import LLMError, VectorStoreError
 from norn_m.exceptions import ValidationError as NornMValidationError
 from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
-from norn_m.memory.hierarchy import assign_initial_layer, validate_importance
+from norn_m.memory.hierarchy import assign_initial_layer, hierarchy_quality, validate_importance
 from norn_m.memory.context import infer_context
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
@@ -43,6 +43,7 @@ from norn_m.utils.factory import (
 from norn_m.utils.lemmatization import lemmatize_for_bm25
 from norn_m.utils.scoring import (
     ENTITY_BOOST_WEIGHT,
+    HIERARCHY_BOOST_WEIGHT,
     get_bm25_params,
     normalize_bm25,
     score_and_rank,
@@ -1638,11 +1639,8 @@ class Memory(MemoryBase):
         # Step 3: Semantic search (over-fetch for scoring pool)
         internal_limit = max(limit * 4, 60)
         
-        # Enable hierarchy-aware ranking
-        hierarchy_filters = {**filters, "_apply_hierarchy_ranking": True}
-        
         semantic_results = self.vector_store.search(
-            query=query, vectors=embeddings, top_k=internal_limit, filters=hierarchy_filters
+            query=query, vectors=embeddings, top_k=internal_limit, filters=filters
         )
 
         # Step 4: Keyword search (if store supports it)
@@ -1679,6 +1677,12 @@ class Memory(MemoryBase):
             })
 
         # Step 8: Score and rank
+        hierarchy_boosts = {}
+        for candidate in candidates:
+            quality = hierarchy_quality(candidate["payload"] or {})
+            if quality is not None:
+                hierarchy_boosts[candidate["id"]] = HIERARCHY_BOOST_WEIGHT * quality
+
         scored_results = score_and_rank(
             semantic_results=candidates,
             bm25_scores=bm25_scores,
@@ -1686,6 +1690,7 @@ class Memory(MemoryBase):
             threshold=threshold,
             top_k=limit,
             explain=explain,
+            hierarchy_boosts=hierarchy_boosts,
         )
 
         # Step 9: Format results
@@ -3291,11 +3296,8 @@ class AsyncMemory(MemoryBase):
         # Step 3: Semantic search (over-fetch)
         internal_limit = max(limit * 4, 60)
         
-        # Enable hierarchy-aware ranking
-        hierarchy_filters = {**filters, "_apply_hierarchy_ranking": True}
-        
         semantic_results = await asyncio.to_thread(
-            self.vector_store.search, query=query, vectors=embeddings, top_k=internal_limit, filters=hierarchy_filters
+            self.vector_store.search, query=query, vectors=embeddings, top_k=internal_limit, filters=filters
         )
 
         # Step 4: Keyword search (if store supports it)
@@ -3332,6 +3334,12 @@ class AsyncMemory(MemoryBase):
             })
 
         # Step 8: Score and rank
+        hierarchy_boosts = {}
+        for candidate in candidates:
+            quality = hierarchy_quality(candidate["payload"] or {})
+            if quality is not None:
+                hierarchy_boosts[candidate["id"]] = HIERARCHY_BOOST_WEIGHT * quality
+
         scored_results = score_and_rank(
             semantic_results=candidates,
             bm25_scores=bm25_scores,
@@ -3339,6 +3347,7 @@ class AsyncMemory(MemoryBase):
             threshold=threshold,
             top_k=limit,
             explain=explain,
+            hierarchy_boosts=hierarchy_boosts,
         )
 
         # Step 9: Format results

@@ -108,14 +108,14 @@ export default function HierarchyPage() {
       </div>
 
       <Panel>
-        <PanelHeader title={copy.title} description={copy.description} />
+        <PanelHeader title={copy.distribution} />
         <PanelBody>
           {empty ? (
             <EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />
           ) : (
             <div className="flex flex-col gap-3">
               {layers.map(({ layer, label, description, count, avg_importance }) => (
-                <div key={layer} className="grid grid-cols-[4.5rem_1fr_5rem] items-center gap-3">
+                <div key={layer} className="grid grid-cols-[4.5rem_1fr_5.5rem_4rem] items-center gap-3">
                   <div className="text-sm font-medium text-ink">
                     {layer}
                     <span className="ml-1 text-ink-3">{label}</span>
@@ -133,6 +133,9 @@ export default function HierarchyPage() {
                   </div>
                   <div className="text-right text-sm text-ink-3">
                     {count ? `${avg_importance.toFixed(1)} / 10` : "--"}
+                  </div>
+                  <div className="text-right text-xs text-ink-3">
+                    {data && data.total_memories ? `${Math.round((count / data.total_memories) * 100)}%` : "--"}
                   </div>
                 </div>
               ))}
