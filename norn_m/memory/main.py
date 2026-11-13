@@ -4,10 +4,11 @@ import gc
 import hashlib
 import json
 import logging
+import os
 import uuid
 import warnings
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from pydantic import ValidationError
@@ -24,7 +25,7 @@ from norn_m.exceptions import LLMError, VectorStoreError
 from norn_m.exceptions import ValidationError as NornMValidationError
 from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
-from norn_m.memory.hierarchy import assign_initial_layer, hierarchy_quality, validate_importance
+from norn_m.memory.hierarchy import MemoryLayer, assign_initial_layer, hierarchy_quality, validate_importance
 from norn_m.memory.context import infer_context
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
@@ -56,6 +57,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*swigva
 
 # Initialize logger early for util functions
 logger = logging.getLogger(__name__)
+
+# Transient memories don't live forever unless the caller says otherwise.
+TRANSIENT_TTL_DAYS = int(os.environ.get("NORN_M_TRANSIENT_TTL_DAYS", "30"))
 
 
 def _vector_store_list_rows(listed):
@@ -1011,6 +1015,10 @@ class Memory(MemoryBase):
             mem_metadata["importance"] = importance
             mem_metadata["layer"] = layer.value
             mem_metadata["last_accessed_at"] = mem_metadata["created_at"]
+            if layer is MemoryLayer.L4_TRANSIENT and "expiration_date" not in mem_metadata:
+                mem_metadata["expiration_date"] = (
+                    datetime.now(timezone.utc) + timedelta(days=TRANSIENT_TTL_DAYS)
+                ).date().isoformat()
             
             # Context inference using context module
             if "context" not in mem_metadata:
@@ -2660,6 +2668,10 @@ class AsyncMemory(MemoryBase):
             mem_metadata["importance"] = importance
             mem_metadata["layer"] = layer.value
             mem_metadata["last_accessed_at"] = mem_metadata["created_at"]
+            if layer is MemoryLayer.L4_TRANSIENT and "expiration_date" not in mem_metadata:
+                mem_metadata["expiration_date"] = (
+                    datetime.now(timezone.utc) + timedelta(days=TRANSIENT_TTL_DAYS)
+                ).date().isoformat()
             
             # Context inference using context module
             if "context" not in mem_metadata:

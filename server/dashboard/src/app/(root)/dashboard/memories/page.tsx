@@ -86,6 +86,19 @@ const NO_SOURCE_VALUES: Record<SourceFilter, string[]> = {
   cwd: [],
 };
 type ViewMode = "cards" | "list";
+
+const LAYER_VARIANT: Record<string, "default" | "brand" | "info" | "secondary" | "outline"> = {
+  L0: "default",
+  L1: "brand",
+  L2: "info",
+  L3: "secondary",
+  L4: "outline",
+};
+
+function memoryLayer(memory: Memory): string | null {
+  const value = memory.metadata?.layer;
+  return typeof value === "string" && value in LAYER_VARIANT ? value : null;
+}
 const VIEW_KEY = "norn_m.memories.view";
 
 /** "user:alice" / "agent:bot" ↔ {user_id: "alice"} / {agent_id: "bot"}. */
@@ -133,6 +146,7 @@ export default function MemoriesPage() {
   const [owner, setOwner] = useState(ownerFromUrl);
   const [category, setCategory] = useState(() => urlParam("category") ?? ANY);
   const [layer, setLayer] = useState(() => urlParam("layer") ?? ANY);
+  const [contextFilter, setContextFilter] = useState(() => urlParam("context") ?? ANY);
   const [sourceFilter, setSourceFilter] =
     useState<Record<SourceFilter, string>>(NO_SOURCE_FILTER);
   const [showExpired, setShowExpired] = useState(false);
@@ -163,6 +177,7 @@ export default function MemoriesPage() {
     owner,
     category,
     layer,
+    contextFilter,
     showExpired,
     sourceFilter,
     textFilter,
@@ -185,6 +200,7 @@ export default function MemoriesPage() {
       };
       if (category !== ANY) params.category = category;
       if (layer !== ANY) params.layer = layer;
+      if (contextFilter !== ANY) params.context = contextFilter;
       if (showExpired) params.show_expired = "true";
       for (const field of SOURCE_FILTERS) {
         if (sourceFilter[field] !== ANY) params[field] = sourceFilter[field];
@@ -214,6 +230,10 @@ export default function MemoriesPage() {
       { initialData: NO_SOURCE_VALUES },
     );
 
+  const { data: contexts = [] } = useApiQuery<string[]>(
+    async () => (await api.get<{ contexts: string[] }>(MEMORY_ENDPOINTS.CONTEXTS)).data?.contexts ?? [],
+    { initialData: [] },
+  );
   const { data: categories = [] } = useApiQuery<Category[]>(
     async () => (await api.get<Category[]>(CATEGORY_ENDPOINTS.BASE)).data ?? [],
     { initialData: [] },
@@ -239,7 +259,7 @@ export default function MemoriesPage() {
       return;
     }
     setSemantic(null);
-  }, [owner, category, layer, showExpired]);
+  }, [owner, category, layer, contextFilter, showExpired]);
 
   const firstOwner = useRef(true);
   useEffect(() => {
@@ -409,6 +429,16 @@ export default function MemoriesPage() {
         ]
       : []),
     {
+      key: "id",
+      label: t.hierarchy.layerLabel,
+      hideBelow: "lg",
+      className: "w-14",
+      render: (_, row) => {
+        const layer = memoryLayer(row);
+        return layer ? <Badge variant={LAYER_VARIANT[layer]}>{layer}</Badge> : null;
+      },
+    },
+    {
       key: "categories",
       label: t.memories.columns.categories,
       hideBelow: "lg",
@@ -573,6 +603,22 @@ export default function MemoriesPage() {
               {(["L0", "L1", "L2", "L3", "L4"] as const).map((l) => (
                 <SelectItem key={l} value={l}>
                   {l} {t.hierarchy.layers[l]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={contextFilter} onValueChange={setContextFilter}>
+            <SelectTrigger
+              className="md:w-44"
+              aria-label={t.hierarchy.contextLabel}
+            >
+              <SelectValue placeholder={t.hierarchy.allContexts} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{t.hierarchy.allContexts}</SelectItem>
+              {contexts.map((ctx) => (
+                <SelectItem key={ctx} value={ctx}>
+                  {ctx}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -754,10 +800,17 @@ export default function MemoriesPage() {
                         <p className="line-clamp-4 flex-1 text-[15px] leading-6 text-ink">
                           {row.memory}
                         </p>
-                        <CategoriesDisplay
-                          categories={getCategories(row)}
-                          max={3}
-                        />
+                        <span className="flex items-center gap-1.5">
+                          {memoryLayer(row) && (
+                            <Badge variant={LAYER_VARIANT[memoryLayer(row)!]} className="shrink-0">
+                              {memoryLayer(row)}
+                            </Badge>
+                          )}
+                          <CategoriesDisplay
+                            categories={getCategories(row)}
+                            max={3}
+                          />
+                        </span>
                         <p className="flex items-center gap-1.5 truncate border-t border-line pt-3 text-xs text-ink-3">
                           <span className="truncate font-medium text-ink-2">
                             {row.user_id || row.agent_id || t.common.none}

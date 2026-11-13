@@ -90,6 +90,7 @@ def _conditions(
     source: Optional[Mapping[str, str]] = None,
     text: Optional[str] = None,
     layer: Optional[str] = None,
+    context: Optional[str] = None,
     show_expired: bool = True,
     scope: Any = None,
 ) -> tuple[list[str], list[Any]]:
@@ -119,16 +120,12 @@ def _conditions(
         params.append(text)
     if layer:
         # Same normalization _layer_totals uses: a stored layer outside L0..L4 counts as the default.
-        conditions.append(
-            "(CASE WHEN payload->>'layer' = ANY(ARRAY[HIERARCHY_PLACEHOLDER]) THEN payload->>'layer' "
-            "ELSE %s END) = %s"
-        )
-        params += [DEFAULT_LAYER, layer]
-        # Substitute the literal once, after params are placed: identifiers can't be parameters.
-        conditions[-1] = conditions[-1].replace(
-            "HIERARCHY_PLACEHOLDER",
-            ",".join("'" + known + "'" for known in HIERARCHY_LAYERS),
-        )
+        conditions.append("(CASE WHEN payload->>'layer' = ANY(%s) THEN payload->>'layer' ELSE %s END) = %s")
+        params += [list(HIERARCHY_LAYERS), DEFAULT_LAYER, layer]
+    if context:
+        # Memories written before contexts existed report "chat", like _layer_totals assumes.
+        conditions.append("coalesce(nullif(payload->>'context', ''), %s) = %s")
+        params += [DEFAULT_CONTEXT, context]
     if not show_expired:
         conditions.append(
             "NOT (coalesce(payload->>'expiration_date', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
@@ -161,12 +158,13 @@ def _scan_memories(
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
     layer: Optional[str] = None,
+    context: Optional[str] = None,
     text: Optional[str] = None,
     show_expired: bool = True,
     scope: Any = None,
 ) -> list[Dict[str, Any]]:
     """The listing without SQL, for vector stores other than pgvector: filters after a capped scan."""
-    if limit is None or any([user_id, agent_id, run_id, category, source, text, layer, scope]):
+    if limit is None or any([user_id, agent_id, run_id, category, source, text, layer, context, scope]):
         scan = SCAN_LIMIT
     elif not show_expired:
         # Only expiry to filter: a wider window than the limit, the way the SDK's get_all fetches.
@@ -195,6 +193,8 @@ def _scan_memories(
             if (((m.get("metadata") or {}).get("layer") in HIERARCHY_LAYERS and m["metadata"]["layer"]) or DEFAULT_LAYER)
             == layer
         ]
+    if context:
+        memories = [m for m in memories if ((m.get("metadata") or {}).get("context") or DEFAULT_CONTEXT) == context]
     if not show_expired:
         memories = [m for m in memories if not is_expired(m)]
     if scope is not None:
@@ -214,6 +214,7 @@ def query_memories(
     category: Optional[str] = None,
     source: Optional[Mapping[str, str]] = None,
     layer: Optional[str] = None,
+    context: Optional[str] = None,
     text: Optional[str] = None,
     show_expired: bool = True,
     scope: Any = None,
@@ -231,6 +232,7 @@ def query_memories(
         source=source,
         text=text,
         layer=layer,
+        context=context,
         show_expired=show_expired,
         scope=scope,
     )
@@ -352,6 +354,27 @@ def list_memories(limit: Optional[int] = ALL_MEMORIES_LIMIT, **filters: Any) -> 
 
 
 SOURCE_VALUES_LIMIT = 500
+
+
+def context_values(*, scope: Any = None, **ids: Optional[str]) -> list[str]:
+    """The context names present on visible memories, for the context filter menu."""
+    store = _pg_store()
+    if store is None:
+        values = set()
+        for memory in _scan_memories(None, scope=scope, **ids):
+            values.add((memory.get("metadata") or {}).get("context") or DEFAULT_CONTEXT)
+        return sorted(values)
+    conditions, params = _conditions(show_expired=True, scope=scope, **ids)
+    where = _where(conditions)
+    store._ensure_collection()
+    with store._get_cursor() as cur:
+        cur.execute(
+            sql.SQL("SELECT DISTINCT coalesce(nullif(payload->>'context', ''), %s) FROM {}{} ORDER BY 1").format(
+                store._col(), where
+            ),
+            [DEFAULT_CONTEXT, *params],
+        )
+        return [row[0] for row in cur.fetchall()]
 
 
 def list_source_values(*, scope: Any = None, **ids: Optional[str]) -> Dict[str, list[str]]:

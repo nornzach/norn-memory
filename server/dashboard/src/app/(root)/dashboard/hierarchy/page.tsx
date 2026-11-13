@@ -2,8 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { ChevronRight, Layers, Percent, RefreshCw, Star } from "lucide-react";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChevronRight, KeySquare, Layers, Percent, RefreshCw, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorBanner } from "@/components/shared/error-banner";
 import {
@@ -33,6 +32,7 @@ interface HierarchyStats {
   avg_importance: number;
   by_layer: Record<Layer, LayerStats>;
   context_distribution: Record<string, number>;
+  exact_records: number | null;
 }
 
 const LAYERS: Layer[] = ["L0", "L1", "L2", "L3", "L4"];
@@ -122,9 +122,9 @@ export default function HierarchyPage() {
         />
         <StatCard label={copy.contexts} value={contexts.length || (data ? 0 : "--")} icon={Percent} />
         <StatCard
-          label={copy.canonicalCount}
-          value={data?.by_layer.L0.count ?? "--"}
-          icon={Layers}
+          label={copy.canonicalRecords}
+          value={data?.exact_records ?? "--"}
+          icon={KeySquare}
           tone="success"
         />
       </div>
@@ -236,35 +236,36 @@ export default function HierarchyPage() {
 
       {contexts.length > 0 ? (
         <Panel>
-          <PanelHeader title={copy.contextBreakdown} />
-          <PanelBody className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={contexts} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <XAxis type="number" allowDecimals={false} stroke="var(--ink-3)" fontSize={12} />
-                <YAxis
-                  type="category"
-                  dataKey="context"
-                  width={160}
-                  stroke="var(--ink-3)"
-                  fontSize={12}
-                  tickLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--subtle)" }}
-                  contentStyle={{
-                    background: "var(--panel)",
-                    border: "1px solid var(--line)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {contexts.map((entry, index) => (
-                    <Cell key={entry.context} fill={CONTEXT_COLORS[index % CONTEXT_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <PanelHeader title={copy.contextBreakdown} description={copy.contextHint} />
+          <PanelBody>
+            <div className="flex flex-col gap-1">
+              {contexts.map(({ context, count }) => {
+                const share = total ? count / total : 0;
+                const width = Math.max(4, Math.round(share * 100));
+                return (
+                  <Link
+                    key={context}
+                    href={`/dashboard/memories?context=${encodeURIComponent(context)}`}
+                    className="group flex items-center gap-4 rounded-lg px-3 py-2 transition-colors hover:bg-subtle"
+                  >
+                    <span className="w-40 truncate text-sm font-medium text-ink" title={context}>
+                      {context}
+                    </span>
+                    <span className="relative h-5 flex-1 overflow-hidden rounded-md bg-subtle">
+                      <span
+                        className="absolute inset-y-0 left-0 rounded-md bg-brand opacity-80 transition-[width]"
+                        style={{ width: `${width}%` }}
+                      />
+                    </span>
+                    <span className="w-20 shrink-0 text-right text-sm tabular-nums text-ink-3">
+                      {count.toLocaleString()}
+                      <span className="ml-1 text-xs">({Math.round(share * 100)}%)</span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                  </Link>
+                );
+              })}
+            </div>
           </PanelBody>
         </Panel>
       ) : null}

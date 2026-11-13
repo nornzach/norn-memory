@@ -61,6 +61,8 @@ def _rows():
     payloads[11]["layer"] = "L0"
     payloads[12]["layer"] = "L1"
     payloads[13]["layer"] = "L9"  # unknown stored layer normalizes to L3 like stats do
+    payloads[14]["context"] = "project-x"
+    payloads[15]["context"] = "debug-9"
     payloads[11]["agent_id"] = "bot"
     payloads[12]["categories"] = None
     payloads += [
@@ -137,6 +139,9 @@ FILTERS = [
     {"layer": "L3"},
     {"layer": "L0"},
     {"layer": "L3", "user_id": "zach", "show_expired": False},
+    {"context": "chat"},
+    {"context": "project-x"},
+    {"context": "debug-9", "user_id": "zach"},
     {"text": "pnpm"},
     {"text": "100%"},
     {"text": "_under"},

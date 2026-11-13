@@ -307,6 +307,15 @@ def get_record(user_id: str, key: str) -> Optional[Dict[str, Any]]:
         return serialize(record) if record else None
 
 
+def count_records(user_ids: Optional[List[str]] = None) -> int:
+    """How many records live under the given users (None = every user)."""
+    stmt = select(func.count(ExactRecord.id))
+    if user_ids:
+        stmt = stmt.where(ExactRecord.user_id.in_(user_ids))
+    with SessionLocal() as db:
+        return int(db.scalar(stmt) or 0)
+
+
 def export_records(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Every record, or one user's, ordered by user and key: the body of an export file."""
     stmt = select(ExactRecord).order_by(ExactRecord.user_id, ExactRecord.key)

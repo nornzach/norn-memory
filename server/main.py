@@ -40,6 +40,7 @@ from memory_store import (
     ALL_MEMORIES_LIMIT,
     HIERARCHY_LAYERS,
     PAGE_SIZE_LIMIT,
+    context_values,
     list_memories,
     list_source_values,
     query_memories,
@@ -528,6 +529,11 @@ def _memory_layer(item: Dict[str, Any]) -> str:
     return layer if layer in HIERARCHY_LAYERS else "L3"
 
 
+def _memory_context(item: Dict[str, Any]) -> str:
+    """The context a serialized memory reports; pre-context memories count as chat."""
+    return (item.get("metadata") or {}).get("context") or "chat"
+
+
 def _keep_source(response: Any, source: Dict[str, str]) -> Any:
     """Apply provenance filters exactly. The vector store already narrowed the rows, but its folder
     test is a substring match, so "/repo" would also catch "/old/repo"."""
@@ -668,6 +674,10 @@ def get_all_memories(
             description="Only memories in this hierarchy layer (L0 canonical to L4 transient; legacy memories are L3).",
         ),
     ] = None,
+    context: Annotated[
+        Optional[str],
+        Query(max_length=100, description="Only memories in this context (legacy memories report 'chat')."),
+    ] = None,
     device: Optional[str] = Query(None, description="Only memories written from this device."),
     agent: Optional[str] = Query(None, description="Only memories written by this agent."),
     project: Optional[str] = Query(None, description="Only memories recorded for this project."),
@@ -704,7 +714,13 @@ def get_all_memories(
         scope.check_ids(ids)
         ids = scope.default_ids(ids)
     try:
-        listed = {"category": category, "layer": layer, "source": source, "show_expired": show_expired}
+        listed = {
+            "category": category,
+            "layer": layer,
+            "context": context,
+            "source": source,
+            "show_expired": show_expired,
+        }
         if text:
             listed["text"] = text
         if not ids:
@@ -728,6 +744,8 @@ def get_all_memories(
                 response["results"] = [m for m in response["results"] if _has_category(m, category)]
             if layer:
                 response["results"] = [m for m in response["results"] if _memory_layer(m) == layer]
+            if context:
+                response["results"] = [m for m in response["results"] if _memory_context(m) == context]
             if text:
                 needle = text.lower()
                 response["results"] = [
@@ -761,6 +779,28 @@ def get_memory_sources(
         _require_list_all(request, _auth, scope)
     try:
         return list_source_values(scope=scope, **ids)
+    except Exception:
+        raise upstream_error()
+
+
+@app.get("/memories/contexts", summary="Contexts that memories are stored in")
+def get_memory_contexts(
+    request: Request,
+    user_id: Optional[str] = None,
+    run_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    _auth=Depends(verify_auth),
+    scope: Optional[KeyScope] = Depends(get_key_scope),
+):
+    """The distinct context values on the memories you can list, for the context filter menu."""
+    ids = _scope(user_id, agent_id, run_id)
+    if scope is not None:
+        scope.check_ids(ids)
+        ids = scope.default_ids(ids)
+    if not ids:
+        _require_list_all(request, _auth, scope)
+    try:
+        return {"contexts": context_values(scope=scope, **ids)}
     except Exception:
         raise upstream_error()
 

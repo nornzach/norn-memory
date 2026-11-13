@@ -37,6 +37,7 @@ def rows(monkeypatch):
         return memory_store._layer_totals(payload["metadata"] for payload in payloads)
 
     monkeypatch.setattr(hierarchy, "hierarchy_totals", fake_totals)
+    monkeypatch.setattr(hierarchy.exact_store, "count_records", lambda user_ids: 7)
     return seen
 
 
@@ -61,6 +62,7 @@ def test_aggregates_layers_contexts_and_legacy_rows(rows):
     assert body["context_distribution"] == {"chat": 3, "project-a": 2}
     assert body["avg_importance"] == round((10 + 8 + 6 + 2.5 + 5) / 5, 2)
     assert body["pyramid"][0] == {"layer": "L0", "label": "Canonical", "count": 1}
+    assert body["exact_records"] == 7
 
 
 def test_ids_are_passed_through_and_no_admin_needed(rows):
@@ -79,6 +81,10 @@ def test_listing_every_owner_needs_admin(rows):
 def test_scoped_key_without_ids_is_allowed_and_limited(rows):
     class Scoped:
         restricts_entities = True
+        user_ids: frozenset = frozenset()
+        agent_ids: frozenset = frozenset()
+        run_ids: frozenset = frozenset()
+        categories: frozenset = frozenset()
 
     response = _client(scope=Scoped(), role="member").get("/memories/hierarchy-stats")
 

@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -77,6 +84,8 @@ export function MemorySheet({
   const [draft, setDraft] = useState("");
   const [draftCategories, setDraftCategories] = useState<string[]>([]);
   const [draftExpiry, setDraftExpiry] = useState("");
+  const [draftLayer, setDraftLayer] = useState<string | null>(null);
+  const [draftImportance, setDraftImportance] = useState("");
   const [allCategories, setAllCategories] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
@@ -118,6 +127,10 @@ export function MemorySheet({
     setDraft(memory.memory);
     setDraftCategories(getCategories(memory));
     setDraftExpiry(expiryOf(memory) ?? "");
+    const meta = memory.metadata ?? {};
+    setDraftLayer(typeof meta.layer === "string" ? meta.layer : null);
+    const imp = meta.importance;
+    setDraftImportance(typeof imp === "number" ? String(imp) : typeof imp === "string" ? imp : "");
     setEditing(true);
     if (allCategories === null) {
       api
@@ -144,7 +157,14 @@ export function MemorySheet({
       draftCategories.some((c) => !before.includes(c));
     const expiry = draftExpiry || null;
     const expiryChanged = expiry !== expiryOf(memory);
-    if (!textChanged && !categoriesChanged && !expiryChanged) {
+    const meta = memory.metadata ?? {};
+    const layerChanged = draftLayer !== (typeof meta.layer === "string" ? meta.layer : null);
+    const prevImportance =
+      typeof meta.importance === "number" ? meta.importance : typeof meta.importance === "string" ? Number(meta.importance) : undefined;
+    const nextImportance = draftImportance.trim() ? Number(draftImportance.trim()) : undefined;
+    const importanceChanged =
+      nextImportance !== undefined && !Number.isNaN(nextImportance) && nextImportance !== prevImportance;
+    if (!textChanged && !categoriesChanged && !expiryChanged && !layerChanged && !importanceChanged) {
       setEditing(false);
       return;
     }
@@ -152,9 +172,15 @@ export function MemorySheet({
     try {
       await api.put(MEMORY_ENDPOINTS.BY_ID(memory.id), {
         ...(textChanged && { text }),
-        ...(categoriesChanged && {
-          metadata: { categories: draftCategories },
-        }),
+        ...(categoriesChanged || layerChanged || importanceChanged
+          ? {
+              metadata: {
+                ...(categoriesChanged && { categories: draftCategories }),
+                ...(layerChanged && draftLayer && { layer: draftLayer }),
+                ...(importanceChanged && nextImportance !== undefined && { importance: nextImportance }),
+              },
+            }
+          : {}),
         ...(expiryChanged && { expiration_date: expiry }),
       });
       toast({ title: t.memories.updated, variant: "success" });
@@ -278,6 +304,45 @@ export function MemorySheet({
                   </p>
                 )}
               </section>
+
+              {editing && (
+                <section className="space-y-2">
+                  <h3 className="text-xs font-medium text-ink-3">
+                    {t.hierarchy.layerLabel}
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <Select
+                      value={draftLayer ?? ""}
+                      onValueChange={(value) => setDraftLayer(value || null)}
+                    >
+                      <SelectTrigger className="w-44">
+                        <SelectValue placeholder={t.hierarchy.allLayers} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(["L0", "L1", "L2", "L3", "L4"] as const).map((l) => (
+                          <SelectItem key={l} value={l}>
+                            {l} {t.hierarchy.layers[l]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      step={0.5}
+                      value={draftImportance}
+                      onChange={(e) => setDraftImportance(e.target.value)}
+                      placeholder={t.hierarchy.importanceHint}
+                      className="w-28"
+                      aria-label={t.hierarchy.importanceLabel}
+                    />
+                    <span className="text-xs text-ink-3">
+                      {t.hierarchy.importanceHint}
+                    </span>
+                  </div>
+                </section>
+              )}
 
               {editing && (
                 <section className="space-y-2">

@@ -1,6 +1,7 @@
 """Reconciling extracted facts against stored memories (Memory.add(..., reconcile=True))."""
 
 import json
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock
 
@@ -374,3 +375,47 @@ def test_public_add_passes_reconcile_through(mocker):
     memory.add("I moved to Berlin", user_id="zach", reconcile=True)
 
     assert memory._add_to_vector_store.call_args.kwargs["reconcile"] is True
+
+
+def _single_extraction(text, **fields):
+    return json.dumps({"memory": [{"id": "0", "text": text, **fields}]})
+
+
+def test_transient_memories_get_a_default_expiry(sync_memory):
+    """L4 is the transient layer: without a caller-set date it expires instead of living forever."""
+    sync_memory.llm.generate_response.side_effect = [_single_extraction("debug scratch", importance=2)]
+
+    sync_memory._add_to_vector_store(
+        [{"role": "user", "content": "chat"}], {"user_id": "zach"}, SCOPE, infer=True
+    )
+
+    payload = sync_memory.vector_store.inserted[0][1]
+    assert payload["layer"] == "L4" and payload["importance"] == 2.0
+    expiry = date.fromisoformat(payload["expiration_date"])
+    assert date.today() + timedelta(days=29) <= expiry <= date.today() + timedelta(days=31)
+
+
+def test_caller_expiry_wins_over_the_transient_default(sync_memory):
+    sync_memory.llm.generate_response.side_effect = [_single_extraction("debug scratch", importance=2)]
+
+    sync_memory._add_to_vector_store(
+        [{"role": "user", "content": "chat"}],
+        {"user_id": "zach", "expiration_date": "2999-01-01"},
+        SCOPE,
+        infer=True,
+    )
+
+    payload = sync_memory.vector_store.inserted[0][1]
+    assert payload["expiration_date"] == "2999-01-01"
+
+
+def test_stable_layers_do_not_expire_by_default(sync_memory):
+    sync_memory.llm.generate_response.side_effect = [_single_extraction("Uses pnpm", importance=8)]
+
+    sync_memory._add_to_vector_store(
+        [{"role": "user", "content": "chat"}], {"user_id": "zach"}, SCOPE, infer=True
+    )
+
+    payload = sync_memory.vector_store.inserted[0][1]
+    assert payload["layer"] == "L1"
+    assert "expiration_date" not in payload

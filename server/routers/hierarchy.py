@@ -3,6 +3,7 @@
 import logging
 from typing import Any, Optional
 
+import exact_store
 from auth import get_key_scope, verify_auth
 from fastapi import APIRouter, Depends, HTTPException, Request
 from memory_store import HIERARCHY_LAYERS, hierarchy_totals
@@ -19,6 +20,21 @@ LAYER_LABELS = {
     "L3": "Working",
     "L4": "Transient",
 }
+
+
+def _exact_count(ids: dict[str, str], scope: Optional[KeyScope]) -> Optional[int]:
+    """Exact records are the real canonical layer. They're scoped by user_id only, so a key
+    limited by anything else can't see them; counting is skipped rather than guessed."""
+    if scope is not None and (scope.agent_ids or scope.run_ids or scope.categories):
+        return None
+    user_ids = list(scope.user_ids) if scope is not None and scope.user_ids else None
+    if user_ids is None and ids.get("user_id"):
+        user_ids = [ids["user_id"]]
+    try:
+        return exact_store.count_records(user_ids)
+    except Exception:
+        logger.exception("Counting exact records failed")
+        return None
 
 
 @router.get("/hierarchy-stats")
@@ -57,6 +73,7 @@ def get_hierarchy_stats(
         "avg_importance": round(total_importance / total, 2) if total else 0.0,
         "by_layer": by_layer,
         "context_distribution": contexts,
+        "exact_records": _exact_count(ids, scope),
         "pyramid": [
             {"layer": layer, "label": LAYER_LABELS[layer], "count": by_layer[layer]["count"]}
             for layer in HIERARCHY_LAYERS
