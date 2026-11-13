@@ -398,7 +398,7 @@ def record_access(memory_ids: Iterable[str]) -> int:
             sql.SQL(
                 "UPDATE {} SET payload = payload || jsonb_build_object("
                 "'access_count', COALESCE((payload->>'access_count')::int, 0) + 1,"
-                "'last_accessed_at', %s) WHERE id = ANY(%s)"
+                "'last_accessed_at', %s::text) WHERE id = ANY(%s::uuid[])"
             ).format(store._col()),
             [datetime.now(timezone.utc).isoformat(), ids],
         )
