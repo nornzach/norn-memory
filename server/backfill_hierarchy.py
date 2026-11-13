@@ -41,8 +41,7 @@ PROMPT = """Rate each memory's importance on a 1-10 scale for a long-term person
 Memories (JSON lines: index, memory):
 {items}
 
-Reply with ONLY a JSON array like [{{"i": 0, "s": 8}}, {{"i": 1, "s": 3}}] — one object per memory,
-i = the memory's index, s = its importance."""
+Reply with ONLY {{"scores": [8, 3, ...]}} — one importance integer per memory, in the same order."""
 
 
 def _pending_rows(limit: int) -> List[Any]:
