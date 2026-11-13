@@ -251,8 +251,9 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
             bool,
             Field(
                 description=(
-                    "True: an LLM extracts facts and merges them with existing memories (updating or "
-                    "replacing outdated ones). False: store the text verbatim."
+                    "True: queued; in the background an LLM extracts the facts and checks each against similar "
+                    "memories, then adds it, skips it (already known), merges it or replaces outdated ones. "
+                    "False: store the text verbatim, at once."
                 )
             ),
         ] = True,
@@ -267,8 +268,9 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         instead; this tool rejects text that looks like a secret.
         At least one of user_id, agent_id or run_id is required unless the connection sets a default
         user. Pass project and cwd when the memory belongs to the current work, so it can be found by project
-        later; the device and agent come from the connection. Returns the resulting memory events (ADD,
-        UPDATE, DELETE, NONE).
+        later; the device and agent come from the connection. With infer (the default) this returns at once
+        with status "queued" and a job_id, and the memory is searchable once the background check finishes,
+        usually within a minute. With infer=false it returns the stored memory (event ADD).
         """
         if not any([user_id, agent_id, run_id]):
             user_id = _default_user(ctx)

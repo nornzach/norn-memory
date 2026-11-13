@@ -22,6 +22,7 @@ from norn_m.configs.prompts import (
 )
 from norn_m.exceptions import LLMError, VectorStoreError
 from norn_m.exceptions import ValidationError as NornMValidationError
+from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
@@ -763,6 +764,7 @@ class Memory(MemoryBase):
         infer: bool = True,
         memory_type: Optional[str] = None,
         prompt: Optional[str] = None,
+        reconcile: bool = False,
     ):
         """
         Create a new memory.
@@ -788,6 +790,11 @@ class Memory(MemoryBase):
                 creating procedural memories (typically requires 'agent_id'). Otherwise, memories
                 are treated as general conversational/factual memories.
             prompt (str, optional): Prompt to use for the memory creation. Defaults to None.
+            reconcile (bool, optional): With infer, compare each extracted fact with the most similar stored
+                memories in the same scope before storing it, and let the LLM decide whether to add it, skip
+                it (already stored), merge it into a stored memory or store it in place of outdated ones.
+                Results then include UPDATE, DELETE and NONE entries. Costs one more LLM call when similar
+                memories exist. Defaults to False (facts are only added).
 
         Note:
             `search()` and `get_all()` scope queries via `filters={"user_id": "...", "agent_id": "...", "run_id": "..."}` —
@@ -853,10 +860,12 @@ class Memory(MemoryBase):
         else:
             messages = parse_vision_messages(messages)
 
-        vector_store_result = self._add_to_vector_store(messages, processed_metadata, effective_filters, infer, prompt=prompt)
+        vector_store_result = self._add_to_vector_store(
+            messages, processed_metadata, effective_filters, infer, prompt=prompt, reconcile=reconcile
+        )
         return {"results": vector_store_result}
 
-    def _add_to_vector_store(self, messages, metadata, filters, infer, prompt=None):
+    def _add_to_vector_store(self, messages, metadata, filters, infer, prompt=None, reconcile=False):
         if not infer:
             returned_memories = []
             for message_dict in messages:
@@ -995,9 +1004,14 @@ class Memory(MemoryBase):
 
             records.append((memory_id, text, embed_map[text], mem_metadata))
 
+        # Phase 5b: reconcile against the stored memories most like each fact (reconcile=True only)
+        reconciled = []
+        if reconcile and records:
+            records, reconciled = self._reconcile_records(records, search_filters)
+
         if not records:
             self.db.save_messages(messages, session_scope)
-            return []
+            return reconciled
 
         # Phase 6: Batch persist
         all_vectors = [r[2] for r in records]
@@ -1166,7 +1180,61 @@ class Memory(MemoryBase):
             for r in persisted_records
         ]
 
-        return returned_memories
+        return returned_memories + reconciled
+
+    def _reconcile_records(self, records, search_filters):
+        """Compare new facts with the stored memories most like them and apply the LLM's decision for each:
+        add, skip (already stored), update (merge into a stored memory) or replace (store in place of outdated
+        ones). Returns the records still to insert and the UPDATE / DELETE / NONE result entries.
+
+        Any failure falls back to adding: a search or LLM error adds every fact, and a fact whose update
+        raises is added and its deletes skipped."""
+        neighbor_lists = []
+        for _, text, embedding, _ in records:
+            try:
+                neighbor_lists.append(
+                    self.vector_store.search(
+                        query=text, vectors=embedding, top_k=reconcile_facts.NEIGHBORS, filters=search_filters
+                    )
+                )
+            except Exception as e:
+                logger.warning(f"Reconcile search failed; the fact will be added: {e}")
+                neighbor_lists.append([])
+        candidates = reconcile_facts.gather_candidates(neighbor_lists, search_filters)
+        if not candidates:
+            return records, []
+
+        facts = [r[1] for r in records]
+        try:
+            response = self.llm.generate_response(
+                messages=reconcile_facts.build_messages(facts, candidates),
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            logger.warning(f"Reconcile LLM call failed; adding all {len(facts)} facts: {e}")
+            return records, []
+        plan = reconcile_facts.plan_from_response(response, facts, candidates)
+
+        embeddings = {r[1]: r[2] for r in records}
+        failed_facts, failed_deletes = set(), set()
+        for fact, memory_id, text in plan.update:
+            try:
+                self._update_memory(memory_id, text, embeddings)
+            except Exception as e:
+                logger.warning(f"Reconcile update of {memory_id} failed; the fact will be added: {e}")
+                failed_facts.add(fact)
+        for fact, memory_id in plan.delete:
+            if fact in failed_facts:
+                continue
+            try:
+                self._delete_memory(memory_id)
+            except Exception as e:
+                logger.warning(f"Reconcile delete of {memory_id} failed: {e}")
+                failed_deletes.add(memory_id)
+
+        keep = set(plan.add) | failed_facts
+        entries = reconcile_facts.result_entries(plan, facts, candidates, failed_facts, failed_deletes)
+        return [r for i, r in enumerate(records) if i in keep], entries
 
     def get(self, memory_id):
         """
@@ -2340,6 +2408,7 @@ class AsyncMemory(MemoryBase):
         memory_type: Optional[str] = None,
         prompt: Optional[str] = None,
         llm=None,
+        reconcile: bool = False,
     ):
         """
         Create a new memory asynchronously.
@@ -2357,6 +2426,11 @@ class AsyncMemory(MemoryBase):
             memory_type (str, optional): Type of memory to create. Defaults to None.
                                          Pass "procedural_memory" to create procedural memories.
             prompt (str, optional): Prompt to use for the memory creation. Defaults to None.
+            reconcile (bool, optional): With infer, compare each extracted fact with the most similar stored
+                memories in the same scope before storing it, and let the LLM decide whether to add it, skip
+                it (already stored), merge it into a stored memory or store it in place of outdated ones.
+                Results then include UPDATE, DELETE and NONE entries. Costs one more LLM call when similar
+                memories exist. Defaults to False (facts are only added).
             llm (BaseChatModel, optional): LLM class to use for generating procedural memories. Defaults to None. Useful when user is using LangChain ChatModel.
 
         Note:
@@ -2409,7 +2483,9 @@ class AsyncMemory(MemoryBase):
         else:
             messages = parse_vision_messages(messages)
 
-        vector_store_result = await self._add_to_vector_store(messages, processed_metadata, effective_filters, infer, prompt=prompt)
+        vector_store_result = await self._add_to_vector_store(
+            messages, processed_metadata, effective_filters, infer, prompt=prompt, reconcile=reconcile
+        )
         return {"results": vector_store_result}
 
     async def _add_to_vector_store(
@@ -2419,6 +2495,7 @@ class AsyncMemory(MemoryBase):
         effective_filters: dict,
         infer: bool,
         prompt: Optional[str] = None,
+        reconcile: bool = False,
     ):
         if not infer:
             returned_memories = []
@@ -2557,9 +2634,14 @@ class AsyncMemory(MemoryBase):
 
             records.append((memory_id, text, embed_map[text], mem_metadata))
 
+        # Phase 5b: reconcile against the stored memories most like each fact (reconcile=True only)
+        reconciled = []
+        if reconcile and records:
+            records, reconciled = await self._reconcile_records(records, search_filters)
+
         if not records:
             await asyncio.to_thread(self.db.save_messages, messages, session_scope)
-            return []
+            return reconciled
 
         # Phase 6: Batch persist
         all_vectors = [r[2] for r in records]
@@ -2730,7 +2812,61 @@ class AsyncMemory(MemoryBase):
             for r in persisted_records
         ]
 
-        return returned_memories
+        return returned_memories + reconciled
+
+    async def _reconcile_records(self, records, search_filters):
+        """Async counterpart of Memory._reconcile_records."""
+        neighbor_lists = []
+        for _, text, embedding, _ in records:
+            try:
+                neighbor_lists.append(
+                    await asyncio.to_thread(
+                        self.vector_store.search,
+                        query=text,
+                        vectors=embedding,
+                        top_k=reconcile_facts.NEIGHBORS,
+                        filters=search_filters,
+                    )
+                )
+            except Exception as e:
+                logger.warning(f"Reconcile search failed; the fact will be added: {e}")
+                neighbor_lists.append([])
+        candidates = reconcile_facts.gather_candidates(neighbor_lists, search_filters)
+        if not candidates:
+            return records, []
+
+        facts = [r[1] for r in records]
+        try:
+            response = await asyncio.to_thread(
+                self.llm.generate_response,
+                messages=reconcile_facts.build_messages(facts, candidates),
+                response_format={"type": "json_object"},
+            )
+        except Exception as e:
+            logger.warning(f"Reconcile LLM call failed; adding all {len(facts)} facts: {e}")
+            return records, []
+        plan = reconcile_facts.plan_from_response(response, facts, candidates)
+
+        embeddings = {r[1]: r[2] for r in records}
+        failed_facts, failed_deletes = set(), set()
+        for fact, memory_id, text in plan.update:
+            try:
+                await self._update_memory(memory_id, text, embeddings)
+            except Exception as e:
+                logger.warning(f"Reconcile update of {memory_id} failed; the fact will be added: {e}")
+                failed_facts.add(fact)
+        for fact, memory_id in plan.delete:
+            if fact in failed_facts:
+                continue
+            try:
+                await self._delete_memory(memory_id)
+            except Exception as e:
+                logger.warning(f"Reconcile delete of {memory_id} failed: {e}")
+                failed_deletes.add(memory_id)
+
+        keep = set(plan.add) | failed_facts
+        entries = reconcile_facts.result_entries(plan, facts, candidates, failed_facts, failed_deletes)
+        return [r for i, r in enumerate(records) if i in keep], entries
 
     async def get(self, memory_id):
         """

@@ -77,6 +77,8 @@ export function AddMemoryDialog({
         ...(project.trim() && { project: project.trim() }),
         ...(expiry && { expiration_date: expiry }),
         infer,
+        // Wait for the outcome (the reconcile step still runs) so the toast can say what was saved.
+        async_mode: false,
         agent: "dashboard",
       });
       const results: { event?: string }[] = res.data?.results ?? [];

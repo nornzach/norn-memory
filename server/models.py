@@ -182,3 +182,22 @@ class ExactRecordVersion(Base):
     change: Mapped[str] = mapped_column(String(16))
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class IngestJob(Base):
+    """A staged memory write: POST /memories with infer stores the request here and returns at once,
+    and the ingest worker (ingest.py) extracts, reconciles and stores it."""
+
+    __tablename__ = "ingest_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_new_uuid)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    # {"messages": [...], "params": {...Memory.add keyword arguments}, "categorize": bool}
+    request: Mapped[dict[str, Any]] = mapped_column(JSON)
+    results: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
