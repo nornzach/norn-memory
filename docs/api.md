@@ -300,7 +300,7 @@ Admin only. Staged writes are checked against similar memories before they land 
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/consolidation/runs` | Start a run: `{"user_id": "alice", "threshold": 0.8}` |
+| `POST` | `/consolidation/runs` | Start a run: `{"user_id": "alice", "threshold": 0.8, "max_memories": 2000}` — `max_memories` caps how many of the newest in-scope memories are scanned (default 500) |
 | `GET` | `/consolidation/runs` | Recent runs |
 | `GET` | `/consolidation/runs/{id}` | A run and its proposals |
 | `POST` | `/consolidation/runs/{id}/apply` | Apply every pending proposal of a run |
