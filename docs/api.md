@@ -190,7 +190,7 @@ The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. 
 | `POST` | `/configure/test` | Admin only. Send one request to the LLM and one to the embedder as configured by the body, without saving |
 | `GET` | `/configure` | Current memory configuration |
 | `GET` | `/configure/providers` | LLM and embedder providers bundled in the image |
-| `POST` | `/memories` | Create memories. `expiration_date` (`YYYY-MM-DD`) hides them after that day |
+| `POST` | `/memories` | Create memories. With `infer` (the default) the write is staged and answered with `202` and a `job_id`; see [Staged writes](#staged-writes). `async_mode: false` waits for the result instead. `expiration_date` (`YYYY-MM-DD`) hides them after that day |
 | `GET` | `/memories` | List memories, filtered by `user_id`, `agent_id`, `run_id`, `category`, `project`, `device`, `agent` or `cwd`. Expired memories are left out unless `show_expired=true` |
 | `GET` | `/memories?page_size=20&offset=40` | One page of the same listing, newest first, as `{"results", "total", "offset", "page_size"}`. `page_size` is at most 200; `q` keeps memories whose text contains it (any case). Without `page_size`, `top_k` (at most 1000) caps a single list |
 | `GET` | `/memories/sources` | The `device`, `agent`, `project` and `cwd` values on the memories you can list, for filter menus. Takes `user_id`, `agent_id` or `run_id` |
@@ -265,9 +265,36 @@ def is_valid(secret: str, body: bytes, header: str) -> bool:
 
 The server runs in Docker: to reach a receiver on the host, use `http://host.docker.internal:<port>`.
 
+### Staged writes
+
+`POST /memories` with `infer` does no LLM work while you wait. It checks the request (scope, credentials), stores it as an ingest job and answers `202`:
+
+```json
+{"status": "queued", "job_id": "…", "message": "…", "results": []}
+```
+
+A worker in the server then takes the jobs oldest first. For each one the LLM extracts the facts, and each fact is compared with the five most similar stored memories in the same user/agent/run scope. One more LLM call decides, per fact:
+
+| Decision | What happens | Result event |
+|---|---|---|
+| add | New information: stored as a new memory | `ADD` |
+| skip | A stored memory already says it: nothing is written | `NONE`, with the memory that already says it and the dropped `fact` |
+| update | Adds detail to a stored memory: that memory is rewritten with the combined text, and any others saying the same thing are deleted | `UPDATE` (with `previous_memory`), `DELETE` |
+| replace | Makes stored memories outdated: the first is rewritten with the new fact, the others are deleted | `UPDATE`, `DELETE` |
+
+Facts that only share a topic stay separate, and anything the worker cannot settle (an unreadable reply, a failed update) falls back to adding. Staged writes are not searchable until their job is done, usually within a minute. Jobs survive restarts; a failed one is retried twice (after 30 s and 2 min). Webhooks and category tagging run when the job lands, as for a direct write.
+
+`infer=false` skips all of this and stores the text as is, at once. `NORN_M_ASYNC_ADD=false` makes every write wait for its result (still reconciled); `NORN_M_RECONCILE_ADD=false` turns the comparison off.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/ingest/jobs/{id}` | One job: `status` (`pending`, `processing`, `done`, `failed`), `results` once done, `error`, and the staged `messages`. Any key that can see the write's scope |
+| `GET` | `/ingest/jobs` | Admin only. The newest jobs (`status`, `limit` up to 200) and `counts` per status |
+| `POST` | `/ingest/jobs/{id}/retry` | Admin only. Queue a failed job again |
+
 ### Consolidation
 
-Admin only. Adding memories never edits old ones, so restated and outdated facts pile up. A consolidation run finds memories in the same user/agent/run scope whose embeddings are at least `threshold` similar, asks the LLM about each group and stores proposals. Nothing changes until you apply one: `merge` rewrites the oldest memory with the combined text and deletes the rest; `supersede` deletes the outdated ones.
+Admin only. Staged writes are checked against similar memories before they land (see above), but memories stored before that, or written with `infer=false`, can still repeat each other. A consolidation run finds memories in the same user/agent/run scope whose embeddings are at least `threshold` similar, asks the LLM about each group and stores proposals. Nothing changes until you apply one: `merge` rewrites the oldest memory with the combined text and deletes the rest; `supersede` deletes the outdated ones.
 
 | Method | Path | Description |
 |---|---|---|

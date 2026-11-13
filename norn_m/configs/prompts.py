@@ -1060,3 +1060,39 @@ def generate_additive_extraction_prompt(
 
     sections.append("# Output:")
     return "\n\n".join(sections)
+
+
+RECONCILE_PROMPT = """You keep a long-term memory store free of duplicates and stale facts.
+
+New facts were just extracted from a conversation. Before they are stored, compare each one with the stored \
+memories most similar to it and decide what happens to it:
+
+- "add": it is new information. Stored memories may share its topic but say something different. When unsure, choose add.
+- "skip": a stored memory already says the same thing, with the same or more detail. Put that memory's id in `existing`.
+- "update": the new fact adds detail to a stored memory about the same thing. Write the single combined memory in \
+`text`, keeping every detail of both and adding nothing else, and put that memory's id in `existing` (several ids if \
+several stored memories say the same thing; they all become the combined memory).
+- "replace": the new fact makes stored memories outdated (a changed value, version, status, decision or preference). \
+Put the outdated memories' ids in `existing`; the new fact is stored in their place.
+
+Rules:
+- Distinct facts stay separate. Two facts about the same project, tool or topic are not duplicates unless they \
+state the same thing; never combine them just because they share a subject.
+- Use only the stored memory ids shown. Use each stored memory in at most one decision.
+- Write `text` in the language the memories are written in.
+
+Answer with JSON only, one decision per new fact:
+{"decisions": [{"fact": 1, "action": "add"}, {"fact": 2, "action": "skip", "existing": [3]}, \
+{"fact": 3, "action": "update", "existing": [1], "text": "..."}, {"fact": 4, "action": "replace", "existing": [2]}]}
+"""
+
+
+def generate_reconcile_prompt(new_facts, stored_memories):
+    """User prompt for RECONCILE_PROMPT. `new_facts` are texts; `stored_memories` are dicts with
+    `text` and an optional `created_at`. Both are numbered from 1 in the order given."""
+    stored = "\n".join(
+        f"id {i}: ({(m.get('created_at') or '')[:10] or 'unknown date'}) {m['text']}"
+        for i, m in enumerate(stored_memories, 1)
+    )
+    facts = "\n".join(f"fact {i}: {text}" for i, text in enumerate(new_facts, 1))
+    return f"## Stored memories\n{stored}\n\n## New facts\n{facts}\n\n# Output:"

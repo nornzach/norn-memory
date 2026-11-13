@@ -5,10 +5,12 @@ import os
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from typing import Annotated, Any, Dict, List, Optional
 
 import categorizer
 import config_check
+import ingest
 import provenance
 import secret_guard
 import webhooks
@@ -47,6 +49,7 @@ from routers import entities as entities_router
 from routers import exact as exact_router
 from routers import export as export_router
 from routers import imports as imports_router
+from routers import ingest as ingest_router
 from routers import agent_hooks as agent_hooks_router
 from routers import requests as requests_router
 from routers import webhooks as webhooks_router
@@ -201,7 +204,18 @@ set_session_factory(SessionLocal)
 initialize_state(DEFAULT_CONFIG)
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Run the ingest worker (see ingest.py) for as long as the server is up."""
+    ingest.worker.start()
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(ingest.worker.stop)
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Norn-M REST APIs",
     description=(
         "A REST API for managing and searching memories for your AI Agents and Apps.\n\n"
@@ -234,6 +248,7 @@ app.include_router(webhooks_router.router)
 app.include_router(analytics_router.router)
 app.include_router(export_router.router)
 app.include_router(imports_router.router)
+app.include_router(ingest_router.router)
 app.include_router(agent_hooks_router.router)
 app.include_router(exact_router.router)
 
@@ -253,6 +268,14 @@ class MemoryCreate(BaseModel):
     infer: Optional[bool] = Field(None, description="Whether to extract facts from messages. Defaults to True.")
     memory_type: Optional[str] = Field(None, description="Type of memory to store (e.g. 'core').")
     prompt: Optional[str] = Field(None, description="Custom prompt to use for fact extraction.")
+    async_mode: Optional[bool] = Field(
+        None,
+        description=(
+            "With infer, stage the write and answer 202 at once (the default, unless NORN_M_ASYNC_ADD=false): "
+            "a background worker extracts the facts and reconciles them with stored memories, and "
+            "GET /ingest/jobs/{job_id} reports the outcome. False waits for the result instead."
+        ),
+    )
     # Provenance (see provenance.py), stored in metadata. Each wins over the same key in metadata and
     # over the X-Norn-M-* header; device and agent are usually set once per connection by header instead.
     project: Optional[str] = Field(None, description="Project or repository this memory belongs to.")
@@ -536,7 +559,12 @@ def add_memory(
     scope: Optional[KeyScope] = Depends(get_key_scope),
 ):
     """Store new memories. Each one is stamped with where it came from: device, agent, project and
-    folder (from metadata, or the X-Norn-M-Device/-Agent/-Project/-Cwd headers) and the API key's label."""
+    folder (from metadata, or the X-Norn-M-Device/-Agent/-Project/-Cwd headers) and the API key's label.
+
+    With infer (the default) the write is staged and answered with 202 and a job id; the ingest worker
+    extracts the facts and compares each with the most similar stored memories, then adds it, skips it,
+    merges it into one of them or stores it in place of outdated ones. infer=false stores the text as is,
+    at once."""
     if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
     if scope is not None:
@@ -563,28 +591,41 @@ def add_memory(
     params = {
         k: v
         for k, v in memory_create.model_dump().items()
-        if v is not None and k != "messages" and k not in provenance.FIELDS
+        if v is not None and k not in ("messages", "async_mode") and k not in provenance.FIELDS
     }
     if metadata:
         params["metadata"] = metadata
+    messages = [m.model_dump() for m in memory_create.messages]
+    # Callers that pass their own categories keep them; everything else is tagged by the LLM.
+    categorize = not (memory_create.metadata or {}).get("categories")
+
+    async_mode = memory_create.async_mode if memory_create.async_mode is not None else ingest.async_enabled()
+    if async_mode and memory_create.infer is not False and memory_create.memory_type is None:
+        try:
+            job_id = ingest.enqueue(messages, params, categorize=categorize)
+        except Exception:
+            raise upstream_error()
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "queued",
+                "job_id": str(job_id),
+                "message": (
+                    "Queued. Facts are extracted and checked against similar memories in the background; "
+                    "GET /ingest/jobs/{job_id} shows what was added, updated or skipped."
+                ),
+                "results": [],
+            },
+        )
+
     try:
-        response = get_memory_instance().add(messages=[m.model_dump() for m in memory_create.messages], **params)
+        response, to_tag = ingest.run_add(messages, params, categorize=categorize)
     except (ValueError, NornMValidationError) as e:
         raise _client_error(e)
     except Exception:
         raise upstream_error()
-
-    results = response.get("results") or []
-    webhooks.emit_memory_results(results, _scope(memory_create.user_id, memory_create.agent_id, memory_create.run_id))
-    # Callers that pass their own categories keep them; everything else is tagged by the LLM.
-    if not (memory_create.metadata or {}).get("categories"):
-        to_tag = [
-            (r["id"], r["memory"])
-            for r in results
-            if r.get("event") in ("ADD", "UPDATE") and r.get("id") and r.get("memory")
-        ]
-        if to_tag:
-            background_tasks.add_task(categorizer.categorize_memories, to_tag)
+    if to_tag:
+        background_tasks.add_task(categorizer.categorize_memories, to_tag)
     return JSONResponse(content=response)
 
 

@@ -20,6 +20,10 @@ The server reads `server/.env`. Copy `server/.env.example` and fill in at least 
 | `DASHBOARD_PORT` | No | Host port for the dashboard. Defaults to `3000` |
 | `DASHBOARD_URL` | No | Origin the API accepts for CORS. Set it when the dashboard runs on another host or port |
 | `NORN_M_ALLOW_SECRETS` | No | `true` turns off the check that keeps credentials out of fuzzy memory |
+| `NORN_M_ASYNC_ADD` | No | `false` makes `POST /memories` with `infer` wait for extraction and reconciliation instead of answering `202` with a job id. Defaults to `true` |
+| `NORN_M_RECONCILE_ADD` | No | `false` stores every extracted fact without comparing it with similar memories first. Defaults to `true` |
+| `NORN_M_INGEST_RETENTION_DAYS` | No | Days finished ingest jobs are kept. Defaults to `14` |
+| `NORN_M_INGEST_WORKER` | No | `false` stops this server process from running staged writes (another process must). Defaults to `true` |
 | `REQUEST_LOG_RETENTION_DAYS` | No | Days of request logs `make prune-logs` keeps. Defaults to `30` |
 
 The dashboard reads `server/dashboard/.env`: `NEXT_PUBLIC_API_URL` (the API as the browser reaches it), `API_INTERNAL_URL` (the API as the dashboard container reaches it) and `NEXT_PUBLIC_INSTANCE_NAME` (the name in the sidebar).
