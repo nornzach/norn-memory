@@ -26,7 +26,7 @@ from norn_m.exceptions import ValidationError as NornMValidationError
 from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
 from norn_m.memory.hierarchy import MemoryLayer, assign_initial_layer, hierarchy_quality, validate_importance
-from norn_m.memory.context import infer_context
+from norn_m.memory.context import infer_context, should_cross_context_search
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
     extract_json,
@@ -1671,11 +1671,15 @@ class Memory(MemoryBase):
         if query_entities:
             entity_boosts = self._compute_entity_boosts(query_entities, filters)
 
-        # Step 7: Build candidate set from semantic results
+        # Step 7: Build candidate set from semantic results, minus contexts the query's own
+        # context isn't allowed to see (debug and release memories stay in their lane).
+        query_context = filters.get("context") or "chat"
         candidates = []
         for mem in semantic_results:
             payload = mem.payload if hasattr(mem, 'payload') else {}
             if not show_expired and _payload_is_expired(payload):
+                continue
+            if not should_cross_context_search(query_context, payload.get("context") or "chat"):
                 continue
             mem_id = str(mem.id)
             candidates.append({
@@ -3332,11 +3336,15 @@ class AsyncMemory(MemoryBase):
         if query_entities:
             entity_boosts = await self._compute_entity_boosts_async(query_entities, filters)
 
-        # Step 7: Build candidate set from semantic results
+        # Step 7: Build candidate set from semantic results, minus contexts the query's own
+        # context isn't allowed to see (debug and release memories stay in their lane).
+        query_context = filters.get("context") or "chat"
         candidates = []
         for mem in semantic_results:
             payload = mem.payload if hasattr(mem, 'payload') else {}
             if not show_expired and _payload_is_expired(payload):
+                continue
+            if not should_cross_context_search(query_context, payload.get("context") or "chat"):
                 continue
             mem_id = str(mem.id)
             candidates.append({

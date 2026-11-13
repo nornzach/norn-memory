@@ -117,14 +117,16 @@ def evolve_tick(now: Optional[datetime] = None) -> Dict[str, int]:
                 merged.pop("demoted_at", None)
             store.update(vector_id=str(row.id), payload=merged)
             if kind == "layer":
-                direction = "promoted" if fields["layer"] < (payload.get("layer") or "L3") else "demoted"
+                from_layer, to_layer = payload.get("layer") or "L3", fields["layer"]
+                direction = "promoted" if to_layer < from_layer else "demoted"
                 stats["promoted" if direction == "promoted" else "demoted"] += 1
             else:
+                to_layer = None
                 stats["expired"] += 1
             db.add_history(
                 str(row.id),
                 payload.get("data"),
-                f'{payload.get("layer") or "L3"} -> {fields.get("layer", "L4-expire")}',
+                f'{payload.get("layer") or "L3"} -> {to_layer or "expired"}',
                 "LAYER",
                 created_at=payload.get("created_at"),
                 updated_at=now.isoformat(),

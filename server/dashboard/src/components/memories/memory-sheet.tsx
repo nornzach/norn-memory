@@ -219,6 +219,11 @@ export function MemorySheet({
         : undefined;
   const hierarchyContext =
     typeof meta.context === "string" && meta.context ? meta.context : null;
+  const accessCount =
+    typeof meta.access_count === "number" ? meta.access_count : undefined;
+  const lastAccessed =
+    typeof meta.last_accessed_at === "string" ? meta.last_accessed_at : undefined;
+  const scoreDetails = memory?.score_details;
 
   return (
     <Sheet open={!!memory} onOpenChange={(open) => !open && onClose()}>
@@ -418,6 +423,28 @@ export function MemorySheet({
                         },
                         ...(hierarchyContext
                           ? [{ label: t.hierarchy.contextLabel, value: hierarchyContext }]
+                          : []),
+                        ...(typeof accessCount === "number"
+                          ? [{ label: t.memories.accessCount, value: accessCount }]
+                          : []),
+                        ...(lastAccessed
+                          ? [{ label: t.memories.lastAccessed, value: when(lastAccessed) }]
+                          : []),
+                        ...(scoreDetails
+                          ? [
+                              {
+                                label: t.memories.score,
+                                value: (
+                                  <span className="flex flex-wrap gap-1.5 text-xs">
+                                    {Object.entries(scoreDetails).map(([k, v]) => (
+                                      <span key={k} className="rounded bg-subtle px-1.5 py-0.5">
+                                        {k.replace(/_score|_boost/, "")}:{Number(v).toFixed(2)}
+                                      </span>
+                                    ))}
+                                  </span>
+                                ),
+                              },
+                            ]
                           : []),
                       ]
                     : []),

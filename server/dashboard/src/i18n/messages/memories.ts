@@ -90,6 +90,8 @@ const en = {
     agentLabel: "Agent",
     updatedAt: "Updated",
     expiryLabel: "Expires on",
+    accessCount: "Retrievals",
+    lastAccessed: "Last retrieved",
     expiryHint:
       "After this date the memory is hidden from search and listings, but kept.",
     expiryNever: "Never",
@@ -211,6 +213,8 @@ const zh: typeof en = {
     agentLabel: "Agent",
     updatedAt: "更新时间",
     expiryLabel: "过期日期",
+    accessCount: "被检索次数",
+    lastAccessed: "最近检索",
     expiryHint: "过了这一天，记忆会从搜索和列表中隐藏，但不会删除。",
     expiryNever: "永不过期",
     expiryClear: "不过期",

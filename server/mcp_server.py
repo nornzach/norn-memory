@@ -221,9 +221,10 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         "exact_records" (values verbatim). At least one of user_id, agent_id or run_id is required unless
         the connection sets a default user or the API key is limited to one.
         
-        Context filtering: Pass {"context": "project-name"} in filters to search only memories from that
-        context. Memories in "chat" context are accessible from all other contexts. Debug and release
-        contexts are isolated by default.
+        Context filtering: pass {"context": "project-x"} to prefer that context's memories. Memories in
+        "chat" are visible everywhere; "debug-{id}" and "release-{ver}" memories are isolated and only
+        visible to searches in their own context. layer ({"layer": "L2"}) filters the same way the
+        listing does: missing fields count as the defaults L3 and chat.
         """
         merged = dict(filters or {})
         merged.update({k: v for k, v in {"user_id": user_id, "agent_id": agent_id, "run_id": run_id}.items() if v})

@@ -284,10 +284,15 @@ export default function MemoriesPage() {
     if (owner === ANY || !q) return;
     setSearching(true);
     try {
+      const filters: Record<string, unknown> = { ...ownerParams(owner) };
+      if (layer !== ANY) filters.layer = layer;
+      if (contextFilter !== ANY) filters.context = contextFilter;
+      if (category !== ANY) filters["categories"] = { contains: `"${category}"` };
       const res = await api.post(MEMORY_ENDPOINTS.SEARCH, {
         query: q,
-        filters: ownerParams(owner),
+        filters,
         top_k: SEARCH_LIMIT,
+        explain: true,
         ...(showExpired && { show_expired: true }),
       });
       const raw = res.data?.results ?? res.data ?? [];
@@ -334,10 +339,13 @@ export default function MemoriesPage() {
               )
             )
               return false;
+            if (layer !== ANY && memoryLayer(m) !== layer) return false;
+            const ctx = (m.metadata?.context as string | undefined) ?? "chat";
+            if (contextFilter !== ANY && ctx !== contextFilter) return false;
             return category === ANY || getCategories(m).includes(category);
           })
         : memories,
-    [semantic, memories, sources, sourceFilter, category],
+    [semantic, memories, sources, sourceFilter, category, layer, contextFilter],
   );
   const total = semantic ? visible.length : listing.total;
 

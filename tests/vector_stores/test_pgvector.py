@@ -2493,6 +2493,28 @@ class TestBuildFilterConditions(unittest.TestCase):
             _build_filter_conditions({"x": {"badop": 1}})
         self.assertIn("Unsupported filter operator", str(ctx.exception))
 
+    def test_layer_filter_matches_the_listing_normalization(self):
+        """{"layer": "L3"} must catch legacy rows (no field) and unknown stored layers, not only 'L3'."""
+        conditions, params = _build_filter_conditions({"layer": "L3"})
+        self.assertEqual(len(conditions), 1)
+        self.assertIn("CASE WHEN payload->>%s = ANY(%s)", conditions[0])
+        self.assertEqual(params, ["layer", ["L0", "L1", "L2", "L3", "L4"], "layer", "L3"])
+
+    def test_layer_operator_form_stays_an_exact_match(self):
+        conditions, params = _build_filter_conditions({"layer": {"eq": "L0"}})
+        self.assertEqual(conditions, ["payload->>%s = %s"])
+        self.assertEqual(params, ["layer", "L0"])
+
+    def test_context_filter_defaults_missing_to_chat(self):
+        conditions, params = _build_filter_conditions({"context": "chat"})
+        self.assertEqual(conditions, ["coalesce(nullif(payload->>%s, ''), 'chat') = %s"])
+        self.assertEqual(params, ["context", "chat"])
+
+    def test_other_keys_are_unaffected(self):
+        conditions, params = _build_filter_conditions({"project": "repo"})
+        self.assertEqual(conditions, ["payload->>%s = %s"])
+        self.assertEqual(params, ["project", "repo"])
+
     def test_in_with_numeric_values(self):
         conditions, params = _build_filter_conditions({"priority": {"in": [1, 2, 3]}})
         self.assertEqual(params, ["priority", ["1", "2", "3"]])

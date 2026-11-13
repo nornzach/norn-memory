@@ -101,7 +101,9 @@ Adding returns the new memory IDs and their events (`ADD`). Every memory belongs
 
 ## Search filters
 
-`POST /search` and `GET /memories` filter by `user_id`, `agent_id`, `run_id`, plus `category`, `layer` (`L0`–`L4`; memories written before hierarchy fields exist count as `L3`), `context` (memories written before contexts exist report `chat`) and the [provenance](#provenance) fields `project`, `device`, `agent` and `cwd`. `POST /search` also takes a `filters` object over memory metadata:
+`POST /search` and `GET /memories` filter by `user_id`, `agent_id`, `run_id`, plus `category`, `layer` (`L0`–`L4`; memories written before hierarchy fields exist count as `L3`), `context` (memories written before contexts exist report `chat`) and the [provenance](#provenance) fields `project`, `device`, `agent` and `cwd`.
+
+`POST /search` honours the same `layer`/`context` normalization inside `filters`, so a semantic search for `{"layer": "L3"}` also catches legacy memories. It also applies context isolation on every search: a search in context `chat` sees every context except `debug-{id}` and `release-{v}`, which only answer to their own context. `explain=true` returns `score_details` (semantic, keyword, entity and hierarchy contributions) per hit. `POST /search` also takes a `filters` object over memory metadata:
 
 ```json
 {"query": "deploy", "user_id": "alice", "filters": {"categories": {"in": ["Work"]}}}

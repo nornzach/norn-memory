@@ -29,6 +29,7 @@ except ImportError:
             "Please install one of them using 'pip install psycopg[pool]' or 'pip install psycopg2'"
         )
 
+from norn_m.memory.hierarchy import MemoryLayer
 from norn_m.vector_stores.base import VectorStoreBase
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,13 @@ OPERATOR_SQL_MAP = {
     "contains": ("payload->>%s LIKE %s", False),
     "icontains": ("payload->>%s ILIKE %s", False),
 }
+
+
+# Keys that get the same normalization as the memory_store listing: a legacy row without the
+# field counts as the default, and a stored layer outside the enum counts as the default too.
+_KNOWN_LAYERS = [layer.value for layer in MemoryLayer]
+_LAYER_EQ_SQL = "(CASE WHEN payload->>%s = ANY(%s) THEN payload->>%s ELSE 'L3' END) = %s"
+_CONTEXT_EQ_SQL = "coalesce(nullif(payload->>%s, ''), 'chat') = %s"
 
 
 def _build_filter_conditions(filters):
@@ -109,6 +117,14 @@ def _build_filter_conditions(filters):
         elif isinstance(value, list):
             conditions.append("payload->>%s = ANY(%s)")
             params.extend([key, [str(v) for v in value]])
+        elif key == "layer" and isinstance(value, str):
+            # Plain {"layer": "L3"} honours the listing's defaults; {"layer": {"eq": "L3"}}
+            # would stay an exact raw match.
+            conditions.append(_LAYER_EQ_SQL)
+            params.extend([key, _KNOWN_LAYERS, key, value])
+        elif key == "context" and isinstance(value, str):
+            conditions.append(_CONTEXT_EQ_SQL)
+            params.extend([key, value])
         else:
             conditions.append("payload->>%s = %s")
             if isinstance(value, bool):

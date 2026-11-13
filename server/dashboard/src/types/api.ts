@@ -17,6 +17,10 @@ export interface Memory {
   metadata?: Record<string, unknown>;
   /** YYYY-MM-DD; hidden from listings and search after this day unless show_expired is set. */
   expiration_date?: string | null;
+  /** Present on semantic-search hits (the listing doesn't return it). */
+  score?: number;
+  /** Why the hit ranked where it did, when the search was run with explain=true. */
+  score_details?: Record<string, number>;
   created_at?: string;
   updated_at?: string;
 }

@@ -1,5 +1,10 @@
 """Integration tests for context isolation in memory hierarchy."""
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+from norn_m.memory.main import Memory
+
 from norn_m.memory.context import (
     infer_context,
     parse_context,
@@ -280,3 +285,24 @@ class TestTopicExtraction:
         """Return None if no topic found."""
         from norn_m.memory.context import _extract_topic
         assert _extract_topic("no-topic-here") is None
+
+
+def test_isolation_applies_inside_search():
+    """should_cross_context_search is called from _search_vector_store: a chat query must not
+    see a debug memory even when it is the most similar hit."""
+    memory = MagicMock(spec=Memory)
+    memory.vector_store = MagicMock()
+    memory.vector_store.search.return_value = [
+        SimpleNamespace(id="dbg", score=0.99, payload={"data": "debug note", "context": "debug-x"}),
+        SimpleNamespace(id="gen", score=0.5, payload={"data": "general note", "context": "chat"}),
+    ]
+    memory.embedding_model = MagicMock()
+    memory.embedding_model.embed.return_value = [0.1, 0.2]
+    memory._compute_entity_boosts.return_value = {}
+    memory.keyword_search_memories = None
+    memory._search_vector_store = Memory._search_vector_store.__get__(memory, Memory)
+
+    results = memory._search_vector_store("q", {}, 10)
+
+    ids = [m["id"] for m in results]
+    assert ids == ["gen"]
