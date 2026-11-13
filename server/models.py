@@ -116,6 +116,7 @@ class ConsolidationRun(Base):
     status: Mapped[str] = mapped_column(String(16), default="running")
     scope: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     threshold: Mapped[float] = mapped_column(Float)
+    pool_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     memories_scanned: Mapped[int] = mapped_column(Integer, default=0)
     clusters_found: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

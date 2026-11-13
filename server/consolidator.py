@@ -234,10 +234,11 @@ def execute_run(run_id: uuid.UUID) -> None:
         with SessionLocal() as db:
             run = db.get(ConsolidationRun, run_id)
             scope, threshold = dict(run.scope or {}), run.threshold
+            pool_size = run.pool_size or MAX_MEMORIES_PER_RUN
 
         rows = [row for row in list_rows() if _payload(row).get("data") and in_scope(_payload(row), scope)]
         rows.sort(key=lambda row: str(_payload(row).get("created_at") or ""))
-        rows = rows[-MAX_MEMORIES_PER_RUN:]
+        rows = rows[-pool_size:]
         by_id = {str(row.id): row for row in rows}
 
         groups = cluster(list(by_id), similar_pairs(rows, threshold)) if len(rows) > 1 else []

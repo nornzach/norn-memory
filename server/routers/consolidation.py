@@ -28,6 +28,12 @@ class RunCreate(BaseModel):
         le=0.99,
         description="Minimum similarity for two memories to be compared.",
     )
+    max_memories: Optional[int] = Field(
+        None,
+        ge=100,
+        le=20000,
+        description="How many of the newest in-scope memories to scan (default 500).",
+    )
 
 
 class ActionItem(BaseModel):
@@ -52,6 +58,7 @@ class RunItem(BaseModel):
     status: str
     scope: dict[str, str]
     threshold: float
+    pool_size: Optional[int]
     memories_scanned: int
     clusters_found: int
     error: Optional[str]
@@ -76,6 +83,7 @@ def _run_item(run: ConsolidationRun, counts: dict[str, int], cls=RunItem, **extr
         status=run.status,
         scope=run.scope or {},
         threshold=run.threshold,
+        pool_size=run.pool_size,
         memories_scanned=run.memories_scanned,
         clusters_found=run.clusters_found,
         error=run.error,
@@ -149,7 +157,12 @@ def start_run(
         for orphan in db.execute(select(ConsolidationRun).where(ConsolidationRun.status == "running")).scalars():
             orphan.status, orphan.error = "failed", "Interrupted by a server restart."
         scope = {k: v for k, v in body.model_dump(include={"user_id", "agent_id", "run_id"}).items() if v}
-        run = ConsolidationRun(status="running", scope=scope, threshold=body.threshold)
+        run = ConsolidationRun(
+            status="running",
+            scope=scope,
+            threshold=body.threshold,
+            pool_size=body.max_memories,
+        )
         db.add(run)
         db.commit()
         db.refresh(run)
