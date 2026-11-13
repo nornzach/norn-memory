@@ -207,7 +207,9 @@ initialize_state(DEFAULT_CONFIG)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Run the ingest worker (see ingest.py) for as long as the server is up."""
+    logger.info("Lifespan: starting ingest worker")
     ingest.worker.start()
+    logger.info(f"Lifespan: worker started, thread={ingest.worker._thread}")
     try:
         yield
     finally:
