@@ -92,6 +92,8 @@ def evolve_tick(now: Optional[datetime] = None) -> Dict[str, int]:
     db = get_memory_instance().db
     stats = {"scanned": 0, "promoted": 0, "demoted": 0, "expired": 0, "errors": 0}
 
+    # ponytail: full id+payload scan per tick; cheap at thousands of rows, and a payload index on
+    # the layer key is the upgrade path if the store grows an order of magnitude.
     rows = memory_store.list_rows()
     stats["scanned"] = len(rows)
     for row in rows[: PAGE * MAX_PAGES]:

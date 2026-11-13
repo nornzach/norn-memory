@@ -200,7 +200,7 @@ The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. 
 | `PUT` | `/memories/{memory_id}` | Update a memory's `text`, `metadata` or `expiration_date` (`null` clears it) |
 | `DELETE` | `/memories/{memory_id}` | Delete a memory |
 | `DELETE` | `/memories` | Delete all memories for an identifier |
-| `GET` | `/memories/{memory_id}/history` | A memory's change history |
+| `GET` | `/memories/{memory_id}/history` | A memory's change history: `ADD`, `UPDATE`, `DELETE` and `LAYER` (evolution moved it between hierarchy layers) |
 | `POST` | `/search` | Search memories. `show_expired: true` includes expired ones |
 | `POST` | `/reset` | Delete every memory |
 
