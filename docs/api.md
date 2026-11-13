@@ -242,6 +242,7 @@ Admin only. The server tags each new or updated memory in the background: the co
 | `PATCH` | `/categories/{id}` | Rename or re-describe; a rename updates tagged memories |
 | `DELETE` | `/categories/{id}` | Delete and remove from tagged memories |
 | `POST` | `/categories/backfill?retag_all=false` | Tag untagged memories in the background, up to 500 per call. `retag_all=true` re-tags every memory, replacing their categories |
+| `python /app/backfill_hierarchy.py` (in the container) | One-shot: score legacy memories' importance with the LLM, derive layer and context. Idempotent; `BACKFILL_DRY=1`, `BACKFILL_LIMIT`, `BACKFILL_BATCH` tune it |
 
 ### Webhooks
 
