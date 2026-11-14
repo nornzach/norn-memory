@@ -68,6 +68,7 @@ def score_and_rank(
     top_k: int,
     explain: bool = False,
     hierarchy_boosts: Optional[Dict[str, float]] = None,
+    allow_keyword_matches: bool = False,
 ) -> List[Dict[str, Any]]:
     """Score candidates additively and return top-k results.
 
@@ -75,8 +76,8 @@ def score_and_rank(
         semantic_score is taken from the result's score field.
         combined = (semantic + bm25 + entity_boost) / max_possible
 
-    Threshold gates the semantic score BEFORE combining -- candidates
-    below the threshold are excluded even if BM25/entity would boost them.
+    Threshold gates the semantic score BEFORE combining. With allow_keyword_matches,
+    a positive keyword match may also qualify a candidate for the reranker.
 
     The divisor adapts based on which signals are active:
         - Semantic only: max_possible = 1.0
@@ -91,6 +92,7 @@ def score_and_rank(
         threshold: Minimum semantic score required before hybrid scoring.
         top_k: Maximum number of results to return.
         explain: Include score_details in each result when true.
+        allow_keyword_matches: Allow lexical matches below the semantic threshold.
 
     Returns:
         List of scored result dicts sorted by combined score descending.
@@ -115,7 +117,7 @@ def score_and_rank(
             continue
 
         semantic_score = result.get("score") or 0.0
-        if semantic_score < threshold:
+        if semantic_score < threshold and not (allow_keyword_matches and str(mem_id) in bm25_scores):
             continue
 
         mem_id_str = str(mem_id)

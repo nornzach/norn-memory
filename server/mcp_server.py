@@ -208,6 +208,8 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
             ),
         ] = None,
         top_k: Annotated[int, Field(ge=1, le=100, description="Maximum number of memories to return.")] = 10,
+        rerank: Annotated[Optional[bool], Field(description="Override the server's default reranking setting.")] = None,
+        explain: Annotated[Optional[bool], Field(description="Include retrieval scores and rerank status.")] = None,
         project: ProjectFilter = None,
         device: DeviceFilter = None,
         agent: AgentFilter = None,
@@ -231,7 +233,7 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         if not any(merged.get(k) for k in ("user_id", "agent_id", "run_id")) and _default_user(ctx):
             merged["user_id"] = _default_user(ctx)
         source = {"project": project, "device": device, "agent": agent, "cwd": cwd}
-        search = api.SearchRequest(query=query, filters=merged, top_k=top_k, **source)
+        search = api.SearchRequest(query=query, filters=merged, top_k=top_k, rerank=rerank, explain=explain, **source)
         response = await _call(api.search_memories, search, scope=_key_scope(ctx))
         exact = await _matching_exact_records(ctx, query, merged.get("user_id"), source)
         if exact and isinstance(response, dict):

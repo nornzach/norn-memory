@@ -77,13 +77,20 @@ def _merge_config(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, An
 PORTABLE_PROVIDER_KEYS = {
     "llm": ("temperature", "max_tokens", "top_p"),
     "embedder": ("embedding_dims",),
+    "reranker": (),
 }
 
 
 def _endpoint(section: Dict[str, Any]) -> tuple:
     config = section.get("config") or {}
     # An unset (None) base URL means the provider's default, same as leaving the key out.
-    base_urls = tuple(sorted((key, value) for key, value in config.items() if key.endswith("_base_url") and value))
+    config = dict(config)
+    if section.get("provider") == "qwen":
+        config.setdefault("base_url", "https://maas.qianwenaiapi.com/compatible-api/v1")
+    base_urls = tuple(sorted(
+        (key, value.rstrip("/") if isinstance(value, str) else value)
+        for key, value in config.items() if (key.endswith("_base_url") or key == "base_url") and value
+    ))
     return section.get("provider"), base_urls
 
 
@@ -99,7 +106,7 @@ def apply_config_updates(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[
         if _endpoint(merged[section]) == _endpoint(old):
             continue
         old_config = old.get("config") or {}
-        fresh = deepcopy(new)
+        fresh = {**deepcopy(old), **deepcopy(new)}
         fresh.setdefault("provider", old.get("provider"))
         fresh["config"] = {
             **{key: old_config[key] for key in portable if key in old_config},
@@ -123,8 +130,9 @@ def update_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     global _current_config, _memory_instance
     with _state_lock:
         next_config = apply_config_updates(_current_config, updates)
+        next_instance = Memory.from_config(next_config)
         _current_config = next_config
-        _memory_instance = Memory.from_config(next_config)
+        _memory_instance = next_instance
         overrides = _load_overrides()
         overrides = apply_config_updates(overrides, updates)
         _save_overrides(overrides)

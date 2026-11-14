@@ -153,3 +153,10 @@ docker compose up -d
 - [REST and MCP API](../docs/api.md)
 - [Configuration](../docs/configuration.md)
 - [Connecting agents](../docs/agents.md)
+
+
+### Qwen reranking
+
+The dashboard Configuration page has a separate **Qwen Reranker** section with enable, candidate pool, timeout, optional score threshold, test and save controls. Use `qwen3.7-text-rerank` with base URL `https://maas.qianwenaiapi.com/compatible-api/v1` (the request goes to `/reranks`). Configure the key in that section or via `QWEN_RERANK_API_KEY` in the server environment. No key is bundled.
+
+Once configured and enabled, REST `/search` and MCP `search_memories` rerank by default. Set `rerank=false` per request to opt out; `explain=true` reports `applied`, `fallback`, `empty` or `disabled`, candidate count and latency. The default pool is 60 and the HTTP timeout is 5 seconds; the optional relevance threshold defaults off. Failures return the original eligible top-k without invented scores. Exact records and write workflows bypass reranking. See [the integration guide](../docs/reranking.md) for configuration and threshold semantics.

@@ -43,13 +43,14 @@ from memory_store import (
     PAGE_SIZE_LIMIT,
     context_values,
     list_memories,
-    record_access,
     list_source_values,
     query_memories,
+    record_access,
 )
 from models import RequestLog, User
 from pydantic import BaseModel, Field
 from rate_limit import limiter
+from routers import agent_hooks as agent_hooks_router
 from routers import analytics as analytics_router
 from routers import api_keys as api_keys_router
 from routers import auth as auth_router
@@ -58,10 +59,9 @@ from routers import consolidation as consolidation_router
 from routers import entities as entities_router
 from routers import exact as exact_router
 from routers import export as export_router
+from routers import hierarchy as hierarchy_router
 from routers import imports as imports_router
 from routers import ingest as ingest_router
-from routers import hierarchy as hierarchy_router
-from routers import agent_hooks as agent_hooks_router
 from routers import requests as requests_router
 from routers import webhooks as webhooks_router
 from schemas import MessageResponse
@@ -313,6 +313,7 @@ class SearchRequest(BaseModel):
     top_k: Optional[int] = Field(None, description="Maximum number of results to return.")
     threshold: Optional[float] = Field(None, description="Minimum similarity score for results.")
     explain: Optional[bool] = Field(None, description="Include score details for each search result.")
+    rerank: Optional[bool] = Field(None, description="Rerank candidates; defaults to the configured reranker setting.")
     show_expired: Optional[bool] = Field(None, description="Include expired memories.")
     device: Optional[str] = Field(None, description="Only memories written from this device, e.g. 'mac'.")
     agent: Optional[str] = Field(None, description="Only memories written by this agent, e.g. 'claude-code'.")
@@ -373,10 +374,19 @@ def _validate_bundled_providers(config: Dict[str, Any]) -> None:
 
 
 def _validate_base_urls(config: Dict[str, Any]) -> None:
-    for section in ("llm", "embedder"):
-        provider_config = (config.get(section) or {}).get("config") or {}
+    for section in ("llm", "embedder", "reranker"):
+        provider = config.get(section)
+        if provider is None:
+            continue
+        if not isinstance(provider, dict):
+            raise HTTPException(status_code=400, detail=f"{section} must be an object or null.")
+        provider_config = provider.get("config")
+        if provider_config is None:
+            continue
+        if not isinstance(provider_config, dict):
+            raise HTTPException(status_code=400, detail=f"{section}.config must be an object or null.")
         for key, value in provider_config.items():
-            if not key.endswith("_base_url") or value is None:
+            if not (key.endswith("_base_url") or key == "base_url") or value is None:
                 continue
             if not isinstance(value, str) or not value.startswith(("http://", "https://")):
                 raise HTTPException(status_code=400, detail=f"{section}.config.{key} must be an http(s) URL.")
@@ -386,7 +396,19 @@ def _validate_config_update(config: Dict[str, Any]) -> Dict[str, Any]:
     """Check an update and return the full config it would produce, without applying it."""
     _validate_bundled_providers(config)
     _validate_base_urls(config)
-    return apply_config_updates(get_current_config(), config)
+    candidate = apply_config_updates(get_current_config(), config)
+    if candidate.get("reranker") is not None:
+        from norn_m.configs.rerankers.config import RerankerConfig
+        from norn_m.configs.rerankers.qwen import QwenRerankerConfig
+
+        try:
+            section = RerankerConfig(**candidate["reranker"])
+            if section.provider != "qwen":
+                raise ValueError("Only the qwen reranker is bundled in this image")
+            QwenRerankerConfig(**(section.config or {}))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid reranker configuration. Check provider, URL and limits.")
+    return candidate
 
 
 def _should_log_request(request: Request) -> bool:
@@ -458,20 +480,25 @@ def get_config(_auth=Depends(verify_unscoped)):
     return _redact_config(get_current_config())
 
 
-@app.get("/configure/providers", summary="List bundled LLM and embedder providers")
+@app.get("/configure/providers", summary="List bundled LLM, embedder and reranker providers")
 def list_bundled_providers(_auth=Depends(verify_auth)):
-    return {"llm": list(BUNDLED_LLM_PROVIDERS), "embedder": list(BUNDLED_EMBEDDER_PROVIDERS)}
+    return {"llm": list(BUNDLED_LLM_PROVIDERS), "embedder": list(BUNDLED_EMBEDDER_PROVIDERS), "reranker": ["qwen"]}
 
 
-@app.post("/configure/test", summary="Test an LLM and embedder configuration without saving it")
+@app.post("/configure/test", summary="Test provider configuration without saving it")
 def test_config(config: Dict[str, Any], _auth=Depends(require_admin)):
-    """Merge the body into the current config as POST /configure would, then send one small request
-    to the LLM and one to the embedder. Nothing is saved. Requires admin role."""
+    """Probe the merged configuration without saving it. A reranker-only body probes just that
+    provider; otherwise check LLM, embedder and any enabled reranker. Requires admin role."""
     candidate = _validate_config_update(config)
-    return {
-        "llm": config_check.check_llm(candidate["llm"]),
-        "embedder": config_check.check_embedder(candidate["embedder"], config_check.expected_embedding_dims(candidate)),
-    }
+    results = {}
+    if set(config) != {"reranker"}:
+        results.update({
+            "llm": config_check.check_llm(candidate["llm"]),
+            "embedder": config_check.check_embedder(candidate["embedder"], config_check.expected_embedding_dims(candidate)),
+        })
+    if candidate.get("reranker") and candidate["reranker"].get("enabled", True):
+        results["reranker"] = config_check.check_reranker(candidate["reranker"])
+    return results
 
 
 @app.post("/configure", summary="Configure Norn-M")
@@ -480,11 +507,20 @@ def set_config(config: Dict[str, Any], _auth=Depends(require_admin)):
 
     A changed embedder is checked first: its vectors must fit the existing vector store."""
     candidate = _validate_config_update(config)
-    if candidate.get("embedder") != get_current_config().get("embedder"):
+    current = get_current_config()
+    if candidate.get("embedder") != current.get("embedder"):
         result = config_check.check_embedder(candidate["embedder"], config_check.expected_embedding_dims(candidate))
         if not result["ok"]:
             raise HTTPException(status_code=400, detail=f"Embedder check failed: {result['error']}")
-    update_config(config)
+    reranker = candidate.get("reranker")
+    if reranker and reranker.get("enabled", True) and reranker != current.get("reranker"):
+        result = config_check.check_reranker(reranker)
+        if not result["ok"]:
+            raise HTTPException(status_code=400, detail=f"Reranker check failed: {result['error']}")
+    try:
+        update_config(config)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid provider configuration.")
     return {"message": "Configuration set successfully"}
 
 
@@ -848,6 +884,12 @@ def search_memories(search_req: SearchRequest, scope: Optional[KeyScope] = Depen
             params["explain"] = search_req.explain
         if search_req.show_expired is not None:
             params["show_expired"] = search_req.show_expired
+        reranker = get_current_config().get("reranker")
+        if search_req.rerank is not None or reranker:
+            params["rerank"] = search_req.rerank if search_req.rerank is not None else reranker.get("enabled", True)
+        if source or scope is not None:
+            matches_source = provenance.matcher(source)
+            params["_candidate_filter"] = lambda item: matches_source(item) and (scope is None or scope.allows(item))
         response = _keep_source(get_memory_instance().search(query=search_req.query, filters=filters, **params), source)
         response = scope.filter_response(response, filters) if scope is not None else response
         try:

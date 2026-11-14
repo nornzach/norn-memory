@@ -1,0 +1,20 @@
+simulation: qwen-reranker
+routing: path
+mocks:
+  - name: qwen-success
+    routeKey: qwen
+    path: postman/mocks/qwen-reranker/config.yaml
+  - name: qwen-unavailable
+    routeKey: unavailable
+    path: postman/mocks/qwen-reranker/config.yaml
+    scenarios:
+      - overrides:
+          conditions:
+            error: { status_code: 503 }
+  - name: qwen-slow
+    routeKey: slow
+    path: postman/mocks/qwen-reranker/config.yaml
+    scenarios:
+      - overrides:
+          conditions:
+            latency: { delay_ms: 1000 }

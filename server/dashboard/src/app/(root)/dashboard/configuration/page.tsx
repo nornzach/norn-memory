@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { ProviderFields } from "@/components/self-hosted/provider-fields";
 import { InstructionsPanel } from "@/components/self-hosted/instructions-panel";
+import { RerankerFields } from "@/components/self-hosted/reranker-fields";
 import { getErrorMessage } from "@/lib/error-message";
 import { api } from "@/utils/api";
 import { MEMORY_ENDPOINTS } from "@/utils/api-endpoints";
@@ -186,6 +187,8 @@ export default function ConfigurationPage() {
           </Panel>
         ))}
       </div>
+
+      <RerankerFields config={config} disabled={!isAdmin} onSaved={refetch} />
 
       <InstructionsPanel
         saved={config ? (config.custom_instructions ?? "") : undefined}

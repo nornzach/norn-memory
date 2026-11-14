@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Callable, Dict, Optional
 
-from norn_m.utils.factory import EmbedderFactory, LlmFactory
+from norn_m.utils.factory import EmbedderFactory, LlmFactory, RerankerFactory
 
 CHECK_TIMEOUT_SECONDS = 30
 MAX_ERROR_LENGTH = 300
@@ -70,3 +70,23 @@ def expected_embedding_dims(config: Dict[str, Any]) -> Optional[int]:
     vector_config = (config.get("vector_store") or {}).get("config") or {}
     dims = vector_config.get("embedding_model_dims")
     return int(dims) if dims else None
+
+
+def check_reranker(section: Dict[str, Any]) -> Dict[str, Any]:
+    def probe():
+        config = dict(section.get("config") or {})
+        # Test connectivity independently of the configured rejection threshold.
+        config["min_score"] = None
+        reranker = RerankerFactory.create(section["provider"], config)
+        try:
+            documents = [{"id": "tea", "memory": "The user prefers green tea."}]
+            results = reranker.rerank("What does the user like to drink?", documents, 1)
+            if len(results) != 1 or results[0].get("id") != "tea" or "rerank_score" not in results[0]:
+                raise ValueError("Invalid reranker response to connection test")
+        finally:
+            close = getattr(reranker, "close", None)
+            if close is not None:
+                close()
+
+    result = _timed(probe)
+    return {"ok": result["ok"], "error": result["error"], "latency_ms": result.get("latency_ms")}

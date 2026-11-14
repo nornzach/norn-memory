@@ -99,6 +99,8 @@ curl -X POST http://localhost:8888/search \
 
 Adding returns the new memory IDs and their events (`ADD`). Every memory belongs to at least one of `user_id`, `agent_id` or `run_id`. Set `"infer": false` to store the text as given instead of letting the LLM extract facts from it. On search, `"explain": true` adds `score_details` with the hybrid-search signals for each result.
 
+When a reranker is configured and enabled, `/search` reranks candidates before choosing `top_k`. Pass `"rerank": false` to opt out. `"explain": true` also adds a top-level `rerank` object with `status`, `candidate_count` and `latency_ms`; successful results carry a separate `rerank_score`. Timeouts and malformed responses fall back to the original ranking. Exact records and write workflows bypass reranking. See [reranking](reranking.md).
+
 ## Search filters
 
 `POST /search` and `GET /memories` filter by `user_id`, `agent_id`, `run_id`, plus `category`, `layer` (`L0`–`L4`; memories written before hierarchy fields exist count as `L3`), `context` (memories written before contexts exist report `chat`) and the [provenance](#provenance) fields `project`, `device`, `agent` and `cwd`.
@@ -117,7 +119,7 @@ The server speaks the [Model Context Protocol](https://modelcontextprotocol.io) 
 
 | Tool | Arguments | REST equivalent |
 |---|---|---|
-| `search_memories` | `query`, `user_id` / `agent_id` / `run_id`, `filters`, `top_k`, `project` / `device` / `agent` / `cwd` | `POST /search` |
+| `search_memories` | `query`, `user_id` / `agent_id` / `run_id`, `filters`, `top_k`, `rerank`, `explain`, `project` / `device` / `agent` / `cwd` | `POST /search` |
 | `add_memory` | `text`, `user_id` / `agent_id` / `run_id`, `metadata`, `infer`, `project`, `cwd` | `POST /memories` |
 | `get_memory` | `memory_id` | `GET /memories/{memory_id}` |
 | `list_memories` | `user_id` / `agent_id` / `run_id`, `category`, `limit`, `project` / `device` / `agent` / `cwd` | `GET /memories` |

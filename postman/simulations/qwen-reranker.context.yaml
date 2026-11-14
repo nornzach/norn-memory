@@ -1,0 +1,41 @@
+purpose:
+  stands_in_for: Qwen compatible rerank API, with synthetic ranking and embedding fixtures.
+  unblocks: Verify HTTP serialization, successful ordering, malformed-response rejection, 503 and timeout fallback; isolate server/UI checks.
+assumptions:
+  - id: compatible-rerank-contract
+    status: supported
+    claim: The tested gateway accepts POST /compatible-api/v1/reranks with query, model, documents, top_n and return_documents; results map input indexes to numeric relevance scores.
+    reason: Direct synthetic requests to the gateway and two calls through the implemented QwenReranker succeeded. This supports the observed contract, not relevance guarantees on real memories.
+    verification: On 2026-11-14, the new provider correctly ranked two synthetic Chinese cases and preserved original scores. Earlier endpoint probes found /compatible-mode/v1/reranks unavailable. The mock response shape follows these observations; fixed fixture scores do not simulate model quality.
+    source: norn_m/reranker/qwen_reranker.py; /tmp/mem0-rerank-20261114/REPORT.md; /tmp/mem0-rerank-dev/live_provider.py
+    updated_at: '2026-11-14'
+  - id: caller-fallback
+    status: supported
+    claim: The real HTTP caller preserves original results when this simulation returns 503, exceeds its read timeout, or returns invalid document indexes.
+    reason: The opt-in HTTP tests exercised the implementation with the local stand-ins and checked caller results and status. Injected 503 requests are not logged by the mock itself.
+    verification: On 2026-11-14, all four test_qwen_http_simulation.py cases passed. On 2026-11-15, all four passed again after migration to the Norn-M release branch, and 11 isolated Docker API/PostgreSQL checks passed, including context isolation before reranking, configuration persistence, malformed response fallback and successful threshold rejection. Success and malformed response requests appear in simulation.ndjson; the delayed request also appears after the caller times out. This proves caller behavior for these fixtures, not provider availability or latency.
+    source: tests/rerankers/test_qwen_http_simulation.py; postman/simulations/qwen-reranker.sim.yaml; /tmp/mem0-rerank-dev/simulation.ndjson; /tmp/norn-rerank-release/server-e2e.json; /tmp/norn-rerank-release/simulation.ndjson
+    updated_at: '2026-11-15'
+  - id: real-world-relevance
+    status: unknown
+    claim: Reranking improves representative memory-search quality enough to justify its production latency and cost.
+    reason: Synthetic positive cases verify wiring; they do not measure accuracy against an embeddings baseline. Known wrong-person and wrong-environment negatives can still score highly.
+    verification: No representative production A/B benchmark has been run. The optional rejection threshold therefore defaults off. Evaluate recall, no-answer precision, wrong-person/environment errors and latency on real labeled queries before selecting a threshold.
+    source: /tmp/mem0-rerank-20261114/hard-negatives.json; docs/reranking.md
+    updated_at: '2026-11-14'
+  - id: fixture-provenance
+    status: supported
+    claim: This mock was built locally from observed synthetic gateway responses; no publisher-maintained mock was reused.
+    reason: The installed CLI has no status command, and the attempted mock search returned No authorization data found. Local runs need no account.
+    verification: postman search mocks Qwen --ownership all -o json could not authenticate. No mock or simulation was pushed or deployed.
+    source: postman/mocks/qwen-reranker/default.js
+    updated_at: '2026-11-14'
+fingerprints:
+  - id: rerank-development
+    date: '2026-11-14'
+    commit: '0724291b plus uncommitted rerank work and pre-existing workspace changes'
+    cli: 'Postman CLI 1.75.0'
+  - id: norn-rerank-release
+    date: '2026-11-15'
+    commit: '17b883b plus the rerank release delta'
+    cli: 'Postman CLI 1.75.0'

@@ -289,6 +289,7 @@ class TestAddMemory:
             user_id="alice",
             agent_id="claude-code",
             infer=False,
+            reconcile=False,
             # The admin key wrote it; the connection sent no device or agent headers.
             metadata={"key_label": "admin"},
         )
@@ -361,7 +362,7 @@ class TestGetListDelete:
         result = _call_tool(client, "list_memories", {"limit": 5})
 
         assert result["structuredContent"] == {"results": [{"id": M1}]}
-        mocks.list_all.assert_called_once_with(5, category=None, source={}, show_expired=False)
+        mocks.list_all.assert_called_once_with(5, category=None, layer=None, context=None, source={}, show_expired=False)
 
     def test_delete_memory_emits_the_webhook(self, mcp_client):
         client, mocks = mcp_client

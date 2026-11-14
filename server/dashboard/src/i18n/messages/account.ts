@@ -126,6 +126,19 @@ const en = {
       "Extracts facts from conversations, tags categories and reviews consolidation.",
     embedderDescription: "Turns memories into vectors for semantic search.",
     readOnly: "Only admins can change the configuration.",
+    reranker: {
+      title: "Qwen Reranker",
+      description:
+        "Rank combined semantic and keyword candidates before choosing results. Searches send the query and candidate memory text to this provider. Errors fall back to the original ranking.",
+      enabled: "Enable by default for memory searches",
+      pool: "Candidate pool (1–500)",
+      timeout: "Request timeout in seconds (max 30)",
+      minScore: "Minimum rerank score (optional)",
+      off: "Off",
+      thresholdHint:
+        "Leave the score threshold off until tested with your queries. A high score does not guarantee a correct memory. Exact records bypass reranking.",
+      save: "Save Reranker",
+    },
     provider: "Provider",
     selectProvider: "Select provider",
     model: "Model",
@@ -299,6 +312,19 @@ const zh: typeof en = {
     llmDescription: "从对话中提取事实、打分类标签，并审阅记忆整合。",
     embedderDescription: "把记忆转换成向量，用于语义搜索。",
     readOnly: "只有管理员可以修改配置。",
+    reranker: {
+      title: "Qwen 重排模型",
+      description:
+        "合并向量和关键词候选，重排后选取结果。查询和候选记忆正文会发送到此服务；调用失败时返回原排序。",
+      enabled: "记忆搜索默认启用重排",
+      pool: "候选池大小（1–500）",
+      timeout: "请求超时秒数（最多 30）",
+      minScore: "最低重排分数（可选）",
+      off: "关闭",
+      thresholdHint:
+        "建议用实际查询校准后再设置分数阈值。高分不保证记忆正确。精确记录不经过重排。",
+      save: "保存重排配置",
+    },
     provider: "服务商",
     selectProvider: "选择服务商",
     model: "模型",

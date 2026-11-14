@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import uuid
 import warnings
 from copy import deepcopy
@@ -21,12 +22,18 @@ from norn_m.configs.prompts import (
     PROCEDURAL_MEMORY_SYSTEM_PROMPT,
     generate_additive_extraction_prompt,
 )
-from norn_m.exceptions import LLMError, VectorStoreError
+from norn_m.exceptions import LLMError
 from norn_m.exceptions import ValidationError as NornMValidationError
+from norn_m.exceptions import VectorStoreError
 from norn_m.memory import reconcile as reconcile_facts
 from norn_m.memory.base import MemoryBase
-from norn_m.memory.hierarchy import MemoryLayer, assign_initial_layer, hierarchy_quality, validate_importance
 from norn_m.memory.context import infer_context, should_cross_context_search
+from norn_m.memory.hierarchy import (
+    MemoryLayer,
+    assign_initial_layer,
+    hierarchy_quality,
+    validate_importance,
+)
 from norn_m.memory.storage import SQLiteManager
 from norn_m.memory.utils import (
     extract_json,
@@ -60,6 +67,65 @@ logger = logging.getLogger(__name__)
 
 # Transient memories don't live forever unless the caller says otherwise.
 TRANSIENT_TTL_DAYS = int(os.environ.get("NORN_M_TRANSIENT_TTL_DAYS", "30"))
+
+
+def _collect_search_candidates(semantic, keyword, *, show_expired, hybrid):
+    """Union recall sources without treating a keyword score as cosine similarity."""
+    candidates, ranks = {}, {}
+    for source_index, rows in enumerate((semantic, keyword if hybrid else [])):
+        seen = set()
+        for rank, row in enumerate(rows or []):
+            value = row if isinstance(row, dict) else {
+                "id": getattr(row, "id", ""), "score": getattr(row, "score", 0),
+                "payload": getattr(row, "payload", None),
+            }
+            mem_id = str(value.get("id", ""))
+            payload = value.get("payload") or {}
+            if not mem_id or mem_id in seen or not payload.get("data"):
+                continue
+            if not show_expired and _payload_is_expired(payload):
+                continue
+            if source_index and not (value.get("score") or 0) > 0:
+                continue
+            seen.add(mem_id)
+            ranks[mem_id] = ranks.get(mem_id, 0) + 1 / (60 + rank + 1)
+            if mem_id not in candidates:
+                candidates[mem_id] = {
+                    "id": mem_id, "payload": payload,
+                    "score": value.get("score", 0) if source_index == 0 else 0,
+                    "semantic": source_index == 0,
+                }
+    return list(candidates.values()), ranks
+
+
+def _finish_search(query, memories, reranker, limit, pool_size, explain):
+    """Keep baseline scores and order for fallback; RRF only selects the bounded pool."""
+    def clean(item):
+        return {key: value for key, value in item.items() if key not in ("_recall_rank", "_fallback_eligible")}
+
+    fallback = [clean(item) for item in memories if item.get("_fallback_eligible", True)][:limit]
+    details = {"status": "disabled", "candidate_count": 0, "latency_ms": 0}
+    results = fallback
+    if reranker and memories:
+        selected = sorted(memories, key=lambda item: item.get("_recall_rank", 0), reverse=True)[:pool_size]
+        pool = [clean(item) for item in selected]
+        details["candidate_count"] = len(pool)
+        start = time.perf_counter()
+        try:
+            results = reranker.rerank(query, deepcopy(pool), limit)[:limit]
+            details["status"] = "applied"
+        except Exception as exc:
+            # Provider errors can include credentials or memory text; log only the type.
+            logger.warning("Reranking failed (%s), using original results", type(exc).__name__)
+            results = fallback
+            details["status"] = "fallback"
+        details["latency_ms"] = round((time.perf_counter() - start) * 1000)
+    elif reranker:
+        details["status"] = "empty"
+    response = {"results": results}
+    if explain:
+        response["rerank"] = details
+    return response
 
 
 def _vector_store_list_rows(listed):
@@ -533,7 +599,7 @@ class Memory(MemoryBase):
 
         # Initialize reranker if configured
         self.reranker = None
-        if config.reranker:
+        if config.reranker and config.reranker.enabled:
             self.reranker = RerankerFactory.create(
                 config.reranker.provider,
                 config.reranker.config
@@ -1514,19 +1580,19 @@ class Memory(MemoryBase):
             effective_filters.update(processed_filters)
 
 
+        active_reranker = self.reranker if rerank else None
+        pool_size = self.config.reranker.candidate_pool_size if active_reranker else 0
+        options = {}
+        if active_reranker:
+            options["candidate_pool_size"] = pool_size
+        candidate_filter = kwargs.pop("_candidate_filter", None)
+        if candidate_filter is not None:
+            options["candidate_filter"] = candidate_filter
         original_memories = self._search_vector_store(
-            query, effective_filters, limit, threshold, explain=explain, show_expired=show_expired
+            query, effective_filters, limit, threshold, explain=explain, show_expired=show_expired, **options
         )
+        return _finish_search(query, original_memories, active_reranker, limit, pool_size, explain)
 
-        # Apply reranking if enabled and reranker is available
-        if rerank and self.reranker and original_memories:
-            try:
-                reranked_memories = self.reranker.rerank(query, original_memories, limit)
-                original_memories = reranked_memories
-            except Exception as e:
-                logger.warning(f"Reranking failed, using original results: {e}")
-
-        return {"results": original_memories}
 
     def _process_metadata_filters(self, metadata_filters: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1632,7 +1698,10 @@ class Memory(MemoryBase):
                 return True
         return False
 
-    def _search_vector_store(self, query, filters, limit, threshold=0.1, explain=False, show_expired=False):
+    def _search_vector_store(
+        self, query, filters, limit, threshold=0.1, explain=False, show_expired=False,
+        candidate_pool_size=None, candidate_filter=None,
+    ):
         # Guard against None threshold (backward compat)
         if threshold is None:
             threshold = 0.1
@@ -1645,8 +1714,7 @@ class Memory(MemoryBase):
         embeddings = self.embedding_model.embed(query, "search")
 
         # Step 3: Semantic search (over-fetch for scoring pool)
-        internal_limit = max(limit * 4, 60)
-        
+        internal_limit = candidate_pool_size or max(limit * 4, 60)
         semantic_results = self.vector_store.search(
             query=query, vectors=embeddings, top_k=internal_limit, filters=filters
         )
@@ -1671,22 +1739,18 @@ class Memory(MemoryBase):
         if query_entities:
             entity_boosts = self._compute_entity_boosts(query_entities, filters)
 
-        # Step 7: Build candidate set from semantic results, minus contexts the query's own
-        # context isn't allowed to see (debug and release memories stay in their lane).
+        # Step 7: Merge recall sources for reranking, preserving semantic-only fallback eligibility.
+        candidates, recall_ranks = _collect_search_candidates(
+            semantic_results, keyword_results, show_expired=show_expired, hybrid=bool(candidate_pool_size)
+        )
         query_context = filters.get("context") or "chat"
-        candidates = []
-        for mem in semantic_results:
-            payload = mem.payload if hasattr(mem, 'payload') else {}
-            if not show_expired and _payload_is_expired(payload):
-                continue
-            if not should_cross_context_search(query_context, payload.get("context") or "chat"):
-                continue
-            mem_id = str(mem.id)
-            candidates.append({
-                "id": mem_id,
-                "score": mem.score,
-                "payload": payload,
-            })
+        candidates = [
+            item for item in candidates
+            if should_cross_context_search(query_context, item["payload"].get("context") or "chat")
+        ]
+        fallback_ids = {
+            item["id"] for item in candidates if item["semantic"] and (item["score"] or 0) >= threshold
+        }
 
         # Step 8: Score and rank
         hierarchy_boosts = {}
@@ -1700,9 +1764,10 @@ class Memory(MemoryBase):
             bm25_scores=bm25_scores,
             entity_boosts=entity_boosts,
             threshold=threshold,
-            top_k=limit,
+            top_k=len(candidates),
             explain=explain,
             hierarchy_boosts=hierarchy_boosts,
+            allow_keyword_matches=bool(candidate_pool_size),
         )
 
         # Step 9: Format results
@@ -1745,9 +1810,14 @@ class Memory(MemoryBase):
             if explain and "score_details" in scored:
                 memory_item_dict["score_details"] = scored["score_details"]
 
+            if candidate_filter is not None and not candidate_filter(memory_item_dict):
+                continue
+            if candidate_pool_size:
+                memory_item_dict["_recall_rank"] = recall_ranks[scored["id"]]
+                memory_item_dict["_fallback_eligible"] = scored["id"] in fallback_ids
             original_memories.append(memory_item_dict)
 
-        return original_memories
+        return original_memories if candidate_pool_size else original_memories[:limit]
 
     def _compute_entity_boosts(self, query_entities, filters):
         """Compute per-memory entity boosts from entity store search.
@@ -2163,6 +2233,9 @@ class Memory(MemoryBase):
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
             self.db = None
+        close_reranker = getattr(getattr(self, "reranker", None), "close", None)
+        if close_reranker is not None:
+            close_reranker()
 
     def __enter__(self):
         return self
@@ -2196,7 +2269,7 @@ class AsyncMemory(MemoryBase):
 
         # Initialize reranker if configured
         self.reranker = None
-        if config.reranker:
+        if config.reranker and config.reranker.enabled:
             self.reranker = RerankerFactory.create(
                 config.reranker.provider,
                 config.reranker.config
@@ -3177,22 +3250,21 @@ class AsyncMemory(MemoryBase):
             effective_filters.update(processed_filters)
 
 
+        active_reranker = self.reranker if rerank else None
+        pool_size = self.config.reranker.candidate_pool_size if active_reranker else 0
+        options = {}
+        if active_reranker:
+            options["candidate_pool_size"] = pool_size
+        candidate_filter = kwargs.pop("_candidate_filter", None)
+        if candidate_filter is not None:
+            options["candidate_filter"] = candidate_filter
         original_memories = await self._search_vector_store(
-            query, effective_filters, limit, threshold, explain=explain, show_expired=show_expired
+            query, effective_filters, limit, threshold, explain=explain, show_expired=show_expired, **options
+        )
+        return await asyncio.to_thread(
+            _finish_search, query, original_memories, active_reranker, limit, pool_size, explain
         )
 
-        # Apply reranking if enabled and reranker is available
-        if rerank and self.reranker and original_memories:
-            try:
-                # Run reranking in thread pool to avoid blocking async loop
-                reranked_memories = await asyncio.to_thread(
-                    self.reranker.rerank, query, original_memories, limit
-                )
-                original_memories = reranked_memories
-            except Exception as e:
-                logger.warning(f"Reranking failed, using original results: {e}")
-
-        return {"results": original_memories}
 
     def _process_metadata_filters(self, metadata_filters: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -3298,7 +3370,10 @@ class AsyncMemory(MemoryBase):
                 return True
         return False
 
-    async def _search_vector_store(self, query, filters, limit, threshold=0.1, explain=False, show_expired=False):
+    async def _search_vector_store(
+        self, query, filters, limit, threshold=0.1, explain=False, show_expired=False,
+        candidate_pool_size=None, candidate_filter=None,
+    ):
         if threshold is None:
             threshold = 0.1
 
@@ -3310,8 +3385,7 @@ class AsyncMemory(MemoryBase):
         embeddings = await asyncio.to_thread(self.embedding_model.embed, query, "search")
 
         # Step 3: Semantic search (over-fetch)
-        internal_limit = max(limit * 4, 60)
-        
+        internal_limit = candidate_pool_size or max(limit * 4, 60)
         semantic_results = await asyncio.to_thread(
             self.vector_store.search, query=query, vectors=embeddings, top_k=internal_limit, filters=filters
         )
@@ -3336,22 +3410,18 @@ class AsyncMemory(MemoryBase):
         if query_entities:
             entity_boosts = await self._compute_entity_boosts_async(query_entities, filters)
 
-        # Step 7: Build candidate set from semantic results, minus contexts the query's own
-        # context isn't allowed to see (debug and release memories stay in their lane).
+        # Step 7: Merge recall sources for reranking, preserving semantic-only fallback eligibility.
+        candidates, recall_ranks = _collect_search_candidates(
+            semantic_results, keyword_results, show_expired=show_expired, hybrid=bool(candidate_pool_size)
+        )
         query_context = filters.get("context") or "chat"
-        candidates = []
-        for mem in semantic_results:
-            payload = mem.payload if hasattr(mem, 'payload') else {}
-            if not show_expired and _payload_is_expired(payload):
-                continue
-            if not should_cross_context_search(query_context, payload.get("context") or "chat"):
-                continue
-            mem_id = str(mem.id)
-            candidates.append({
-                "id": mem_id,
-                "score": mem.score,
-                "payload": payload,
-            })
+        candidates = [
+            item for item in candidates
+            if should_cross_context_search(query_context, item["payload"].get("context") or "chat")
+        ]
+        fallback_ids = {
+            item["id"] for item in candidates if item["semantic"] and (item["score"] or 0) >= threshold
+        }
 
         # Step 8: Score and rank
         hierarchy_boosts = {}
@@ -3365,9 +3435,10 @@ class AsyncMemory(MemoryBase):
             bm25_scores=bm25_scores,
             entity_boosts=entity_boosts,
             threshold=threshold,
-            top_k=limit,
+            top_k=len(candidates),
             explain=explain,
             hierarchy_boosts=hierarchy_boosts,
+            allow_keyword_matches=bool(candidate_pool_size),
         )
 
         # Step 9: Format results
@@ -3409,9 +3480,14 @@ class AsyncMemory(MemoryBase):
             if explain and "score_details" in scored:
                 memory_item_dict["score_details"] = scored["score_details"]
 
+            if candidate_filter is not None and not candidate_filter(memory_item_dict):
+                continue
+            if candidate_pool_size:
+                memory_item_dict["_recall_rank"] = recall_ranks[scored["id"]]
+                memory_item_dict["_fallback_eligible"] = scored["id"] in fallback_ids
             original_memories.append(memory_item_dict)
 
-        return original_memories
+        return original_memories if candidate_pool_size else original_memories[:limit]
 
     async def _compute_entity_boosts_async(self, query_entities, filters):
         """Async version of entity boost computation."""
@@ -3863,6 +3939,9 @@ class AsyncMemory(MemoryBase):
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
             self.db = None
+        close_reranker = getattr(getattr(self, "reranker", None), "close", None)
+        if close_reranker is not None:
+            close_reranker()
 
     async def __aenter__(self):
         return self

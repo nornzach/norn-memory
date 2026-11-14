@@ -117,7 +117,6 @@ class TestBackfill:
 
     def _queue(self, retag_all, limit):
         from fastapi import BackgroundTasks
-
         from routers import categories
 
         db = MagicMock()
@@ -488,4 +487,81 @@ class TestConfigureEndpoints:
         assert body["llm"] == {"ok": False, "error": "401 invalid api key", "latency_ms": None}
         assert body["embedder"]["ok"] is True
         assert body["embedder"]["dims"] == expected
+        update.assert_not_called()
+
+
+class TestRerankConfiguration:
+    SECTION = {"provider": "qwen", "enabled": True, "config": {"api_key": "test-key"}}
+
+    def test_new_rerank_url_drops_previous_key(self):
+        from server_state import apply_config_updates
+
+        merged = apply_config_updates(
+            {"reranker": {**self.SECTION, "config": {"api_key": "old-key", "base_url": "https://old/v1"}}},
+            {"reranker": {"config": {"base_url": "https://new/v1"}}},
+        )
+        assert "api_key" not in merged["reranker"]["config"]
+        assert merged["reranker"]["enabled"] is True
+
+    def test_failed_initialization_does_not_replace_running_state(self, monkeypatch):
+        import server_state
+
+        current = {"version": "v1.1"}
+        instance = object()
+        monkeypatch.setattr(server_state, "_current_config", current)
+        monkeypatch.setattr(server_state, "_memory_instance", instance)
+        with patch.object(server_state.Memory, "from_config", side_effect=ValueError("invalid config")):
+            with pytest.raises(ValueError):
+                server_state.update_config({"reranker": self.SECTION})
+        assert server_state.get_current_config() == current
+        assert server_state.get_memory_instance() is instance
+
+    def test_reranker_check_rejects_response_without_probe_identity(self):
+        import config_check
+
+        with patch.object(config_check, "RerankerFactory") as factory:
+            factory.create.return_value.rerank.return_value = [{"memory": "test", "rerank_score": 0.0}]
+            result = config_check.check_reranker(self.SECTION)
+        assert result["ok"] is False
+
+    def test_invalid_rerank_config_is_a_400(self, config_client):
+        client, _, update, _, _ = config_client
+        response = client.post("/configure", json={"reranker": {**self.SECTION, "candidate_pool_size": 0}})
+        assert response.status_code == 400
+        update.assert_not_called()
+
+    def test_configured_reranker_is_default_and_can_be_disabled_per_request(self, config_client):
+        client, main, _, _, _ = config_client
+        main.app.dependency_overrides[main.get_key_scope] = lambda: None
+        with patch.object(main, "get_current_config", return_value={"reranker": self.SECTION}):
+            with patch.object(main, "get_memory_instance") as get_memory:
+                get_memory.return_value.search.return_value = {"results": []}
+                for value, expected in [(None, True), (False, False), (True, True)]:
+                    body = {"query": "test", "filters": {"user_id": "alice"}}
+                    if value is not None:
+                        body["rerank"] = value
+                    response = client.post("/search", json=body)
+                    assert response.status_code == 200
+                    assert get_memory.return_value.search.call_args.kwargs["rerank"] is expected
+
+    def test_exact_folder_and_key_scope_checked_before_external_rerank(self, config_client):
+        client, main, _, _, _ = config_client
+        from scopes import KeyScope
+
+        main.app.dependency_overrides[main.get_key_scope] = lambda: KeyScope(categories=frozenset({"Work"}))
+        with patch.object(main, "get_current_config", return_value={"reranker": self.SECTION}):
+            with patch.object(main, "get_memory_instance") as get_memory:
+                get_memory.return_value.search.return_value = {"results": []}
+                response = client.post("/search", json={"query": "test", "user_id": "alice", "cwd": "/repo"})
+                assert response.status_code == 200
+                keep = get_memory.return_value.search.call_args.kwargs["_candidate_filter"]
+                assert keep({"metadata": {"cwd": "/repo/app", "categories": ["Work"]}})
+                assert not keep({"metadata": {"cwd": "/old/repo", "categories": ["Work"]}})
+                assert not keep({"metadata": {"cwd": "/repo", "categories": ["Personal"]}})
+
+    @pytest.mark.parametrize("section", [True, [], {"provider": "qwen", "config": ["invalid"]}])
+    def test_malformed_rerank_section_is_a_400(self, config_client, section):
+        client, _, update, _, _ = config_client
+        response = client.post("/configure", json={"reranker": section})
+        assert response.status_code == 400
         update.assert_not_called()

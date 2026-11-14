@@ -11,6 +11,18 @@ type ProviderConfig = {
 export type EffectiveConfig = {
   llm?: ProviderConfig;
   embedder?: ProviderConfig;
+  reranker?: {
+    provider?: string;
+    enabled?: boolean;
+    candidate_pool_size?: number;
+    config?: {
+      model?: string;
+      api_key?: string;
+      base_url?: string;
+      timeout?: number;
+      min_score?: number | null;
+    };
+  } | null;
   vector_store?: { config?: { embedding_model_dims?: number } };
   /** What the LLM should keep, and leave out, when it extracts memories. */
   custom_instructions?: string | null;
