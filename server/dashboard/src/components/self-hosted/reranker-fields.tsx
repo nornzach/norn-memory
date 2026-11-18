@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/shared/page";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/use-toast";
 import { CheckLine, type CheckResult } from "./provider-fields";
@@ -12,24 +19,32 @@ import { useI18n } from "@/i18n/provider";
 import { getErrorMessage } from "@/lib/error-message";
 import { api } from "@/utils/api";
 import { MEMORY_ENDPOINTS } from "@/utils/api-endpoints";
-import type { EffectiveConfig } from "@/utils/self-hosted-config";
+import {
+  PROVIDER_LABELS,
+  type EffectiveConfig,
+} from "@/utils/self-hosted-config";
 
 const DEFAULT_URL = "https://maas.qianwenaiapi.com/compatible-api/v1";
+const DEFAULT_MODEL = { qwen: "qwen3.7-text-rerank", jina: "jina-reranker-v3" };
+type RerankerProvider = keyof typeof DEFAULT_MODEL;
 
 export function RerankerFields({
   config,
   disabled,
   onSaved,
+  providers,
 }: {
   config: EffectiveConfig | null | undefined;
   disabled: boolean;
   onSaved: () => Promise<unknown>;
+  providers?: string[];
 }) {
   const { t } = useI18n();
   const text = t.configuration.reranker;
   const [enabled, setEnabled] = useState(false);
+  const [provider, setProvider] = useState<RerankerProvider>("qwen");
   const [form, setForm] = useState({
-    model: "qwen3.7-text-rerank",
+    model: DEFAULT_MODEL.qwen,
     baseUrl: DEFAULT_URL,
     apiKey: "",
     pool: "60",
@@ -42,9 +57,11 @@ export function RerankerFields({
   useEffect(() => {
     if (!config) return;
     const saved = config.reranker;
+    const nextProvider = saved?.provider === "jina" ? "jina" : "qwen";
+    setProvider(nextProvider);
     setEnabled(Boolean(saved && saved.enabled !== false));
     setForm({
-      model: saved?.config?.model ?? "qwen3.7-text-rerank",
+      model: saved?.config?.model ?? DEFAULT_MODEL[nextProvider],
       baseUrl: saved?.config?.base_url ?? DEFAULT_URL,
       apiKey: "",
       pool: String(saved?.candidate_pool_size ?? 60),
@@ -59,32 +76,37 @@ export function RerankerFields({
     setForm((previous) => ({ ...previous, [key]: value }));
     setResult(null);
   };
+  const isJina = provider === "jina";
+  const maxPool = isJina ? 64 : 500;
+  const minScore = isJina ? -1 : 0;
   const sameEndpoint =
-    form.baseUrl.trim().replace(/\/$/, "") ===
-    (config?.reranker?.config?.base_url ?? DEFAULT_URL).replace(/\/$/, "");
+    provider === (config?.reranker?.provider ?? "qwen") &&
+    (isJina ||
+      form.baseUrl.trim().replace(/\/$/, "") ===
+        (config?.reranker?.config?.base_url ?? DEFAULT_URL).replace(/\/$/, ""));
+  const keyRequired = !isJina && !sameEndpoint;
   const valid =
     form.model.trim() &&
-    /^https?:\/\//.test(form.baseUrl.trim()) &&
+    (isJina || /^https?:\/\//.test(form.baseUrl.trim())) &&
     Number.isInteger(Number(form.pool)) &&
     Number(form.pool) >= 1 &&
-    Number(form.pool) <= 500 &&
+    Number(form.pool) <= maxPool &&
     Number(form.timeout) > 0 &&
     Number(form.timeout) <= 30 &&
     (!form.minScore ||
-      (Number(form.minScore) >= 0 && Number(form.minScore) <= 1)) &&
-    (sameEndpoint || form.apiKey.trim() || !enabled);
+      (Number(form.minScore) >= minScore && Number(form.minScore) <= 1));
 
   const submit = async (action: "save" | "test") => {
     setBusy(action);
     setResult(null);
     const payload = {
       reranker: {
-        provider: "qwen",
+        provider,
         enabled: action === "test" || enabled,
         candidate_pool_size: Number(form.pool),
         config: {
           model: form.model.trim(),
-          base_url: form.baseUrl.trim(),
+          ...(isJina ? {} : { base_url: form.baseUrl.trim() }),
           ...(form.apiKey.trim() ? { api_key: form.apiKey.trim() } : {}),
           timeout: Number(form.timeout),
           min_score: form.minScore ? Number(form.minScore) : null,
@@ -121,7 +143,7 @@ export function RerankerFields({
     ["model", t.configuration.model, "text"],
     ["baseUrl", t.configuration.baseUrl, "url"],
     ["apiKey", t.configuration.apiKey, "password"],
-    ["pool", text.pool, "number"],
+    ["pool", text.pool(maxPool), "number"],
     ["timeout", text.timeout, "number"],
     ["minScore", text.minScore, "number"],
   ] as const;
@@ -147,49 +169,89 @@ export function RerankerFields({
           disabled={disabled || !!busy || !config}
           className="grid gap-4 md:grid-cols-2"
         >
-          {fields.map(([key, label, type]) => (
-            <div key={key} className="space-y-2">
-              <Label htmlFor={`reranker-${key}`}>{label}</Label>
-              <Input
-                id={`reranker-${key}`}
-                type={type}
-                value={form[key]}
-                autoComplete={key === "apiKey" ? "new-password" : undefined}
-                min={
-                  key === "pool"
-                    ? 1
-                    : key === "timeout"
-                      ? 0.1
+          <div className="space-y-2">
+            <Label htmlFor="reranker-provider">
+              {t.configuration.provider}
+            </Label>
+            <Select
+              value={provider}
+              disabled={disabled || !!busy || !providers}
+              onValueChange={(value) => {
+                if (value !== "qwen" && value !== "jina") return;
+                setProvider(value);
+                setForm((previous) => ({
+                  ...previous,
+                  model: DEFAULT_MODEL[value],
+                  baseUrl: DEFAULT_URL,
+                  apiKey: "",
+                  pool:
+                    Number(previous.pool) > (value === "jina" ? 64 : 500)
+                      ? "60"
+                      : previous.pool,
+                  minScore: "",
+                }));
+                setResult(null);
+              }}
+            >
+              <SelectTrigger id="reranker-provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(providers ?? [provider]).map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {PROVIDER_LABELS[name] ?? name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {fields
+            .filter(([key]) => !isJina || key !== "baseUrl")
+            .map(([key, label, type]) => (
+              <div key={key} className="space-y-2">
+                <Label htmlFor={`reranker-${key}`}>{label}</Label>
+                <Input
+                  id={`reranker-${key}`}
+                  type={type}
+                  value={form[key]}
+                  autoComplete={key === "apiKey" ? "new-password" : undefined}
+                  min={
+                    key === "pool"
+                      ? 1
+                      : key === "timeout"
+                        ? 0.1
+                        : key === "minScore"
+                          ? minScore
+                          : undefined
+                  }
+                  max={
+                    key === "pool"
+                      ? maxPool
+                      : key === "timeout"
+                        ? 30
+                        : key === "minScore"
+                          ? 1
+                          : undefined
+                  }
+                  step={key === "pool" ? 1 : "any"}
+                  placeholder={
+                    key === "apiKey"
+                      ? sameEndpoint && config?.reranker?.config?.api_key
+                        ? t.configuration.keepSavedKey
+                        : keyRequired
+                          ? t.configuration.keyRequired
+                          : t.configuration.envKey
                       : key === "minScore"
-                        ? 0
+                        ? text.off
                         : undefined
-                }
-                max={
-                  key === "pool"
-                    ? 500
-                    : key === "timeout"
-                      ? 30
-                      : key === "minScore"
-                        ? 1
-                        : undefined
-                }
-                step={key === "pool" ? 1 : "any"}
-                placeholder={
-                  key === "apiKey" &&
-                  config?.reranker?.config?.api_key &&
-                  sameEndpoint
-                    ? t.configuration.keepSavedKey
-                    : key === "minScore"
-                      ? text.off
-                      : undefined
-                }
-                onChange={(event) => update(key, event.target.value)}
-              />
-            </div>
-          ))}
+                  }
+                  onChange={(event) => update(key, event.target.value)}
+                />
+              </div>
+            ))}
         </fieldset>
         <p className="text-xs text-ink-3">{text.thresholdHint}</p>
-        {!sameEndpoint && (
+        {keyRequired && (
           <p className="text-xs text-ink-3">
             {t.configuration.keyRequiredHint}
           </p>
@@ -199,7 +261,12 @@ export function RerankerFields({
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              disabled={!valid || !!busy || !config}
+              disabled={
+                !valid ||
+                !!busy ||
+                !config ||
+                (keyRequired && !form.apiKey.trim())
+              }
               onClick={() => submit("test")}
             >
               {busy === "test"
@@ -207,7 +274,12 @@ export function RerankerFields({
                 : t.configuration.testConnection}
             </Button>
             <Button
-              disabled={!valid || !!busy || !config}
+              disabled={
+                !valid ||
+                !!busy ||
+                !config ||
+                (enabled && keyRequired && !form.apiKey.trim())
+              }
               onClick={() => submit("save")}
             >
               {busy === "save" ? t.common.saving : text.save}

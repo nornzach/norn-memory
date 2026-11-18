@@ -33,6 +33,7 @@ import { useI18n } from "@/i18n/provider";
 type BundledProviders = {
   llm: string[];
   embedder: string[];
+  reranker?: string[];
 };
 
 export default function ConfigurationPage() {
@@ -188,7 +189,12 @@ export default function ConfigurationPage() {
         ))}
       </div>
 
-      <RerankerFields config={config} disabled={!isAdmin} onSaved={refetch} />
+      <RerankerFields
+        config={config}
+        disabled={!isAdmin}
+        onSaved={refetch}
+        providers={providers?.reranker}
+      />
 
       <InstructionsPanel
         saved={config ? (config.custom_instructions ?? "") : undefined}

@@ -127,11 +127,11 @@ const en = {
     embedderDescription: "Turns memories into vectors for semantic search.",
     readOnly: "Only admins can change the configuration.",
     reranker: {
-      title: "Qwen Reranker",
+      title: "Reranker",
       description:
         "Rank combined semantic and keyword candidates before choosing results. Searches send the query and candidate memory text to this provider. Errors fall back to the original ranking.",
       enabled: "Enable by default for memory searches",
-      pool: "Candidate pool (1–500)",
+      pool: (max: number) => `Candidate pool (1–${max})`,
       timeout: "Request timeout in seconds (max 30)",
       minScore: "Minimum rerank score (optional)",
       off: "Off",
@@ -313,11 +313,11 @@ const zh: typeof en = {
     embedderDescription: "把记忆转换成向量，用于语义搜索。",
     readOnly: "只有管理员可以修改配置。",
     reranker: {
-      title: "Qwen 重排模型",
+      title: "重排模型",
       description:
         "合并向量和关键词候选，重排后选取结果。查询和候选记忆正文会发送到此服务；调用失败时返回原排序。",
       enabled: "记忆搜索默认启用重排",
-      pool: "候选池大小（1–500）",
+      pool: (max: number) => `候选池大小（1–${max}）`,
       timeout: "请求超时秒数（最多 30）",
       minScore: "最低重排分数（可选）",
       off: "关闭",

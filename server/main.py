@@ -101,6 +101,7 @@ SKIPPED_REQUEST_LOG_PREFIXES = ("/requests",)
 
 BUNDLED_LLM_PROVIDERS = ("openai", "anthropic", "gemini", "deepseek")
 BUNDLED_EMBEDDER_PROVIDERS = ("openai", "gemini", "qwen", "jina")
+BUNDLED_RERANKER_PROVIDERS = ("qwen", "jina")
 
 
 def _warn_if_unconfigured() -> None:
@@ -400,13 +401,14 @@ def _validate_config_update(config: Dict[str, Any]) -> Dict[str, Any]:
     candidate = apply_config_updates(get_current_config(), config)
     if candidate.get("reranker") is not None:
         from norn_m.configs.rerankers.config import RerankerConfig
-        from norn_m.configs.rerankers.qwen import QwenRerankerConfig
+        from norn_m.utils.factory import RerankerFactory
 
         try:
             section = RerankerConfig(**candidate["reranker"])
-            if section.provider != "qwen":
-                raise ValueError("Only the qwen reranker is bundled in this image")
-            QwenRerankerConfig(**(section.config or {}))
+            if section.provider not in BUNDLED_RERANKER_PROVIDERS:
+                raise ValueError("Reranker provider is not bundled in this image")
+            _, config_class = RerankerFactory.provider_to_class[section.provider]
+            config_class(**(section.config or {}))
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid reranker configuration. Check provider, URL and limits.")
     return candidate
@@ -483,7 +485,11 @@ def get_config(_auth=Depends(verify_unscoped)):
 
 @app.get("/configure/providers", summary="List bundled LLM, embedder and reranker providers")
 def list_bundled_providers(_auth=Depends(verify_auth)):
-    return {"llm": list(BUNDLED_LLM_PROVIDERS), "embedder": list(BUNDLED_EMBEDDER_PROVIDERS), "reranker": ["qwen"]}
+    return {
+        "llm": list(BUNDLED_LLM_PROVIDERS),
+        "embedder": list(BUNDLED_EMBEDDER_PROVIDERS),
+        "reranker": list(BUNDLED_RERANKER_PROVIDERS),
+    }
 
 
 @app.post("/configure/test", summary="Test provider configuration without saving it")

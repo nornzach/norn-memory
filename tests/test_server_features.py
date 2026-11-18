@@ -493,6 +493,22 @@ class TestConfigureEndpoints:
 class TestRerankConfiguration:
     SECTION = {"provider": "qwen", "enabled": True, "config": {"api_key": "test-key"}}
 
+    def test_switch_to_jina_probes_and_drops_qwen_credentials(self, config_client):
+        client, main, update, _, _ = config_client
+        jina = {"provider": "jina", "candidate_pool_size": 60, "config": {"model": "jina-reranker-v3"}}
+        with patch.object(main, "get_current_config", return_value={"reranker": self.SECTION}):
+            with patch.object(main.config_check, "check_reranker", return_value={"ok": True}) as check:
+                response = client.post("/configure", json={"reranker": jina})
+        assert response.status_code == 200
+        check.assert_called_once_with({**jina, "enabled": True})
+        update.assert_called_once_with({"reranker": jina})
+
+    def test_jina_rejects_candidate_pool_above_its_limit(self, config_client):
+        client, _, update, _, _ = config_client
+        response = client.post("/configure", json={"reranker": {"provider": "jina", "candidate_pool_size": 65}})
+        assert response.status_code == 400
+        update.assert_not_called()
+
     def test_new_rerank_url_drops_previous_key(self):
         from server_state import apply_config_updates
 

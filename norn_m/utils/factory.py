@@ -18,6 +18,7 @@ from norn_m.configs.llms.xai import XAIConfig
 from norn_m.configs.rerankers.base import BaseRerankerConfig
 from norn_m.configs.rerankers.cohere import CohereRerankerConfig
 from norn_m.configs.rerankers.huggingface import HuggingFaceRerankerConfig
+from norn_m.configs.rerankers.jina import JinaRerankerConfig
 from norn_m.configs.rerankers.llm import LLMRerankerConfig
 from norn_m.configs.rerankers.qwen import QwenRerankerConfig
 from norn_m.configs.rerankers.sentence_transformer import (
@@ -236,6 +237,7 @@ class RerankerFactory:
     provider_to_class = {
         "cohere": ("norn_m.reranker.cohere_reranker.CohereReranker", CohereRerankerConfig),
         "qwen": ("norn_m.reranker.qwen_reranker.QwenReranker", QwenRerankerConfig),
+        "jina": ("norn_m.reranker.jina_reranker.JinaReranker", JinaRerankerConfig),
         "sentence_transformer": (
             "norn_m.reranker.sentence_transformer_reranker.SentenceTransformerReranker",
             SentenceTransformerRerankerConfig,

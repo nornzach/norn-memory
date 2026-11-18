@@ -11,6 +11,7 @@ The server reads `server/.env`. Copy `server/.env.example` and fill in at least 
 | `NORN_M_DEFAULT_EMBEDDER_PROVIDER` / `NORN_M_DEFAULT_EMBEDDER_MODEL` | No | Startup embedder. Defaults to `openai` / `text-embedding-3-small` |
 | `NORN_M_DEFAULT_EMBEDDER_DIMS` | No | Embedding width, used for the pgvector column. Defaults to `1536`; `768` for Gemini. Qwen sends it as the requested size (256 to 2560 for `qwen3.7-text-embedding`). Changing it after memories exist needs a new `POSTGRES_COLLECTION_NAME` |
 | `QWEN_RERANK_API_KEY` | With Qwen reranking | Reranker key if not saved through the dashboard. See [reranking](reranking.md) |
+| `JINA_API_KEY` | With Jina embedding or reranking | Shared environment key when a provider-specific key is not configured |
 | `JWT_SECRET` | Yes | Signs dashboard tokens. Generate one with `openssl rand -base64 48` |
 | `POSTGRES_PASSWORD` | Yes | Password for the bundled Postgres. Compose refuses to start without it |
 | `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER` | No | Postgres connection for memories. Default to the bundled container |
@@ -40,7 +41,7 @@ The image bundles these providers:
 |---|---|
 | LLM | `openai`, `anthropic`, `gemini`, `deepseek` |
 | Embedder | `openai`, `gemini`, `qwen`, `jina` |
-| Reranker | `qwen` |
+| Reranker | `qwen`, `jina` |
 
 Any OpenAI-compatible endpoint (a local model server, a proxy, another vendor) works through the `openai` provider with a custom base URL.
 
@@ -54,7 +55,7 @@ Change providers at runtime on the dashboard's **Configuration** page, which tes
 
 ## Reranking
 
-Configure Qwen separately in **Configuration → Qwen Reranker**. Its base URL is `https://maas.qianwenaiapi.com/compatible-api/v1`, distinct from the embedding endpoint above. Once saved and enabled, ordinary REST/MCP searches rerank by default, with a pool of 60, a 5-second HTTP timeout, and no rejection threshold. Failures fall back to the original eligible results. See [reranking](reranking.md) for limits, score semantics, and request opt-out.
+Choose Qwen or Jina in **Configuration → Reranker**. Jina defaults to `jina-reranker-v3` and uses `JINA_API_KEY` unless a separate key is configured. Once saved and enabled, ordinary REST/MCP searches rerank by default, with a pool of 60, a 5-second HTTP timeout, and no rejection threshold. Failures fall back to the original eligible results. Switching rerankers does not require re-embedding stored memories. See [reranking](reranking.md) for limits, score semantics, and request opt-out.
 
 ## No telemetry
 
