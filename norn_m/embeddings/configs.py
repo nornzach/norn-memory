@@ -26,6 +26,7 @@ class EmbedderConfig(BaseModel):
             "aws_bedrock",
             "fastembed",
             "qwen",
+            "jina",
         ]:
             return v
         else:

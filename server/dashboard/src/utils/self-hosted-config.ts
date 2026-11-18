@@ -55,12 +55,14 @@ export const PROVIDER_LABELS: Record<string, string> = {
   gemini: "Gemini",
   deepseek: "DeepSeek",
   qwen: "Qwen (Qianwen)",
+  jina: "Jina AI",
 };
 
 /** Model field hints for embedders whose model names differ from OpenAI's. */
 export const EMBEDDER_MODEL_PLACEHOLDERS: Record<string, string> = {
   gemini: "models/gemini-embedding-001",
   qwen: "qwen3.7-text-embedding",
+  jina: "jina-embeddings-v4",
 };
 
 export type ProviderForm = {

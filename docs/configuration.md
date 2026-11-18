@@ -39,12 +39,16 @@ The image bundles these providers:
 | | Providers |
 |---|---|
 | LLM | `openai`, `anthropic`, `gemini`, `deepseek` |
-| Embedder | `openai`, `gemini`, `qwen` |
+| Embedder | `openai`, `gemini`, `qwen`, `jina` |
 | Reranker | `qwen` |
 
 Any OpenAI-compatible endpoint (a local model server, a proxy, another vendor) works through the `openai` provider with a custom base URL.
 
 `qwen` is Qwen (Qianwen / Alibaba Cloud DashScope) through its OpenAI-compatible endpoint, `https://maas.qianwenaiapi.com/compatible-mode/v1`. It defaults to `qwen3.7-text-embedding`; `text-embedding-v4` works too. Set `DASHSCOPE_BASE_URL` (or `qwen_base_url` in the embedder config) for another DashScope region. Requests carry at most 10 texts, so larger batches are split.
+
+`jina` uses the native `https://api.jina.ai/v1/embeddings` API. Set `JINA_API_KEY` in the server environment or supply `api_key` in the embedder config. The default model is `jina-embeddings-v4`; both queries and stored memory text use `text-matching`. Set `embedding_dims` to the collection width (768 in the examples). The provider handles text only, and exact records are outside its scope.
+
+Embeddings from different models cannot share a collection, even if their dimensions match. For a self-hosted pgvector collection, set `JINA_API_KEY` in the maintenance container's environment, then run `python -m scripts.reembed_jina memories memories_jina_v4 --dimensions 768` from `/app` in the new server image. This copies IDs, payloads and indexes and embeds the original memory text into a separate collection. It can resume a partially populated target. After the initial backfill, stop all writers and rerun with `--finalize` to sync changes and verify every ID and payload. Then switch the embedder and collection together and restart the API. Check for database-backed overrides in `/configure`: they take precedence over environment defaults. Keep the original collection until the new one is verified. To roll back after new writes have landed, reconcile those writes before returning to the original collection.
 
 Change providers at runtime on the dashboard's **Configuration** page, which tests the connection before saving. Saved settings persist in the app database, reapply on restart, and take precedence over the defaults from `.env`. The same is available through `POST /configure` (see [the API](api.md#memories)).
 
