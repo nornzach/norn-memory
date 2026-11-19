@@ -7,11 +7,12 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 import categorizer
 import config_check
 import ingest
+import knowledge
 import provenance
 import secret_guard
 import webhooks
@@ -62,6 +63,7 @@ from routers import export as export_router
 from routers import hierarchy as hierarchy_router
 from routers import imports as imports_router
 from routers import ingest as ingest_router
+from routers import knowledge as knowledge_router
 from routers import requests as requests_router
 from routers import webhooks as webhooks_router
 from schemas import MessageResponse
@@ -264,6 +266,7 @@ app.include_router(analytics_router.router)
 app.include_router(export_router.router)
 app.include_router(imports_router.router)
 app.include_router(ingest_router.router)
+app.include_router(knowledge_router.router)
 app.include_router(hierarchy_router.router)
 app.include_router(agent_hooks_router.router)
 app.include_router(exact_router.router)
@@ -284,6 +287,8 @@ class MemoryCreate(BaseModel):
     infer: Optional[bool] = Field(None, description="Whether to extract facts from messages. Defaults to True.")
     memory_type: Optional[str] = Field(None, description="Type of memory to store (e.g. 'core').")
     prompt: Optional[str] = Field(None, description="Custom prompt to use for fact extraction.")
+    knowledge_policy: Literal["curated", "legacy"] | None = None
+    knowledge_task_id: str | None = Field(None, min_length=1, max_length=160)
     async_mode: Optional[bool] = Field(
         None,
         description=(
@@ -321,6 +326,8 @@ class SearchRequest(BaseModel):
     agent: Optional[str] = Field(None, description="Only memories written by this agent, e.g. 'claude-code'.")
     project: Optional[str] = Field(None, description="Only memories recorded for this project.")
     cwd: Optional[str] = Field(None, description="Only memories recorded in this folder or one under it.")
+    purpose: knowledge.Purpose = "legacy"
+    task_id: str | None = Field(None, min_length=1, max_length=160)
 
 
 class GenerateInstructionsRequest(BaseModel):
@@ -659,7 +666,9 @@ def add_memory(
     params = {
         k: v
         for k, v in memory_create.model_dump().items()
-        if v is not None and k not in ("messages", "async_mode") and k not in provenance.FIELDS
+        if v is not None
+        and k not in ("messages", "async_mode", "knowledge_policy", "knowledge_task_id")
+        and k not in provenance.FIELDS
     }
     if metadata:
         params["metadata"] = metadata
@@ -668,6 +677,30 @@ def add_memory(
     categorize = not (memory_create.metadata or {}).get("categories")
 
     async_mode = memory_create.async_mode if memory_create.async_mode is not None else ingest.async_enabled()
+    use_curated = memory_create.knowledge_policy == "curated" or (
+        memory_create.knowledge_policy is None and metadata.get("source") == "norn-m-hook"
+    )
+    if use_curated and memory_create.infer is not False:
+        if not memory_create.user_id or memory_create.prompt or memory_create.memory_type:
+            raise HTTPException(422, "Curated writes require a user ID and use the server's evidence policy.")
+        if not messages or len(messages) > 16 or sum(len(msg["content"]) for msg in messages) > 48000:
+            raise HTTPException(422, "A curated write requires 1–16 messages with at most 48,000 characters in total.")
+        params["knowledge_policy"] = "curated"
+        if memory_create.knowledge_task_id:
+            params["knowledge_task_id"] = memory_create.knowledge_task_id
+        try:
+            if not async_mode:
+                return JSONResponse(content={"results": knowledge.ingest(messages, params)})
+            job_id = ingest.enqueue(messages, params, categorize=False)
+        except HTTPException:
+            raise
+        except Exception:
+            raise upstream_error()
+        return JSONResponse(
+            status_code=202,
+            content={"status": "queued", "job_id": str(job_id), "results": [],
+                     "message": "Queued for curation. Proposed knowledge is reviewed before it becomes current."},
+        )
     if async_mode and memory_create.infer is not False and memory_create.memory_type is None:
         try:
             job_id = ingest.enqueue(messages, params, categorize=categorize)
@@ -878,6 +911,23 @@ def search_memories(search_req: SearchRequest, scope: Optional[KeyScope] = Depen
         if scope is not None:
             filters = scope.default_ids(filters)
             scope.check_ids(filters)
+        if search_req.purpose != "legacy":
+            ids = {name: value for name, value in filters.items() if name in knowledge.SCOPE[:3] and value}
+            unsupported = set(filters) - set(knowledge.SCOPE[:3])
+            if unsupported or search_req.device or search_req.agent:
+                raise HTTPException(422, "Use purpose=legacy for source or advanced metadata filters.")
+            if not all(isinstance(value, str) for value in ids.values()):
+                raise HTTPException(422, "Knowledge search requires exact entity IDs.")
+            if scope is not None and (scope.categories or not scope.covers(ids)):
+                return {"results": [], "knowledge": []}
+            project = (knowledge.canonical_project(provenance.clean("project", search_req.project), search_req.cwd)
+                       if search_req.project is not None or search_req.cwd else None)
+            reranker = get_current_config().get("reranker") or {}
+            enabled = bool(reranker and reranker.get("enabled", True) and search_req.rerank is not False)
+            details = {} if search_req.explain else None
+            items = knowledge.search(search_req.query, ids, project, search_req.purpose, search_req.task_id,
+                                     max(1, search_req.top_k or 10), semantic=True, rerank=enabled, details=details)
+            return {"results": [], "knowledge": items, **({"rerank": details} if details is not None else {})}
         source = provenance.query_filters(
             device=search_req.device, agent=search_req.agent, project=search_req.project, cwd=search_req.cwd
         )

@@ -5,6 +5,7 @@ import common from "./common";
 import exact from "./exact";
 import hierarchy from "./hierarchy";
 import insights from "./insights";
+import knowledge from "./knowledge";
 import manage from "./manage";
 import memories from "./memories";
 import requests from "./requests";
@@ -22,6 +23,7 @@ const modules = [
   manage,
   exact,
   hierarchy,
+  knowledge,
 ];
 
 type Merge<T extends readonly { en: object }[]> = T extends readonly [
@@ -43,6 +45,7 @@ export type Messages = Merge<
     typeof manage,
     typeof exact,
     typeof hierarchy,
+    typeof knowledge,
   ]
 >;
 

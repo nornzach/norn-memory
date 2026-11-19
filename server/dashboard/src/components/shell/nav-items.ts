@@ -1,6 +1,7 @@
 import {
   Activity,
   ChartLine,
+  ClipboardCheck,
   FolderInput,
   GalleryVerticalEnd,
   KeyRound,
@@ -39,6 +40,11 @@ export function getNavGroups(t: Messages): NavGroup[] {
           icon: GalleryVerticalEnd,
         },
         { title: t.nav.hierarchy, href: "/dashboard/hierarchy", icon: Layers },
+        {
+          title: t.knowledge.title,
+          href: "/dashboard/knowledge",
+          icon: ClipboardCheck,
+        },
         { title: t.nav.exact, href: "/dashboard/exact", icon: LockKeyhole },
         { title: t.nav.entities, href: "/dashboard/entities", icon: Users },
       ],

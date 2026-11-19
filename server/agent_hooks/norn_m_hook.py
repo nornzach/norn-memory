@@ -36,7 +36,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-VERSION = "1"
+VERSION = "2"
 
 HOME = Path(os.environ.get("NORN_M_HOME") or Path.home() / ".norn-m")
 STATE_DIR = HOME / "state"
@@ -49,6 +49,7 @@ DEFAULT_MIN_SCORE = 0.5
 MIN_PROMPT = 12
 MAX_PROMPT = 4000
 MAX_REPLY = 4000
+MAX_INJECT_ITEM = 1800
 # Only the end of a long transcript is read: the last exchange is all capture needs.
 TRANSCRIPT_TAIL = 4 * 1024 * 1024
 
@@ -134,13 +135,17 @@ def project_of(cwd):
     return path.name.lower() or None
 
 
-def search(config, query, top_k, project=None, floor=None):
-    body = {"query": query[:MAX_PROMPT], "top_k": top_k}
+def search(config, query, top_k, project=None, floor=None, cwd=None):
+    body = {"query": query[:MAX_PROMPT], "top_k": top_k, "purpose": "action"}
     if config.get("user_id"):
         body["filters"] = {"user_id": config["user_id"]}
-    if project:
+    if project is not None:
         body["project"] = project
+    if cwd:
+        body["cwd"] = cwd
     response = call(config, "POST", "/search", body)
+    if isinstance(response, dict) and "knowledge" in response:
+        return [item for item in response["knowledge"] if item.get("id") and item.get("summary")]
     results = response.get("results", []) if isinstance(response, dict) else []
     if floor is None:
         floor = float(config.get("min_score", DEFAULT_MIN_SCORE))
@@ -159,7 +164,9 @@ def gather(config, searches, limit):
     for item in (item for items in lists for item in items):
         if item["id"] not in best or (item.get("score") or 0) > (best[item["id"]].get("score") or 0):
             best[item["id"]] = item
-    return sorted(best.values(), key=lambda item: item.get("score") or 0, reverse=True)[:limit]
+    return sorted(
+        best.values(), key=lambda item: (item.get("layer") == "L0", item.get("score") or 0), reverse=True
+    )[:limit]
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +175,24 @@ def gather(config, searches, limit):
 
 
 def describe(item):
+    if item.get("summary"):
+        procedure = item.get("procedure") or {}
+        fields = [f"{item.get('title')}: {item['summary']}", f"Use when: {item.get('trigger')}."]
+        for label, value in (("Check before use", item.get("verify_before_use")), ("Recheck", item.get("needs_recheck"))):
+            if value:
+                fields.append(f"{label}: {value}")
+        for label, parts in (
+            ("Before", procedure.get("prerequisites")),
+            ("Done when", procedure.get("success_criteria")),
+            ("If it fails", [step["text"] for step in procedure.get("failure_branches", [])]),
+            ("Steps", [step["text"] for step in procedure.get("steps", [])]),
+        ):
+            if parts:
+                fields.append(f"{label}: {'; '.join(parts)}")
+        reference = f"[{item.get('key')} revision {item.get('revision')}; {item.get('evidence_status')}.]"
+        text = " ".join(" ".join(fields).split()).replace(f"</{TAG}>", "")
+        excerpt = text[:MAX_INJECT_ITEM] + ("…" if len(text) > MAX_INJECT_ITEM else "")
+        return f"- {excerpt} {reference}"
     text = " ".join(str(item["memory"]).split()).replace(f"</{TAG}>", "")
     meta = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
     when = str(item.get("updated_at") or item.get("created_at") or "")[:10]
@@ -177,6 +202,10 @@ def describe(item):
 
 def block(heading, items):
     return "\n".join([f"<{TAG}>", heading, *(describe(item) for item in items), f"</{TAG}>"])
+
+
+def shown_key(item):
+    return f"{item['id']}:{item['revision']}" if item.get("revision") else item["id"]
 
 
 def emit(event, text, fmt):
@@ -298,10 +327,11 @@ def last_exchange(path):
 def session_start(config, data, fmt):
     prune_state()
     agent, session_id = config["agent"], data.get("session_id")
-    project = project_of(data.get("cwd"))
-    searches = [(PROFILE_QUERY, 8, None, 0.0)]
+    cwd = data.get("cwd")
+    project = project_of(cwd)
+    searches = [(PROFILE_QUERY, 5, "", 0.0)]
     if project:
-        searches.append((f"{project}: decisions, conventions and context for this project", 6, project, 0.0))
+        searches.append((f"{project}: decisions, conventions and context for this project", 3, project, 0.0, cwd))
     try:
         items = gather(config, searches, 12)
     except ServerError as exc:
@@ -327,7 +357,7 @@ def session_start(config, data, fmt):
         return
     emit("SessionStart", block("What Norn-M remembers about the user and this project:", items), fmt)
     state = load_state(agent, session_id)
-    state["shown"] = [item["id"] for item in items]
+    state["shown"] = [shown_key(item) for item in items]
     save_state(agent, session_id, state)
 
 
@@ -341,12 +371,11 @@ def recall(config, data, fmt):
         save_state(agent, session_id, state)
     if len(prompt) < MIN_PROMPT or prompt.startswith("/"):
         return
-    project = project_of(data.get("cwd"))
-    searches = [(prompt, 5)]
-    if project:
-        searches.append((prompt, 3, project))
+    cwd = data.get("cwd")
+    project = project_of(cwd) or ""
+    searches = [(prompt, 5, project, None, cwd)]
     shown = set(state.get("shown", []))
-    items = [item for item in gather(config, searches, RECALL_LIMIT) if item["id"] not in shown]
+    items = [item for item in gather(config, searches, RECALL_LIMIT) if shown_key(item) not in shown]
     if not items:
         return
     emit(
@@ -357,7 +386,7 @@ def recall(config, data, fmt):
         ),
         fmt,
     )
-    state["shown"] = list(shown | {item["id"] for item in items})
+    state["shown"] = list(shown | {shown_key(item) for item in items})
     save_state(agent, session_id, state)
 
 
@@ -401,6 +430,8 @@ def capture_worker(config, data):
     if cwd:
         body["cwd"] = str(cwd)
         body["project"] = project_of(cwd)
+    if data.get("task_id"):
+        body["knowledge_task_id"] = str(data["task_id"])[:160]
     call(config, "POST", "/memories", body, timeout=CAPTURE_TIMEOUT)
     state["captured"] = fingerprint
     save_state(agent, session_id, state)

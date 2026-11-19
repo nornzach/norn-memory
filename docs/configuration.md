@@ -26,6 +26,7 @@ The server reads `server/.env`. Copy `server/.env.example` and fill in at least 
 | `NORN_M_RECONCILE_ADD` | No | `false` stores every extracted fact without comparing it with similar memories first. Defaults to `true` |
 | `NORN_M_INGEST_RETENTION_DAYS` | No | Days finished ingest jobs are kept. Defaults to `14` |
 | `NORN_M_INGEST_WORKER` | No | `false` stops this server process from running staged writes (another process must). Defaults to `true` |
+| `NORN_M_KNOWLEDGE_PROJECT_ALIASES` | No | JSON mapping an absolute working directory prefix to a project ID, e.g. `{"/workspace/oh-my-pi/packages/gui":"oh-my-pi"}`. Use lower-case prefixes, forward slashes, and no trailing slash. The longest matching prefix wins. Applies to curated intake and explicit curated searches with `cwd`. |
 | `NORN_M_EVOLVE_ENABLED` | No | `false` disables the hourly hierarchy-evolution tick inside the ingest worker. Defaults to enabled |
 | `NORN_M_EVOLVE_INTERVAL_MIN` | No | Minutes between evolution passes (promote/demote/expire). Defaults to `60` |
 | `NORN_M_TRANSIENT_TTL_DAYS` | No | Days a transient (L4) memory lives unless the caller set an expiration date. Defaults to `30` |

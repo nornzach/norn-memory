@@ -10,6 +10,7 @@ Enable authentication and put the server behind HTTPS before exposing it beyond 
 - [MCP for agents](#mcp-for-agents)
 - [Provenance](#provenance)
 - [Exact records](#exact-records)
+- [Reviewed knowledge](#reviewed-knowledge)
 - [Endpoint reference](#endpoint-reference)
 
 ## Authentication
@@ -183,6 +184,51 @@ curl "http://localhost:8888/exact/records?q=hk1%20ip" -H "X-API-Key: nmsk_your_k
 `PUT` replaces the record unless the body sets `"merge": true`, which changes only the fields given and removes fields set to `null`. `"if_version": N` writes only if the record is still at version `N` (`0` means "only if it does not exist"). `POST /exact/batch` writes up to 1000 records in one transaction.
 
 The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. A key limited by `user_id` alone can use its users' records; a key limited to agents, runs or categories cannot use exact records.
+
+## Reviewed knowledge
+
+Reviewed knowledge stores L0 standing rules, L1 durable facts and procedures, L2 dated evidence, and L3 task handoffs separately from the old vector records. Hook captures and inferred MCP `add_memory` calls with a user ID create proposals, without making their content available as current instructions. A successful job can have no results or return a `PROPOSE` event with a proposal ID. A REST writer can request `knowledge_policy: "curated"` and pass an optional `knowledge_task_id` on `POST /memories`. `infer: false` and the legacy write mode keep their existing behavior. Legacy custom extraction prompts do not override curation rules.
+
+Call MCP `search_memories` or REST `POST /search` with the `purpose` that fits the task:
+
+| Purpose | Result |
+| --- | --- |
+| `action` | Current reviewed L0/L1 entries, including applicability, structured steps, verification conditions, revision and evidence. This is the default on MCP calls without legacy-only filters. |
+| `history` | Reviewed L2 case entries, with their date and evidence. |
+| `resume` | Unexpired L3 handoffs for the exact `project` and `task_id`. Use an empty project for an unscoped handoff. |
+| `legacy` | Older fuzzy records and original-text writes. REST keeps this default for existing clients. |
+
+Curated results are returned in `knowledge`. For these searches, pass a user ID inside `filters` (or `user_id` on MCP) and optionally `project`. An explicit empty project selects general user knowledge. A project selects that project and, for `action`, general user knowledge. Scoped keys must satisfy the full entity scope; category-limited keys use the legacy API. `cwd` in an explicit curated query is only used to resolve configured project identities. Use legacy queries for folder, device, provenance agent or advanced metadata filters. Existing fuzzy and exact records remain available through their existing endpoints. Use `verify_before_use` and `needs_recheck` before acting on a documented step. A historical observation does not grant authorization.
+
+An example REST body:
+
+```json
+{
+  "query": "How do I release the GUI?",
+  "filters": {"user_id": "alice"},
+  "project": "my-project",
+  "purpose": "action",
+  "top_k": 5,
+  "explain": true
+}
+```
+
+Reviewed candidates use keyword and compatible semantic recall. When configured, reranking starts at four eligible non-constraint candidates. Constraints keep precedence. If a provider is unavailable, ranking falls back to local results. A vector indexed under a different embedding model or revision is ignored.
+
+The dashboard's **Knowledge review** page can inspect and review proposals. These endpoints require administration privileges:
+
+| Method | Route | Behavior |
+| --- | --- | --- |
+| GET | `/knowledge/proposals?user_id=alice` | List pending or resolved proposals, optionally filtering by `project` and `status`. |
+| POST | `/knowledge/preview` | Run extraction without storing an item or a proposal. Supply the project and numbered-by-position `messages` with roles `user`, `assistant`, or `observation`. |
+| POST | `/knowledge/proposals` | Stage an explicit draft with `user_id`, `project`, `candidate`, and one `observation`. |
+| GET | `/knowledge/proposals/{id}/current` | Read the current revision against which the proposal will be applied. |
+| POST | `/knowledge/proposals/{id}/review` | Dismiss, publish, or mark a conflict for recheck. Durable publication requires dated observations and a reviewer attestation. Reviewer edits must keep the item identity and base revision. |
+| GET | `/knowledge/items/{id}/revisions?user_id=alice` | List the current and prior snapshots. |
+| POST | `/knowledge/items/{id}/restore?user_id=alice` | Restore an older `revision` when `base_revision` is current, with a `reason`. This creates a new revision marked for recheck. |
+| POST | `/knowledge/tasks/{task_id}/close?user_id=alice&project=my-project` | Remove that task's handoff from recall. Unclosed handoffs expire after seven days. |
+
+Review evidence entries contain `source`, `observed_at` (ISO 8601 with timezone), and `observation`. `evidence_status` is `verified` or `user_confirmed`. Only the latter can publish a standing constraint. Proposals cannot assign their own evidence status. A conflicting or stale patch needs review against the current revision. No legacy records are rewritten as a side effect of publishing.
 
 ## Endpoint reference
 

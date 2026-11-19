@@ -1,0 +1,42 @@
+[
+  {
+    "name": "temporary-status",
+    "project": "oh-my-pi",
+    "messages": [
+      {"role": "user", "content": "发版现在到哪了？"},
+      {"role": "assistant", "content": "sidecar-source.json 的 pin 还没提交；Windows 构建正在运行，再等一下。"}
+    ],
+    "required": [],
+    "allowed": []
+  },
+  {
+    "name": "tagged-pin-recovery",
+    "project": "oh-my-pi",
+    "messages": [
+      {"role": "user", "content": "沉淀这次 OMP GUI 失败的定位和恢复步骤，给下一次发版用。"},
+      {"role": "observation", "content": "2026-11-17 OMP GUI v0.9.45: GitHub Actions run 44137053632 failed at Pin monorepo to the sidecar source commit. git show v0.9.45:sidecar-source.json returned an invalid full SHA sharing the correct short prefix, as checked against the fork commit API. After keeping the tag and supplying the independently resolved full SHA as monorepo_sha with gui_ref=v0.9.45, Linux 44138035814 and Windows 44138034296 succeeded. Both updater feeds pointed to assets in the release with matching sizes. GitHub release API listed 16 assets for this version. Before future publishing compare the exact full tagged pin against the remote build commit. The documented workflow inputs apply while this workflow still supports them."}
+    ],
+    "required": ["procedure_or_troubleshooting"],
+    "allowed": ["case", "procedure", "troubleshooting"]
+  },
+  {
+    "name": "evidence-narrower-than-summary",
+    "project": "oh-my-pi",
+    "messages": [
+      {"role": "assistant", "content": "The Windows release passed comprehensive feature E2E."},
+      {"role": "observation", "content": "The Windows workflow reported packaging, x64 PE, locales and launcher startup smoke checks only. It did not run full feature E2E. Use the check names and job log to distinguish coverage before claiming support."}
+    ],
+    "required": [],
+    "allowed": ["case", "procedure", "troubleshooting", "project_fact"]
+  },
+  {
+    "name": "one-off-authorization",
+    "project": "oh-my-pi",
+    "messages": [
+      {"role": "user", "content": "我确认这一次可以发布 v0.9.45。"},
+      {"role": "assistant", "content": "I have permission to publish OMP GUI releases whenever I think they are ready."}
+    ],
+    "required": [],
+    "allowed": []
+  }
+]

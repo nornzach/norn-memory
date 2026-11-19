@@ -2,11 +2,20 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from db import Base
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-
-from db import Base
 
 
 def _utcnow() -> datetime:
@@ -107,6 +116,47 @@ class Webhook(Base):
     last_delivery_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class KnowledgeItem(Base):
+    __tablename__ = "knowledge_items"
+    __table_args__ = (UniqueConstraint("user_id", "agent_id", "run_id", "project", "key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(Text, index=True)
+    agent_id: Mapped[str] = mapped_column(Text, default="")
+    run_id: Mapped[str] = mapped_column(Text, default="")
+    project: Mapped[str] = mapped_column(Text)
+    key: Mapped[str] = mapped_column(String(160))
+    layer: Mapped[str] = mapped_column(String(2))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON)
+    semantic_index: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class KnowledgeProposal(Base):
+    __tablename__ = "knowledge_proposals"
+    __table_args__ = (UniqueConstraint("fingerprint", name="uq_knowledge_proposal_fingerprint"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_new_uuid)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str] = mapped_column(Text, index=True)
+    agent_id: Mapped[str] = mapped_column(Text, default="")
+    run_id: Mapped[str] = mapped_column(Text, default="")
+    project: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="proposed")
+    data: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class KnowledgeRevision(Base):
+    __tablename__ = "knowledge_revisions"
+
+    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("knowledge_items.id", ondelete="CASCADE"), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON)
 
 
 class ConsolidationRun(Base):

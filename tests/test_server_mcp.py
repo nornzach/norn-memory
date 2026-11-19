@@ -249,7 +249,8 @@ class TestSearchMemories:
         client, mocks = mcp_client
         mocks.memory.search.return_value = {"results": []}
 
-        _call_tool(client, "search_memories", {"query": "tea"}, headers={"X-Norn-M-User-Id": "bob"})
+        _call_tool(client, "search_memories", {"query": "tea", "purpose": "legacy"},
+                   headers={"X-Norn-M-User-Id": "bob"})
 
         assert mocks.memory.search.call_args.kwargs["filters"] == {"user_id": "bob"}
 
@@ -257,7 +258,8 @@ class TestSearchMemories:
         client, mocks = mcp_client
         mocks.memory.search.return_value = {"results": []}
 
-        _call_tool(client, "search_memories", {"query": "tea", "agent_id": "hermes"}, {"X-Norn-M-User-Id": "bob"})
+        _call_tool(client, "search_memories", {"query": "tea", "agent_id": "hermes", "purpose": "legacy"},
+                   {"X-Norn-M-User-Id": "bob"})
 
         assert mocks.memory.search.call_args.kwargs["filters"] == {"agent_id": "hermes"}
 
@@ -265,7 +267,7 @@ class TestSearchMemories:
         client, mocks = mcp_client
         mocks.memory.search.side_effect = RuntimeError("vector store down")
 
-        result = _call_tool(client, "search_memories", {"query": "tea", "user_id": "alice"})
+        result = _call_tool(client, "search_memories", {"query": "tea", "user_id": "alice", "purpose": "legacy"})
 
         assert _error_text(result)
 
@@ -298,12 +300,16 @@ class TestAddMemory:
         mocks.categorize.assert_called_once_with([(M1, "Likes green tea")])
 
     def test_default_user_header_scopes_an_unscoped_add(self, mcp_client):
+        import main
+
         client, mocks = mcp_client
-        mocks.memory.add.return_value = {"results": []}
-
-        _call_tool(client, "add_memory", {"text": "I like green tea"}, headers={"X-Norn-M-User-Id": "bob"})
-
-        assert mocks.memory.add.call_args.kwargs["user_id"] == "bob"
+        with patch.object(main.ingest, "enqueue", return_value="queued-id") as enqueue:
+            result = _call_tool(client, "add_memory", {"text": "I like green tea"},
+                                headers={"X-Norn-M-User-Id": "bob"})
+        assert result["structuredContent"]["job_id"] == "queued-id"
+        assert enqueue.call_args.args[1]["user_id"] == "bob"
+        assert enqueue.call_args.args[1]["knowledge_policy"] == "curated"
+        mocks.memory.add.assert_not_called()
 
     def test_unscoped_add_is_a_tool_error(self, mcp_client):
         client, mocks = mcp_client

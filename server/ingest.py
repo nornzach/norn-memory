@@ -23,6 +23,7 @@ from typing import Any, Optional
 
 import categorizer
 import evolve
+import knowledge
 import webhooks
 from db import SessionLocal
 from models import IngestJob
@@ -101,7 +102,10 @@ def run_add(messages: list[dict], params: dict[str, Any], *, categorize: bool) -
 
 
 def run_job(request: dict[str, Any]) -> list[dict]:
-    response, to_tag = run_add(request["messages"], request.get("params") or {}, categorize=request.get("categorize"))
+    params = request.get("params") or {}
+    if params.get("knowledge_policy") == "curated":
+        return knowledge.ingest(request["messages"], params, request.get("job_id"))
+    response, to_tag = run_add(request["messages"], params, categorize=request.get("categorize"))
     if to_tag:
         categorizer.categorize_memories(to_tag)  # already off the request path, so inline
     return response.get("results") or []
@@ -168,6 +172,8 @@ def _settle(job_id: uuid.UUID, attempt: int, **fields: Any) -> bool:
 
 def process(job_id: uuid.UUID, attempt: int, request: dict[str, Any]) -> None:
     try:
+        if (request.get("params") or {}).get("knowledge_policy") == "curated":
+            request = {**request, "job_id": str(job_id)}
         results = run_job(request)
     except Exception as exc:
         error = str(exc) or type(exc).__name__
@@ -296,6 +302,7 @@ class Worker:
             removed = prune(now)
             if removed:
                 logger.info("Pruned %d finished ingest jobs", removed)
+            knowledge.prune_temporary()
 
     def _run(self) -> None:
         while not self._stop.is_set():

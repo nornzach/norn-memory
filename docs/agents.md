@@ -14,6 +14,10 @@ On the dashboard, open **API Keys** and click **Connect an agent** (or **Set up 
 
 The prompt is safe to run again: an agent that is already set up updates each part in place.
 
+### Upgrade an existing installation for reviewed knowledge
+
+Refresh the shared `~/.norn-m/norn_m_hook.py` script and replace the marked Norn-M block in each agent's global instructions using the current **Update connection** prompt. Use the same URL and leave unchanged fields blank. The server-side curation also recognizes old capture hooks, but the refreshed hook requests actionable knowledge for automatic recall. Existing keys and hook commands can stay. Start a new agent session so it picks up the revised instructions and MCP tools. Run the hook's `check --agent <agent>` to confirm it connects.
+
 The server URL must be reachable from the machine the agent runs on: use the server's LAN address for agents on other devices, or a hostname such as `my-mac.local`, which survives IP address changes. The prompt contains the API key in plain text.
 
 ### When the server moves or the key changes
