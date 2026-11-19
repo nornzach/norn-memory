@@ -3,21 +3,26 @@ from datetime import timedelta
 from unittest.mock import Mock
 from uuid import UUID
 
+import auth
 import knowledge
 import pytest
 from db import Base
-from fastapi import HTTPException
-from models import KnowledgeItem, KnowledgeProposal, KnowledgeRevision
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+from models import KnowledgeItem, KnowledgeProposal, KnowledgeRevision, User
+from routers.knowledge import router
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture
 def db(monkeypatch):
-    engine = create_engine("sqlite://")
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(
         engine,
         tables=[
+            User.__table__,
             KnowledgeItem.__table__,
             KnowledgeProposal.__table__,
             KnowledgeRevision.__table__,
@@ -75,6 +80,26 @@ def publish(proposal, decision="publish"):
 
 def search(purpose="action", task_id=None, user_id="zach", project="oh-my-pi", **ids):
     return knowledge.search("OMP GUI 发版", {"user_id": user_id, **ids}, project, purpose, task_id, 10)
+
+
+def test_admin_can_browse_knowledge_without_a_memory_user_id(db, monkeypatch):
+    monkeypatch.setattr(auth, "AUTH_DISABLED", False)
+    monkeypatch.setattr(auth, "ADMIN_API_KEY", "test-key")
+    monkeypatch.setattr(auth, "SessionLocal", knowledge.SessionLocal)
+    pending = stage(candidate(key="pending"), user_id="other")
+    rule = publish(stage(candidate()))
+    case = publish(stage(candidate(action="evidence", type="case", key="release-case", procedure=None)))
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    for path in ("/knowledge/items", "/knowledge/proposals"):
+        assert client.get(path).status_code == 401
+    client.headers["X-API-Key"] = "test-key"
+    assert [row["id"] for row in client.get("/knowledge/proposals").json()] == [pending["id"]]
+    assert client.get("/knowledge/proposals", params={"user_id": "zach"}).json() == []
+    assert [row["id"] for row in client.get("/knowledge/items").json()] == [case["id"], rule["id"]]
+    assert client.get("/knowledge/items", params={"limit": 1, "offset": 1}).json()[0]["id"] == rule["id"]
 
 
 def test_unreviewed_never_recalled_and_same_observation_is_idempotent(db):

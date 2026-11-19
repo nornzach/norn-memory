@@ -78,9 +78,9 @@ const en = {
     useWithAgent: "Set up an agent with this key",
     title: "Connect an agent",
     description:
-      "Copy the prompt into Claude Code, Codex, Devin, omp or any other agent. It connects the agent over MCP, installs hooks that load and save memories in every session, and adds the memory rules to the agent's global instructions. Running it again updates the setup instead of duplicating it.",
+      "Connect Claude Code, Codex, Devin, omp or another agent. Hooks recall published knowledge and submit exchanges for review.",
     updateDescription:
-      "For agents that are already set up, after the server's address, key or user changes. The agent rewrites its existing setup in place. Leave a field blank to keep what the agent has.",
+      "Refresh the hook and memory rules of an existing agent. Leave optional connection fields blank to keep their current values.",
     modeLabel: "Prompt",
     modeSetup: "New setup",
     modeUpdate: "Update connection",
@@ -268,9 +268,9 @@ const zh: typeof en = {
     useWithAgent: "用这个密钥设置 Agent",
     title: "连接 Agent",
     description:
-      "把提示词粘贴到 Claude Code、Codex、Devin、omp 或其他 Agent 中。它会通过 MCP 连接 Agent，安装在每次会话中自动读取和保存记忆的钩子，并把记忆规则写入 Agent 的全局指令。再次运行会更新现有配置，而不是重复添加。",
+      "连接 Claude Code、Codex、Devin、omp 或其他 Agent。钩子召回已发布知识，并提交对话供提炼和审核。",
     updateDescription:
-      "用于已经配置好的 Agent：服务器地址、密钥或用户变了之后，让 Agent 原地改写现有配置。留空的字段保持 Agent 现有的值。",
+      "刷新已接入 Agent 的钩子和记忆规则。未变的可选连接字段留空。",
     modeLabel: "提示词",
     modeSetup: "新配置",
     modeUpdate: "更新连接",

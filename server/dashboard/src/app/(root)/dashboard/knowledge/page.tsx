@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/shared/page";
 import { useI18n } from "@/i18n/provider";
@@ -21,6 +23,116 @@ type Proposal = {
     sources: { job_id?: string; role?: string; message?: number }[];
   };
 };
+
+type KnowledgeItem = {
+  id: string;
+  project: string;
+  title: string;
+  layer: "L0" | "L1" | "L2";
+  revision: number;
+  trigger: string;
+  summary: string;
+  verify_before_use?: string | null;
+  needs_recheck?: string | null;
+  procedure?: {
+    prerequisites: string[];
+    steps: { id: string; text: string }[];
+    success_criteria: string[];
+    failure_branches: { id: string; text: string }[];
+  } | null;
+  evidence: { source: string; observed_at: string; observation: string }[];
+};
+
+function PublishedItem({ item }: { item: KnowledgeItem }) {
+  const { t } = useI18n();
+  const labels = t.knowledge;
+  const procedure = item.procedure;
+  const sections = procedure
+    ? ([
+        [labels.prerequisites, procedure.prerequisites],
+        [labels.steps, procedure.steps.map(({ text }) => text)],
+        [
+          labels.failureBranches,
+          procedure.failure_branches.map(({ text }) => text),
+        ],
+        [labels.successCriteria, procedure.success_criteria],
+      ] as const)
+    : [];
+  return (
+    <details className="group rounded-lg border border-line bg-panel p-4">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0 break-words">
+          <span className="block font-medium">{item.title}</span>
+          <span className="text-xs text-ink-3">
+            {labels.layers[item.layer]} · {item.project || labels.noProject} ·{" "}
+            {labels.revision} {item.revision}
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className="mt-1 size-4 shrink-0 group-open:rotate-180"
+        />
+      </summary>
+      <div className="mt-3 space-y-4 break-words text-sm">
+        <p>{item.summary}</p>
+        <p>
+          <strong>{labels.trigger}:</strong> {item.trigger}
+        </p>
+        {item.verify_before_use && (
+          <p>
+            <strong>{labels.verify}:</strong> {item.verify_before_use}
+          </p>
+        )}
+        {item.needs_recheck && (
+          <p>
+            <strong>{labels.recheck}:</strong> {item.needs_recheck}
+          </p>
+        )}
+        {sections.map(
+          ([title, entries]) =>
+            entries.length > 0 && (
+              <div key={title}>
+                <h2 className="font-medium">{title}</h2>
+                <ol className="ml-5 list-decimal space-y-1">
+                  {entries.map((entry, index) => (
+                    <li key={index}>{entry}</li>
+                  ))}
+                </ol>
+              </div>
+            ),
+        )}
+        {item.evidence.length > 0 && (
+          <div className="space-y-2 border-t border-line pt-3">
+            <h2 className="font-medium">{labels.evidence}</h2>
+            {item.evidence.map((entry, index) => (
+              <div key={index}>
+                <p>{entry.observation}</p>
+                <p className="text-xs text-ink-3">
+                  <time dateTime={entry.observed_at}>
+                    {new Date(entry.observed_at).toLocaleString()}
+                  </time>
+                  {" · "}
+                  {/^https?:\/\//i.test(entry.source) ? (
+                    <a
+                      className="underline"
+                      href={entry.source}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {entry.source}
+                    </a>
+                  ) : (
+                    entry.source
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
 
 function ProposalReview({
   proposal,
@@ -238,60 +350,132 @@ function ProposalReview({
   );
 }
 
+const PAGE_SIZE = 30;
+
+function KnowledgeList<T extends { id: string }>({
+  path,
+  empty,
+  children,
+}: {
+  path: string;
+  empty: string;
+  children: (item: T, reload: () => void) => ReactNode;
+}) {
+  const { t } = useI18n();
+  const labels = t.knowledge;
+  const [page, setPage] = useState(0);
+  const [version, setVersion] = useState(0);
+  const [result, setResult] = useState<{
+    page: number;
+    version: number;
+    items?: T[];
+    failed?: boolean;
+  } | null>(null);
+  const visible =
+    result?.page === page && result.version === version ? result : null;
+  const reload = () => setVersion((value) => value + 1);
+
+  useEffect(() => {
+    const request = new AbortController();
+    api
+      .get<T[]>(path, {
+        params: { limit: PAGE_SIZE + 1, offset: page * PAGE_SIZE },
+        signal: request.signal,
+      })
+      .then(({ data: items }) => {
+        if (!request.signal.aborted) setResult({ page, version, items });
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setResult({ page, version, failed: true });
+      });
+    return () => request.abort();
+  }, [path, page, version]);
+
+  return (
+    <div className="space-y-3" aria-busy={visible === null}>
+      {!visible && (
+        <p role="status" className="text-sm text-ink-3">
+          {labels.loading}
+        </p>
+      )}
+      {visible?.failed && (
+        <div className="flex items-center gap-3">
+          <p role="alert">{labels.failed}</p>
+          <Button
+            variant="outline"
+            size="icon"
+            title={labels.retry}
+            aria-label={labels.retry}
+            onClick={reload}
+          >
+            <RotateCw />
+          </Button>
+        </div>
+      )}
+      {visible?.items?.length === 0 && (
+        <p className="text-sm text-ink-3">{empty}</p>
+      )}
+      {visible?.items
+        ?.slice(0, PAGE_SIZE)
+        .map((item) => children(item, reload))}
+      {(page > 0 || (visible?.items?.length ?? 0) > PAGE_SIZE) && (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            title={labels.previous}
+            aria-label={labels.previous}
+            disabled={page === 0}
+            onClick={() => setPage(page - 1)}
+          >
+            <ChevronLeft />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title={labels.next}
+            aria-label={labels.next}
+            disabled={(visible?.items?.length ?? 0) <= PAGE_SIZE}
+            onClick={() => setPage(page + 1)}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function KnowledgePage() {
   const { t } = useI18n();
   const labels = t.knowledge;
-  const [user, setUser] = useState("");
-  const [items, setItems] = useState<Proposal[] | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function load(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError("");
-    setItems(null);
-    try {
-      const { data } = await api.get<Proposal[]>("/knowledge/proposals", {
-        params: { user_id: user.trim() },
-      });
-      setItems(data);
-    } catch (failure) {
-      setError(getErrorMessage(failure, labels.failed));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="space-y-4">
-      <PageHeader title={labels.title} description={labels.subtitle} />
-      <form className="flex flex-wrap items-end gap-2" onSubmit={load}>
-        <label>
-          {labels.userId}
-          <Input
-            value={user}
-            required
-            onChange={(event) => setUser(event.target.value)}
-          />
-        </label>
-        <Button type="submit" disabled={loading || !user.trim()}>
-          {labels.load}
-        </Button>
-      </form>
-      {error && <p role="alert">{error}</p>}
-      {items?.length === 0 && <p>{labels.empty}</p>}
-      {items?.map((item) => (
-        <ProposalReview
-          key={item.id}
-          proposal={item}
-          done={() =>
-            setItems(
-              (old) => old?.filter((entry) => entry.id !== item.id) ?? null,
-            )
-          }
-        />
-      ))}
+      <PageHeader title={labels.title} />
+      <Tabs defaultValue="published">
+        <TabsList aria-label={labels.title}>
+          <TabsTrigger value="published">{labels.published}</TabsTrigger>
+          <TabsTrigger value="pending">{labels.pending}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="published">
+          <KnowledgeList<KnowledgeItem>
+            path="/knowledge/items"
+            empty={labels.emptyPublished}
+          >
+            {(item) => <PublishedItem key={item.id} item={item} />}
+          </KnowledgeList>
+        </TabsContent>
+        <TabsContent value="pending">
+          <KnowledgeList<Proposal>
+            path="/knowledge/proposals"
+            empty={labels.emptyPending}
+          >
+            {(item, reload) => (
+              <ProposalReview key={item.id} proposal={item} done={reload} />
+            )}
+          </KnowledgeList>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

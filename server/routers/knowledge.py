@@ -20,13 +20,25 @@ def preview(body: knowledge.Preview, _admin=Depends(require_admin)):
 
 @router.get("/proposals")
 def proposals(
-    user_id: str,
+    user_id: str | None = None,
     project: str | None = None,
     status: Literal["proposed", "applied", "dismissed"] = "proposed",
     limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     _admin=Depends(require_admin),
 ):
-    return knowledge.list_proposals(user_id, project, status, limit)
+    return knowledge.list_proposals(user_id, project, status, limit, offset)
+
+
+@router.get("/items")
+def items(
+    user_id: str | None = None,
+    project: str | None = None,
+    limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    _admin=Depends(require_admin),
+):
+    return knowledge.list_items(user_id, project, limit, offset)
 
 
 @router.post("/proposals/{proposal_id}/review")

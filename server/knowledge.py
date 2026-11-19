@@ -428,12 +428,26 @@ def _proposal(item) -> dict:
     }
 
 
-def list_proposals(user_id: str, project: str | None, status: str, limit: int):
-    stmt = select(KnowledgeProposal).where(KnowledgeProposal.user_id == user_id, KnowledgeProposal.status == status)
+def list_proposals(user_id: str | None, project: str | None, status: str, limit: int, offset: int = 0):
+    stmt = select(KnowledgeProposal).where(KnowledgeProposal.status == status)
+    if user_id is not None:
+        stmt = stmt.where(KnowledgeProposal.user_id == user_id)
     if project is not None:
         stmt = stmt.where(KnowledgeProposal.project == project)
+    stmt = stmt.order_by(KnowledgeProposal.created_at.desc(), KnowledgeProposal.id.desc()).offset(offset).limit(limit)
     with SessionLocal() as db:
-        return [_proposal(item) for item in db.scalars(stmt.order_by(KnowledgeProposal.created_at.desc()).limit(limit))]
+        return [_proposal(item) for item in db.scalars(stmt)]
+
+
+def list_items(user_id: str | None, project: str | None, limit: int, offset: int = 0):
+    stmt = select(KnowledgeItem).where(KnowledgeItem.layer.in_(["L0", "L1", "L2"]))
+    if user_id is not None:
+        stmt = stmt.where(KnowledgeItem.user_id == user_id)
+    if project is not None:
+        stmt = stmt.where(KnowledgeItem.project == project)
+    stmt = stmt.order_by(KnowledgeItem.updated_at.desc(), KnowledgeItem.id.desc()).offset(offset).limit(limit)
+    with SessionLocal() as db:
+        return [_serialize(item) for item in db.scalars(stmt)]
 
 
 def _patched(current: dict, candidate: dict) -> dict:

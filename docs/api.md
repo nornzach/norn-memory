@@ -215,11 +215,12 @@ An example REST body:
 
 Reviewed candidates use keyword and compatible semantic recall. When configured, reranking starts at four eligible non-constraint candidates. Constraints keep precedence. If a provider is unavailable, ranking falls back to local results. A vector indexed under a different embedding model or revision is ignored.
 
-The dashboard's **Knowledge review** page can inspect and review proposals. These endpoints require administration privileges:
+The dashboard's **Knowledge** page opens the published rules, procedures and cases. The **Pending review** tab loads proposals automatically. These endpoints require administration privileges:
 
 | Method | Route | Behavior |
 | --- | --- | --- |
-| GET | `/knowledge/proposals?user_id=alice` | List pending or resolved proposals, optionally filtering by `project` and `status`. |
+| GET | `/knowledge/proposals` | List pending or resolved proposals. `user_id`, `project`, and `status` are optional filters. |
+| GET | `/knowledge/items` | List the latest published revision of each L0/L1/L2 item, newest first. `user_id` and `project` are optional filters. |
 | POST | `/knowledge/preview` | Run extraction without storing an item or a proposal. Supply the project and numbered-by-position `messages` with roles `user`, `assistant`, or `observation`. |
 | POST | `/knowledge/proposals` | Stage an explicit draft with `user_id`, `project`, `candidate`, and one `observation`. |
 | GET | `/knowledge/proposals/{id}/current` | Read the current revision against which the proposal will be applied. |
@@ -227,6 +228,8 @@ The dashboard's **Knowledge review** page can inspect and review proposals. Thes
 | GET | `/knowledge/items/{id}/revisions?user_id=alice` | List the current and prior snapshots. |
 | POST | `/knowledge/items/{id}/restore?user_id=alice` | Restore an older `revision` when `base_revision` is current, with a `reason`. This creates a new revision marked for recheck. |
 | POST | `/knowledge/tasks/{task_id}/close?user_id=alice&project=my-project` | Remove that task's handoff from recall. Unclosed handoffs expire after seven days. |
+
+The two list endpoints accept `limit` (default 30, maximum 100) and `offset` (default 0). Without `user_id`, administrators can browse records across memory user IDs. MCP recall still uses its normal user and project scope.
 
 Review evidence entries contain `source`, `observed_at` (ISO 8601 with timezone), and `observation`. `evidence_status` is `verified` or `user_confirmed`. Only the latter can publish a standing constraint. Proposals cannot assign their own evidence status. A conflicting or stale patch needs review against the current revision. No legacy records are rewritten as a side effect of publishing.
 
