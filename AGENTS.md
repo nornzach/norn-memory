@@ -47,6 +47,14 @@ Every package sets its own rules. Read the `AGENTS.md` nearest the files you are
 - **TypeScript:** strict mode, ES module imports.
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`). Use the GitHub no-reply email; a private address is rejected on push.
 
+## Production deployments
+
+1. Commit and push the release source to the canonical Git repository first. Record the exact commit to deploy.
+2. On the production server, confirm the checkout is clean, fetch from the remote, and select and verify that commit. Build the API and dashboard images from that checkout on the server, then deploy with the production Docker Compose configuration.
+3. Verify service health and record the running image IDs alongside the deployed Git commit.
+
+Ship source changes through Git. Do not deploy a local working tree archive or copy individual source files over the production checkout.
+
 ## What to ship with a change
 
 | Change | Expect |
