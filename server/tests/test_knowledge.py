@@ -114,6 +114,52 @@ def test_unreviewed_never_recalled_and_same_observation_is_idempotent(db):
     assert search("history") == []
 
 
+def test_ingest_publishes_once_without_a_reviewer(db, monkeypatch):
+    monkeypatch.setattr(knowledge, "extract", lambda *args: [candidate()])
+    indexed = Mock()
+    monkeypatch.setattr(knowledge, "index_revision", indexed)
+    messages = [{"role": "user", "content": "For OMP GUI releases verify the full sidecar pin from the tag."}]
+    params = {"user_id": "zach", "metadata": {"project": "oh-my-pi"}}
+    result = knowledge.ingest(messages, params)[0]
+    assert result["status"] == "applied"
+    (item,) = search()
+    assert item["evidence_status"] == "reported" and not item["verified_at"]
+    assert item["revision"] == 1 and item["evidence"]
+    assert knowledge.ingest(messages, params)[0]["event"] == "NONE"
+    indexed.assert_called_once_with(item)
+
+
+def test_worker_resolves_old_exchanges_but_not_admin_drafts(db, monkeypatch):
+    monkeypatch.setattr(knowledge, "index_revision", lambda item: True)
+    manual = stage(candidate(key="manual"))
+    source = {"job_id": None, "message": 1, "role": "assistant", "observed_at": knowledge.now().isoformat()}
+    for proposal in (
+        candidate(),
+        candidate(action="draft", procedure=None, key="unfinished"),
+        candidate(type="constraint", procedure=None, key="unconfirmed"),
+        candidate(action="patch", base_revision=19, procedure=None, step_updates=[{"id": "pin", "text": "stale"}]),
+    ):
+        knowledge.stage(proposal, scope(), [{**source, "fingerprint": knowledge._digest(proposal.model_dump())}])
+    assert knowledge.resolve_backlog(limit=10) == 4
+    assert knowledge.resolve_backlog(limit=10) == 0
+    assert [row["id"] for row in knowledge.list_proposals("zach", None, "proposed", 10)] == [manual["id"]]
+    assert len(knowledge.list_proposals("zach", None, "dismissed", 10)) == 3
+    assert [item["key"] for item in search()] == ["gui/release"]
+
+
+@pytest.mark.parametrize(("role", "verbatim", "published"), [("user", True, True), ("user", False, False),
+                                                               ("assistant", True, False)])
+def test_automatic_constraint_requires_the_cited_user_statement(db, monkeypatch, role, verbatim, published):
+    summary = "Always verify the OMP GUI tag."
+    rule = candidate(type="constraint", procedure=None, summary=summary)
+    monkeypatch.setattr(knowledge, "extract", lambda *args: [rule])
+    monkeypatch.setattr(knowledge, "index_revision", lambda item: True)
+    messages = [{"role": role, "content": summary if verbatim else "Check the tag for this release only."}]
+    (event,) = knowledge.ingest(messages, {"user_id": "zach", "metadata": {"project": "oh-my-pi"}})
+    assert event["status"] == ("applied" if published else "dismissed")
+    assert [item["evidence_status"] for item in search()] == (["user_confirmed"] if published else [])
+
+
 def test_patch_edits_only_named_steps_and_restoration_is_versioned(db):
     original = publish(stage(candidate()))
     patch = candidate(

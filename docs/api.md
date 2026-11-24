@@ -187,7 +187,9 @@ The user comes from `user_id` (query or body) or the `X-Norn-M-User-Id` header. 
 
 ## Reviewed knowledge
 
-Reviewed knowledge stores L0 standing rules, L1 durable facts and procedures, L2 dated evidence, and L3 task handoffs separately from the old vector records. Hook captures and inferred MCP `add_memory` calls with a user ID create proposals, without making their content available as current instructions. A successful job can have no results or return a `PROPOSE` event with a proposal ID. A REST writer can request `knowledge_policy: "curated"` and pass an optional `knowledge_task_id` on `POST /memories`. `infer: false` and the legacy write mode keep their existing behavior. Legacy custom extraction prompts do not override curation rules.
+Reviewed knowledge stores L0 standing rules, L1 durable facts and procedures, L2 dated evidence, and L3 task handoffs separately from the old vector records. Hook captures and inferred MCP `add_memory` calls with a user ID are curated automatically. A successful job can have no results. Each `PROPOSE` event (or `NONE` for a duplicate) identifies a proposal; its `status` is `applied` if published, or `dismissed` if not. A queued response is not proof of publication. A REST writer can request `knowledge_policy: "curated"` and pass an optional `knowledge_task_id` on `POST /memories`. `infer: false` and the legacy write mode keep their existing behavior. Legacy custom extraction prompts do not override curation rules.
+
+The server publishes complete, evidence-linked candidates and records the cited message fingerprints. Automatic publication means `reported`, not independently verified. A new standing rule requires its summary to match an entire cited user message verbatim. Incomplete drafts, stale changes, unsupported rules and conflicting updates are dismissed with a reason; they never overwrite current knowledge. The ingest worker also drains previously pending exchange proposals in batches without replaying conversations. Already resolved proposals and explicitly submitted admin drafts are not reprocessed.
 
 Call MCP `search_memories` or REST `POST /search` with the `purpose` that fits the task:
 

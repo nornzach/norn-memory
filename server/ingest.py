@@ -306,6 +306,11 @@ class Worker:
 
     def _run(self) -> None:
         while not self._stop.is_set():
+            reviewed = 0
+            try:
+                reviewed = knowledge.resolve_backlog()
+            except Exception:
+                logger.exception("Could not resolve pending exchange proposals")
             try:
                 self._prune_now_and_then()
                 self._evolve_now_and_then()
@@ -315,7 +320,8 @@ class Worker:
                 self._idle()
                 continue
             if claimed is None:
-                self._idle()
+                if not reviewed:
+                    self._idle()
                 continue
             job_id, attempt, request = claimed
             with self._lock:

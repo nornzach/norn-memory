@@ -699,7 +699,7 @@ def add_memory(
         return JSONResponse(
             status_code=202,
             content={"status": "queued", "job_id": str(job_id), "results": [],
-                     "message": "Queued for curation. Proposed knowledge is reviewed before it becomes current."},
+                     "message": "Queued for automatic curation. Check the job for applied or dismissed proposals."},
         )
     if async_mode and memory_create.infer is not False and memory_create.memory_type is None:
         try:

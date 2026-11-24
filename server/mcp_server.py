@@ -273,7 +273,7 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
             bool,
             Field(
                 description=(
-                    "True: queues a proposal for review when a user is named. "
+                    "True: queues automatic curation when a user is named. "
                     "False: store the text verbatim, at once."
                 )
             ),
@@ -292,7 +292,7 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         user. Pass project and cwd when the memory belongs to the current work, so it can be found by project
         later; the device and agent come from the connection. With infer (the default) this returns at once
         with status "queued" and a job_id. Describe what should change next time and what supports it.
-        The curator can make no proposal; approved proposals then become searchable by purpose.
+        The curator can make no proposal; automatically published proposals become searchable by purpose.
         With infer=false it returns an original-text legacy memory (event ADD).
         """
         if not any([user_id, agent_id, run_id]):

@@ -167,6 +167,8 @@ required top-level `procedure` field of the proposal. Use draft for a potentiall
 essential to executing or verifying it are missing. Do not fill
 gaps from imagination. Reuse an existing key and base_revision for patches; name only the changed step IDs.
 If reported evidence conflicts with existing knowledge, propose review with the exact question to recheck.
+For a standing constraint, use only an explicitly stated lasting user rule; copy the complete user statement
+verbatim into summary when it contains only that rule. Never turn a one-time authorization into a rule.
 Only use input message numbers for evidence_refs. Never extract passwords, tokens or credentials.
 Rate reuse, impact and actionability independently: 0 = none/this turn, 1 = possible/rework/concrete choice,
 2 = recurrent or standing/serious consequences/action with a test or an explicit constraint.
@@ -414,8 +416,89 @@ def ingest(messages: list[dict], params: dict, job_id: str | None = None) -> lis
             }
             for index in sorted(set(proposal.evidence_refs))
         ]
-        results.append(stage(proposal, scope, sources, task))
+        event = stage(proposal, scope, sources, task)
+        if event["status"] == "proposed":
+            event["status"] = resolve_exchange(uuid.UUID(event["id"]))
+        results.append(event)
     return results
+
+
+def _automatic_decision(candidate: dict) -> Review:
+    def dismiss(reason):
+        return Review(decision="dismiss", reason="Automatic review: " + reason)
+
+    if candidate["action"] in {"draft", "review"}:
+        return dismiss("Incomplete or conflicting evidence; current knowledge was not changed.")
+    if candidate["type"] not in {"case", "handoff"} and not (candidate["reuse"] and candidate["actionability"]):
+        return dismiss("No reusable action supported by this exchange.")
+    sources = candidate["sources"]
+    if candidate["type"] in {"constraint", "preference"} and not any(src["role"] == "user" for src in sources):
+        return dismiss("An assistant report cannot establish a user rule or preference.")
+    confirmed = False
+    if candidate["type"] == "constraint":
+        statement = _digest({"role": "user", "content": candidate["summary"]})
+        confirmed = candidate["action"] == "create" and any(
+            src["role"] == "user" and src["fingerprint"] == statement for src in sources
+        )
+        if not confirmed:
+            return dismiss("The standing rule is not the user's verbatim statement.")
+    evidence = [
+        Evidence(
+            source=f"Exchange {source['job_id'] or source['fingerprint']}, message {source['message']}",
+            observed_at=source["observed_at"],
+            observation=f"Cited {source['role']} message (sha256:{source['fingerprint']}).",
+        )
+        for source in sources
+    ]
+    if candidate["type"] == "handoff" and max(item.observed_at for item in evidence) <= now() - timedelta(days=7):
+        return dismiss("The captured handoff has expired.")
+    return Review(
+        decision="publish",
+        reason="Automatic review: complete candidate grounded in the cited exchange.",
+        evidence_status="user_confirmed" if confirmed else None,
+        evidence=evidence,
+    )
+
+
+def resolve_exchange(proposal_id: uuid.UUID) -> str:
+    with SessionLocal() as db:
+        proposal = db.get(KnowledgeProposal, proposal_id)
+        if proposal is None:
+            raise HTTPException(404, "Proposal not found.")
+        if proposal.status != "proposed":
+            return proposal.status
+        try:
+            decision = _automatic_decision(proposal.data)
+        except (KeyError, TypeError, ValueError):
+            decision = Review(decision="dismiss", reason="Automatic review: invalid exchange evidence.")
+    try:
+        result = review(proposal_id, decision, automatic=True)
+    except HTTPException as error:
+        if error.status_code not in {409, 422}:
+            raise
+        dismissal = Review(decision="dismiss", reason=f"Automatic review: {error.detail}")
+        result = review(proposal_id, dismissal, automatic=True)
+    if "layer" in result:
+        index_revision(result)
+        return "applied"
+    return result["status"]
+
+
+def _exchange_message():
+    return KnowledgeProposal.data["sources"][0]["message"].as_integer()
+
+
+def resolve_backlog(limit: int = 8) -> int:
+    with SessionLocal() as db:
+        pending = db.scalars(
+            select(KnowledgeProposal.id)
+            .where(KnowledgeProposal.status == "proposed", _exchange_message().is_not(None))
+            .order_by(KnowledgeProposal.created_at, KnowledgeProposal.id)
+            .limit(limit)
+        ).all()
+    for proposal_id in pending:
+        resolve_exchange(proposal_id)
+    return len(pending)
 
 
 def _proposal(item) -> dict:
@@ -478,7 +561,7 @@ def _patched(current: dict, candidate: dict) -> dict:
     return {**current, "procedure": updated}
 
 
-def review(proposal_id: uuid.UUID, body: Review):
+def review(proposal_id: uuid.UUID, body: Review, *, automatic: bool = False):
     evidence = [item.model_dump(mode="json") for item in body.evidence]
     revision = (
         body.revised_candidate.model_dump(mode="json", exclude={"evidence_refs"}) if body.revised_candidate else None
@@ -489,6 +572,8 @@ def review(proposal_id: uuid.UUID, body: Review):
         if proposal is None:
             raise HTTPException(404, "Proposal not found.")
         if proposal.status != "proposed":
+            if automatic:
+                return _proposal(proposal)
             raise HTTPException(409, "Proposal was already reviewed.")
         if body.decision == "dismiss":
             proposal.status = "dismissed"
@@ -516,7 +601,7 @@ def review(proposal_id: uuid.UUID, body: Review):
         if body.decision == "publish" and action == "review":
             raise HTTPException(422, "Conflict proposals may be dismissed or marked for recheck.")
         temporary = candidate["type"] == "handoff"
-        if not temporary and (not evidence or body.evidence_status is None):
+        if not temporary and (not evidence or (body.evidence_status is None and not automatic)):
             raise HTTPException(422, "Durable knowledge requires a reviewer-confirmed source and observation.")
         if (
             candidate["type"] == "constraint"
@@ -561,14 +646,15 @@ def review(proposal_id: uuid.UUID, body: Review):
             data.update(
                 importance=sum(candidate[name] for name in ("reuse", "impact", "actionability")),
                 evidence_status=body.evidence_status or "reported",
-                verified_at=now().isoformat() if evidence else None,
+                verified_at=now().isoformat() if evidence and body.evidence_status else None,
             )
         source_by_id = {_digest(source): source for source in item.data.get("evidence", []) + evidence}
         data.update(evidence=list(source_by_id.values()), review_reason=body.reason)
         item.data = data
         item.updated_at = now()
         if temporary:
-            item.expires_at = item.updated_at + timedelta(days=7)
+            observed = max(source.observed_at for source in body.evidence) if automatic else item.updated_at
+            item.expires_at = observed + timedelta(days=7)
         proposal.status = "applied"
         proposal.data = {
             **proposal.data,
@@ -643,6 +729,7 @@ def prune_temporary() -> dict[str, int]:
         aged = db.execute(
             delete(KnowledgeProposal).where(
                 KnowledgeProposal.status.in_(["proposed", "dismissed"]),
+                or_(KnowledgeProposal.status == "dismissed", _exchange_message().is_(None)),
                 KnowledgeProposal.created_at < current - timedelta(days=30),
             )
         )

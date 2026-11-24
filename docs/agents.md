@@ -111,7 +111,7 @@ Left to themselves, agents often skip those calls. The memory hooks and the inst
 |------|---------|--------------|
 | Session start | `session-start` | Adds the memories that best describe the user and the current project (the git repository's folder name). If the server doesn't answer or rejects the key, adds a short note saying so instead. |
 | Prompt submit | `recall` | Searches with the prompt and adds the matches scoring at least `min_score` (default 0.5), each memory once per session. Prompts under 12 characters and slash commands are skipped. |
-| End of turn | `capture` | Submits the turn's prompt and reply to `POST /memories` for curation. This can yield no proposals. Approved proposals are visible under **Knowledge → Published**. The hook runs detached. |
+| End of turn | `capture` | Submits the exchange for automatic curation. Useful, supported knowledge appears under **Knowledge → Published** without a manual approval. An exchange can also yield nothing. The hook runs detached. |
 | — | `check` | Tests the connection and prints `OK: ...`, for setup. |
 
 Each command takes `--agent <name>` and reads `~/.norn-m/<name>.json`:
