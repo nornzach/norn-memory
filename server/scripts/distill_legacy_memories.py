@@ -161,6 +161,10 @@ def distill_batch(
 
 
 def run(args: argparse.Namespace) -> Counter:
+    import main
+
+    main.get_memory_instance()
+
     rows = eligible_rows(
         memory_store.list_rows(),
         user_id=args.user_id,
