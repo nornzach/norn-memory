@@ -66,3 +66,28 @@ def test_offset_and_limit_select_stable_eligible_rows(monkeypatch):
         layers={"L2"},
     )
     assert [item["id"] for item in rows[1:3]] == ["2", "3"]
+
+
+def test_invalid_batch_is_split_until_valid_or_singleton(monkeypatch):
+    source_rows = [
+        {"id": str(index), "memory": f"memory-{index}", "metadata": {"project": "demo"}, "hash": str(index)}
+        for index in range(1, 5)
+    ]
+    calls = []
+
+    class Candidate:
+        evidence_refs = [1]
+
+    def extract(messages, _scope, _task_id):
+        calls.append(len(messages))
+        if len(messages) > 1:
+            raise RuntimeError("Knowledge extraction returned an invalid proposal.")
+        return [Candidate()]
+
+    monkeypatch.setattr(distill.knowledge, "extract", extract)
+    monkeypatch.setattr(distill, "_source", lambda row: {"memory_id": row["id"], "fingerprint": row["id"]})
+    monkeypatch.setattr(distill.knowledge, "namespace", lambda params: params)
+    result = distill.distill_batch(source_rows, user_id="zach", project="demo", apply=False, max_content=1200)
+
+    assert result == {"split": 3, "candidates": 4}
+    assert calls == [4, 2, 1, 1, 2, 1, 1]

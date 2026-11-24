@@ -142,7 +142,34 @@ def distill_batch(
 ) -> Counter:
     messages = _messages(rows, max_content)
     scope = knowledge.namespace({"user_id": user_id, "metadata": {"project": project}})
-    candidates = knowledge.extract(messages, scope, None)
+    try:
+        candidates = knowledge.extract(messages, scope, None)
+    except RuntimeError as error:
+        if str(error) != "Knowledge extraction returned an invalid proposal.":
+            raise
+        if len(rows) == 1:
+            return Counter(invalid=1)
+        midpoint = len(rows) // 2
+        counts = Counter(split=1)
+        counts.update(
+            distill_batch(
+                rows[:midpoint],
+                user_id=user_id,
+                project=project,
+                apply=apply,
+                max_content=max_content,
+            )
+        )
+        counts.update(
+            distill_batch(
+                rows[midpoint:],
+                user_id=user_id,
+                project=project,
+                apply=apply,
+                max_content=max_content,
+            )
+        )
+        return counts
     counts = Counter(candidates=len(candidates))
     if not apply:
         return counts
