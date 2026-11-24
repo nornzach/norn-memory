@@ -170,6 +170,8 @@ def run(args: argparse.Namespace) -> Counter:
         layers=set(args.layer or DEFAULT_LAYERS),
         deduplicate=not args.keep_duplicates,
     )
+    if args.offset:
+        rows = rows[args.offset :]
     if args.limit is not None:
         rows = rows[: args.limit]
     totals = Counter(selected=len(rows), skipped_secret=0)
@@ -219,6 +221,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--project", action="append", help="Repeat to limit to selected projects.")
     result.add_argument("--layer", action="append", choices=("L0", "L1", "L2", "L3", "L4"))
     result.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    result.add_argument("--offset", type=int, default=0, help="Skip eligible rows in deterministic order.")
     result.add_argument("--limit", type=int)
     result.add_argument("--max-batches", type=int)
     result.add_argument("--max-content", type=int, default=DEFAULT_MAX_CONTENT)
@@ -232,8 +235,8 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = parser().parse_args()
-    if args.batch_size < 1 or args.limit is not None and args.limit < 1:
-        parser().error("batch size and limit must be positive")
+    if args.batch_size < 1 or args.limit is not None and args.limit < 1 or args.offset < 0:
+        parser().error("batch size and limit must be positive; offset cannot be negative")
     if args.max_content < 1 or args.retries < 1:
         parser().error("max content and retries must be positive")
     if args.since and args.until and args.since >= args.until:

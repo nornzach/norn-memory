@@ -53,3 +53,16 @@ def test_batches_are_project_scoped_and_deterministic(monkeypatch):
         ("a", ["1", "3"]),
         ("b", ["2"]),
     ]
+
+
+def test_offset_and_limit_select_stable_eligible_rows(monkeypatch):
+    monkeypatch.setattr(distill.secret_guard, "find_secrets", lambda text: [])
+    rows = distill.eligible_rows(
+        [row("3", "third"), row("1", "first"), row("2", "second")],
+        user_id="zach",
+        since=None,
+        until=None,
+        projects={"demo"},
+        layers={"L2"},
+    )
+    assert [item["id"] for item in rows[1:3]] == ["2", "3"]
