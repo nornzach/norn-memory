@@ -448,7 +448,11 @@ def _automatic_decision(candidate: dict) -> Review:
             return dismiss("The standing rule is not the user's verbatim statement.")
     evidence = [
         Evidence(
-            source=f"Exchange {source['job_id'] or source['fingerprint']}, message {source['message']}",
+            source=(
+                f"Legacy memory {source['memory_id']}, message {source['message']}"
+                if source.get("memory_id")
+                else f"Exchange {source['job_id'] or source['fingerprint']}, message {source['message']}"
+            ),
             memory_id=source.get("memory_id"),
             observed_at=source["observed_at"],
             observation=f"Cited {source['role']} message (sha256:{source['fingerprint']}).",

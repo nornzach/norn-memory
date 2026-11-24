@@ -195,6 +195,8 @@ Before knowledge extraction, the same curated write independently selects up to 
 
 To inspect historical inputs **without writing**, inside the API container run `PYTHONPATH=. python scripts/backfill_episodes.py --user-id USER --since START --until END` with timezone-aware ISO timestamps. Use a window ending before rollout. Only retained, completed curated jobs with original messages qualify. Add `--apply` to write source-backed episodes with the original job date; knowledge is not replayed. Pruned conversations cannot be reconstructed from published summaries.
 
+To distill older fuzzy records into knowledge, use `PYTHONPATH=. python scripts/distill_legacy_memories.py --user-id USER --since START --until END` first as a preview. It reads only legacy L1/L2 rows, groups by project, removes exact duplicates, sends a bounded batch to the existing extractor, and writes nothing without `--apply`. Add `--apply` to stage each candidate through automatic review; incomplete, conflicting or unsupported candidates are dismissed, and the source records are never edited or deleted. Use `--project PROJECT` to run a project at a time, `--max-batches 1` to smoke-test, and rerun safely: the same source-backed proposal has the existing unique fingerprint. L0 canonical rules and L3/L4 working or transient rows are excluded by default.
+
 Call MCP `search_memories` or REST `POST /search` with the `purpose` that fits the task:
 
 | Purpose | Result |
