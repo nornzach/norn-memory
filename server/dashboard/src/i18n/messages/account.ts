@@ -78,12 +78,12 @@ const en = {
     useWithAgent: "Set up an agent with this key",
     title: "Connect an agent",
     description:
-      "Connect Claude Code, Codex, Devin, omp or another agent. Hooks recall published knowledge and submit exchanges for review.",
+      "Set up Claude Code, Codex, Devin, omp or another agent with memory hooks and global rules.",
     updateDescription:
-      "Refresh the hook and memory rules of an existing agent. Leave optional connection fields blank to keep their current values.",
+      "Upgrade or repair an existing agent. Leave the URL, key, user ID and device blank to keep them.",
     modeLabel: "Prompt",
     modeSetup: "New setup",
-    modeUpdate: "Update connection",
+    modeUpdate: "Upgrade / update connection",
     serverUrl: "MCP server URL",
     serverUrlHint:
       "Must be reachable from the machine the agent runs on. Use this computer's LAN address for agents on other devices; a hostname such as my-mac.local keeps working when the IP address changes.",
@@ -268,12 +268,12 @@ const zh: typeof en = {
     useWithAgent: "用这个密钥设置 Agent",
     title: "连接 Agent",
     description:
-      "连接 Claude Code、Codex、Devin、omp 或其他 Agent。钩子召回已发布知识，并提交对话供提炼和审核。",
+      "为 Claude Code、Codex、Devin、omp 或其他 Agent 配置记忆钩子和全局规则。",
     updateDescription:
-      "刷新已接入 Agent 的钩子和记忆规则。未变的可选连接字段留空。",
+      "升级或修复已接入的 Agent。地址、密钥、用户 ID 和设备留空则沿用原值。",
     modeLabel: "提示词",
     modeSetup: "新配置",
-    modeUpdate: "更新连接",
+    modeUpdate: "升级 / 更新连接",
     serverUrl: "MCP 服务器地址",
     serverUrlHint:
       "必须能从 Agent 所在的机器访问。其他设备上的 Agent 请使用本机的局域网地址；用 my-mac.local 这样的主机名，IP 变了也能继续用。",

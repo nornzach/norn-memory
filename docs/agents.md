@@ -14,15 +14,15 @@ On the dashboard, open **API Keys** and click **Connect an agent** (or **Set up 
 
 The prompt is safe to run again: an agent that is already set up updates each part in place.
 
-### Upgrade an existing installation for reviewed knowledge
+### Upgrade or repair an existing installation
 
-Refresh the shared `~/.norn-m/norn_m_hook.py` script and replace the marked Norn-M block in each agent's global instructions using the current **Update connection** prompt. Use the same URL and leave unchanged fields blank. The server-side curation also recognizes old capture hooks, but the refreshed hook requests actionable knowledge for automatic recall. Existing keys and hook commands can stay. Start a new agent session so it picks up the revised instructions and MCP tools. Run the hook's `check --agent <agent>` to confirm it connects.
+Use **Upgrade / update connection** and leave the URL, key, user ID and device blank to retain them. The prompt preflights the saved connection, refreshes the shared `~/.norn-m/norn_m_hook.py`, repairs missing Norn-M registration or hook entries where possible, and replaces the marked rules in each agent's global instructions. Other MCP servers, hooks and instructions stay in place. If required settings cannot be recovered, supply them before proceeding. Start a new agent session to load the updated configuration, then verify the three read routes (`action`, `history`, `legacy`). No test writes are needed.
 
 The server URL must be reachable from the machine the agent runs on: use the server's LAN address for agents on other devices, or a hostname such as `my-mac.local`, which survives IP address changes. The prompt contains the API key in plain text.
 
 ### When the server moves or the key changes
 
-Switch the dialog to **Update connection**, enter the new URL (and the new key, user ID or device if those changed; blank fields stay as they are), and paste the prompt into each agent. The agent rewrites `~/.norn-m/<agent>.json`, re-registers `norn-m` with the new URL and headers, downloads the hook script again from the new address, and runs `norn_m_hook.py check`. An unchanged key never appears in the prompt: the agent reuses the one it already has.
+Use **Upgrade / update connection**, fill in only the changed values, and paste the prompt into each agent. It keeps the local hook settings and MCP entry in sync. An unchanged key never appears in the prompt: the agent reuses the one it already has.
 
 When the server stops answering or rejects the key, the session-start hook says so in the conversation, and the agent asks you for the update prompt.
 
@@ -96,6 +96,7 @@ Add a remote MCP server named `norn-m` that uses streamable HTTP with the URL an
 The MCP server's instructions tell agents how to use it; in short:
 
 - Call `search_memories` before answering anything that depends on preferences, history, projects or earlier decisions.
+- Use `action` for current rules and procedures, `history` for dated memories and cases, and `resume` for a specific task handoff. When a historical question gets no relevant `history` hit, use `legacy` in the same project and user scope. Use `legacy` directly for raw memories or filters such as memory layer. Treat those results as historical, and use `get_memory` with a knowledge entry's `memory_id` to verify its source when needed. This fallback is an instruction for the agent, not an extra query made by the hook.
 - Save durable facts, preferences and decisions with `add_memory`, passing `project` and `cwd` when the memory belongs to the work at hand.
 - Put anything that must come back exactly (passwords, keys, IPs, URLs, accounts, dates) in `exact_set` / `exact_get`, never in `add_memory`.
 

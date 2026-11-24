@@ -219,9 +219,10 @@ export function AgentSetupDialog({
     }
     setValues((v) =>
       next === "update"
-        ? { ...v, apiKey: "", userId: "", device: "" }
+        ? { ...v, url: "", apiKey: "", userId: "", device: "" }
         : {
             ...v,
+            url: v.url || defaultMcpUrl(),
             userId: v.userId || (users.length === 1 ? users[0] : ""),
             device: v.device || guessDevice(),
           },
@@ -265,6 +266,7 @@ export function AgentSetupDialog({
                 id="agent-setup-url"
                 value={values.url}
                 onChange={set("url")}
+                placeholder={updating ? t.agentSetup.keepCurrent : undefined}
                 className="font-mono text-sm"
                 autoComplete="off"
               />
@@ -417,7 +419,10 @@ export function AgentSetupDialog({
               setTimeout(() => setCopied(false), 2000);
             }}
           >
-            <Button className="w-full" disabled={!values.url.trim()}>
+            <Button
+              className="w-full"
+              disabled={!updating && !values.url.trim()}
+            >
               {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
               {copied ? t.agentSetup.copied : t.agentSetup.copy}
             </Button>
