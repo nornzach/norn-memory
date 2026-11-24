@@ -927,7 +927,25 @@ def search_memories(search_req: SearchRequest, scope: Optional[KeyScope] = Depen
             details = {} if search_req.explain else None
             items = knowledge.search(search_req.query, ids, project, search_req.purpose, search_req.task_id,
                                      max(1, search_req.top_k or 10), semantic=True, rerank=enabled, details=details)
-            return {"results": [], "knowledge": items, **({"rerank": details} if details is not None else {})}
+            records = []
+            if search_req.purpose == "history" and ids.get("user_id"):
+                def visible_episode(row):
+                    metadata = row.get("metadata") or {}
+                    return (
+                        metadata.get("record_kind") == "episode"
+                        and all((row.get(key) or "") == ids.get(key, "") for key in knowledge.SCOPE[:3])
+                        and (project is None or (metadata.get("project") or "") == project)
+                        and (scope is None or scope.allows(row))
+                    )
+
+                response = get_memory_instance().search(
+                    query=search_req.query,
+                    filters={**ids, "record_kind": "episode", **({"project": project} if project else {})},
+                    top_k=min(30, max(1, search_req.top_k or 10)), threshold=search_req.threshold,
+                    rerank=enabled, _candidate_filter=visible_episode,
+                )
+                records = [row for row in response["results"] if visible_episode(row)]
+            return {"results": records, "knowledge": items, **({"rerank": details} if details is not None else {})}
         source = provenance.query_filters(
             device=search_req.device, agent=search_req.agent, project=search_req.project, cwd=search_req.cwd
         )

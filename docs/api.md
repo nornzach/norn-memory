@@ -191,12 +191,16 @@ Reviewed knowledge stores L0 standing rules, L1 durable facts and procedures, L2
 
 The server publishes complete, evidence-linked candidates and records the cited message fingerprints. Automatic publication means `reported`, not independently verified. A new standing rule requires its summary to match an entire cited user message verbatim. Incomplete drafts, stale changes, unsupported rules and conflicting updates are dismissed with a reason; they never overwrite current knowledge. The ingest worker also drains previously pending exchange proposals in batches without replaying conversations. Already resolved proposals and explicitly submitted admin drafts are not reprocessed.
 
+Before knowledge extraction, the same curated write independently selects up to three short source passages about concrete reports, decisions, corrections or checked outcomes. Selected passages become **one dated episodic memory** in Memories, attributed to their original speakers, not independently verified. No passage means no memory. The job's `kind: "episode"` result identifies the vector memory (`ADD`, or `NONE` on redelivery); it survives a later knowledge failure. Published knowledge citing the same message carries `evidence[].memory_id` for `get_memory`. No transcript copy is required. New hooks send an exchange identifier; older clients fall back to a scoped content fingerprint.
+
+To inspect historical inputs **without writing**, inside the API container run `PYTHONPATH=. python scripts/backfill_episodes.py --user-id USER --since START --until END` with timezone-aware ISO timestamps. Use a window ending before rollout. Only retained, completed curated jobs with original messages qualify. Add `--apply` to write source-backed episodes with the original job date; knowledge is not replayed. Pruned conversations cannot be reconstructed from published summaries.
+
 Call MCP `search_memories` or REST `POST /search` with the `purpose` that fits the task:
 
 | Purpose | Result |
 | --- | --- |
 | `action` | Current reviewed L0/L1 entries, including applicability, structured steps, verification conditions, revision and evidence. This is the default on MCP calls without legacy-only filters. |
-| `history` | Reviewed L2 case entries, with their date and evidence. |
+| `history` | Dated episodic memories in `results` and reviewed L2 cases in `knowledge`, up to `top_k` of each. |
 | `resume` | Unexpired L3 handoffs for the exact `project` and `task_id`. Use an empty project for an unscoped handoff. |
 | `legacy` | Older fuzzy records and original-text writes. REST keeps this default for existing clients. |
 

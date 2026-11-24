@@ -123,6 +123,16 @@ class TestProject:
 
 
 class TestRecall:
+    def test_historical_question_recalls_dated_memories_and_cases(self, hook):
+        episode = memory("episode", "user: The counter stopped", 0.9)
+        case = {"id": "case", "summary": "Earlier incident"}
+        with patch.object(hook, "call", return_value={"knowledge": [case], "results": [episode]}) as call:
+            output = io.StringIO()
+            with patch("sys.stdout", output):
+                hook.recall({"agent": "codex", "user_id": "alice"}, {"prompt": "上次发生了什么？"}, "text")
+        assert call.call_args.args[3]["purpose"] == "history"
+        assert "The counter stopped" in output.getvalue() and "Earlier incident" in output.getvalue()
+
     def test_adds_relevant_memories_once_per_session(self, hook, stub, tmp_path):
         write_settings(hook, stub.url + "/mcp")
         stub.search_results = [memory("m1", "Prefers pnpm", 0.7, "web"), memory("m2", "Unrelated", 0.2)]

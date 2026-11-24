@@ -221,7 +221,8 @@ def _register_tools(server: MCPServer, api: ModuleType) -> None:
         purpose: knowledge.Purpose | None = None,
         task_id: Annotated[Optional[str], Field(min_length=1, max_length=160)] = None,
     ) -> dict[str, Any]:
-        """Recall reviewed knowledge by purpose: action (current), history, or resume with a task ID.
+        """Recall by purpose. For what happened, use history: results are dated memories, knowledge is curated cases.
+        Use action for current rules and procedures, or resume for a task ID.
 
         Use this before answering questions that depend on what you know about the user: preferences,
         past decisions, projects, people, or facts from earlier sessions. Returns memories with their id,

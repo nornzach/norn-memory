@@ -229,6 +229,17 @@ class TestMcpAuth:
 
 
 class TestSearchMemories:
+    def test_history_includes_only_matching_episodes_alongside_cases(self, mcp_client):
+        client, mocks = mcp_client
+        row = {"id": M1, "memory": "assistant: All checks passed.", "user_id": "alice",
+               "metadata": {"project": "demo", "record_kind": "episode"}}
+        mocks.memory.search.return_value = {"results": [row, {**row, "agent_id": "private"},
+                                                       {**row, "user_id": "other"}, {**row, "metadata": {}}]}
+        with patch("knowledge.search", return_value=[{"id": "case"}]):
+            result = _call_tool(client, "search_memories", {"purpose": "history", "query": "checks",
+                                                          "user_id": "alice", "project": "demo"})
+        assert result["structuredContent"] == {"results": [row], "knowledge": [{"id": "case"}]}
+
     def test_scope_is_merged_into_filters(self, mcp_client):
         client, mocks = mcp_client
         mocks.memory.search.return_value = {"results": [{"id": M1, "memory": "Likes green tea", "score": 0.9}]}

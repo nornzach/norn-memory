@@ -104,7 +104,7 @@ def run_add(messages: list[dict], params: dict[str, Any], *, categorize: bool) -
 def run_job(request: dict[str, Any]) -> list[dict]:
     params = request.get("params") or {}
     if params.get("knowledge_policy") == "curated":
-        return knowledge.ingest(request["messages"], params, request.get("job_id"))
+        return knowledge.ingest(request["messages"], params, request.get("job_id"), request.get("observed_at"))
     response, to_tag = run_add(request["messages"], params, categorize=request.get("categorize"))
     if to_tag:
         categorizer.categorize_memories(to_tag)  # already off the request path, so inline
@@ -153,7 +153,10 @@ def claim(now: Optional[datetime] = None) -> Optional[tuple[uuid.UUID, int, dict
         if job is None:
             return None
         job.status, job.started_at, job.attempts = "processing", now, job.attempts + 1
-        claimed = job.id, job.attempts, dict(job.request)
+        request = dict(job.request)
+        if (job.request.get("params") or {}).get("knowledge_policy") == "curated":
+            request["observed_at"] = job.created_at.replace(tzinfo=job.created_at.tzinfo or timezone.utc).isoformat()
+        claimed = job.id, job.attempts, request
         db.commit()
         return claimed
 

@@ -115,17 +115,23 @@ def test_unreviewed_never_recalled_and_same_observation_is_idempotent(db):
 
 
 def test_ingest_publishes_once_without_a_reviewer(db, monkeypatch):
+    memory = Mock()
+    memory.get.return_value = None
+    quote = "For OMP GUI releases verify the full sidecar pin from the tag."
+    memory.llm.generate_response.return_value = json.dumps({"evidence": [{"message": 1, "quote": quote}]})
+    monkeypatch.setattr(knowledge, "get_memory_instance", lambda: memory)
     monkeypatch.setattr(knowledge, "extract", lambda *args: [candidate()])
     indexed = Mock()
     monkeypatch.setattr(knowledge, "index_revision", indexed)
     messages = [{"role": "user", "content": "For OMP GUI releases verify the full sidecar pin from the tag."}]
     params = {"user_id": "zach", "metadata": {"project": "oh-my-pi"}}
-    result = knowledge.ingest(messages, params)[0]
+    episode, result = knowledge.ingest(messages, params)
     assert result["status"] == "applied"
     (item,) = search()
     assert item["evidence_status"] == "reported" and not item["verified_at"]
     assert item["revision"] == 1 and item["evidence"]
-    assert knowledge.ingest(messages, params)[0]["event"] == "NONE"
+    assert item["evidence"][0]["memory_id"] == episode["id"]
+    assert knowledge.ingest(messages, params)[1]["event"] == "NONE"
     indexed.assert_called_once_with(item)
 
 
@@ -150,6 +156,10 @@ def test_worker_resolves_old_exchanges_but_not_admin_drafts(db, monkeypatch):
 @pytest.mark.parametrize(("role", "verbatim", "published"), [("user", True, True), ("user", False, False),
                                                                ("assistant", True, False)])
 def test_automatic_constraint_requires_the_cited_user_statement(db, monkeypatch, role, verbatim, published):
+    memory = Mock()
+    memory.get.return_value = None
+    memory.llm.generate_response.return_value = '{"evidence":[]}'
+    monkeypatch.setattr(knowledge, "get_memory_instance", lambda: memory)
     summary = "Always verify the OMP GUI tag."
     rule = candidate(type="constraint", procedure=None, summary=summary)
     monkeypatch.setattr(knowledge, "extract", lambda *args: [rule])

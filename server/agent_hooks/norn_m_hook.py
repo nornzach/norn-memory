@@ -36,7 +36,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-VERSION = "2"
+VERSION = "3"
 
 HOME = Path(os.environ.get("NORN_M_HOME") or Path.home() / ".norn-m")
 STATE_DIR = HOME / "state"
@@ -135,8 +135,8 @@ def project_of(cwd):
     return path.name.lower() or None
 
 
-def search(config, query, top_k, project=None, floor=None, cwd=None):
-    body = {"query": query[:MAX_PROMPT], "top_k": top_k, "purpose": "action"}
+def search(config, query, top_k, project=None, floor=None, cwd=None, purpose="action"):
+    body = {"query": query[:MAX_PROMPT], "top_k": top_k, "purpose": purpose}
     if config.get("user_id"):
         body["filters"] = {"user_id": config["user_id"]}
     if project is not None:
@@ -144,12 +144,13 @@ def search(config, query, top_k, project=None, floor=None, cwd=None):
     if cwd:
         body["cwd"] = cwd
     response = call(config, "POST", "/search", body)
-    if isinstance(response, dict) and "knowledge" in response:
-        return [item for item in response["knowledge"] if item.get("id") and item.get("summary")]
-    results = response.get("results", []) if isinstance(response, dict) else []
+    if not isinstance(response, dict):
+        return []
+    knowledge = [item for item in response.get("knowledge", []) if item.get("id") and item.get("summary")]
+    results = response.get("results", [])
     if floor is None:
         floor = float(config.get("min_score", DEFAULT_MIN_SCORE))
-    return [
+    return knowledge + [
         item
         for item in results
         if isinstance(item, dict) and item.get("id") and item.get("memory") and (item.get("score") or 0) >= floor
@@ -369,11 +370,12 @@ def recall(config, data, fmt):
         # Kept for capture, for agents whose transcripts it can't read.
         state["prompt"] = prompt[:MAX_PROMPT]
         save_state(agent, session_id, state)
-    if len(prompt) < MIN_PROMPT or prompt.startswith("/"):
+    history = re.search(r"发生了什么|当时|上次|回顾|\b(?:what happened|last time|what did we)\b", prompt, re.I)
+    if (len(prompt) < MIN_PROMPT and not history) or prompt.startswith("/"):
         return
     cwd = data.get("cwd")
     project = project_of(cwd) or ""
-    searches = [(prompt, 5, project, None, cwd)]
+    searches = [(prompt, 5, project, None, cwd, "history" if history else "action")]
     shown = set(state.get("shown", []))
     items = [item for item in gather(config, searches, RECALL_LIMIT) if shown_key(item) not in shown]
     if not items:
@@ -415,15 +417,19 @@ def capture_worker(config, data):
     prompt, reply = last_exchange(data.get("transcript_path"))
     prompt = prompt or str(state.get("prompt") or "")
     reply = str(data.get("last_assistant_message") or "") or reply
-    if len(prompt.strip()) < MIN_PROMPT:
+    if not prompt.strip() or len(prompt.strip()) + len(reply.strip()) < MIN_PROMPT:
         return
     fingerprint = hashlib.sha256(f"{prompt}\0{reply}".encode("utf-8")).hexdigest()
-    if state.get("captured") == fingerprint:
+    capture_key = f"{data['turn_id']}:{fingerprint}" if data.get("turn_id") else fingerprint
+    if state.get("captured") == capture_key:
         return
     messages = [{"role": "user", "content": prompt[:MAX_PROMPT]}]
     if reply.strip():
         messages.append({"role": "assistant", "content": reply[:MAX_REPLY]})
     body = {"messages": messages, "infer": True, "metadata": {"source": "norn-m-hook"}}
+    if session_id:
+        turn = f"{session_id}\0{data.get('turn_id') or fingerprint}"
+        body["metadata"]["exchange_id"] = hashlib.sha256(turn.encode()).hexdigest()
     if config.get("user_id"):
         body["user_id"] = config["user_id"]
     cwd = data.get("cwd")
@@ -433,7 +439,7 @@ def capture_worker(config, data):
     if data.get("task_id"):
         body["knowledge_task_id"] = str(data["task_id"])[:160]
     call(config, "POST", "/memories", body, timeout=CAPTURE_TIMEOUT)
-    state["captured"] = fingerprint
+    state["captured"] = capture_key
     save_state(agent, session_id, state)
 
 

@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Literal
 
+import episodes
 import secret_guard
 from db import SessionLocal
 from fastapi import HTTPException
@@ -114,6 +115,7 @@ class Evidence(StrictModel):
     source: Text
     observed_at: datetime
     observation: Text
+    memory_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def check_time(self):
@@ -399,12 +401,13 @@ def stage(candidate: Candidate, scope: Scope, sources: list[dict], task_id: str 
         return {"id": str(item.id), "event": "PROPOSE", "status": item.status}
 
 
-def ingest(messages: list[dict], params: dict, job_id: str | None = None) -> list[dict]:
+def ingest(messages: list[dict], params: dict, job_id: str | None = None, observed_at: str | None = None) -> list[dict]:
     scope = namespace(params)
     task = params.get("knowledge_task_id")
-    observed_at = now().isoformat()
+    observed_at = observed_at or now().isoformat()
+    episode, refs = episodes.capture(get_memory_instance(), messages, params, scope, job_id, observed_at)
     proposals = extract(messages, scope, task)
-    results = []
+    results = [episode] if episode else []
     for proposal in proposals:
         sources = [
             {
@@ -413,6 +416,7 @@ def ingest(messages: list[dict], params: dict, job_id: str | None = None) -> lis
                 "role": messages[index - 1].get("role"),
                 "observed_at": observed_at,
                 "fingerprint": _digest(messages[index - 1]),
+                **({"memory_id": episode["id"]} if episode and index in refs else {}),
             }
             for index in sorted(set(proposal.evidence_refs))
         ]
@@ -445,6 +449,7 @@ def _automatic_decision(candidate: dict) -> Review:
     evidence = [
         Evidence(
             source=f"Exchange {source['job_id'] or source['fingerprint']}, message {source['message']}",
+            memory_id=source.get("memory_id"),
             observed_at=source["observed_at"],
             observation=f"Cited {source['role']} message (sha256:{source['fingerprint']}).",
         )
@@ -562,7 +567,7 @@ def _patched(current: dict, candidate: dict) -> dict:
 
 
 def review(proposal_id: uuid.UUID, body: Review, *, automatic: bool = False):
-    evidence = [item.model_dump(mode="json") for item in body.evidence]
+    evidence = [item.model_dump(mode="json", exclude_none=True) for item in body.evidence]
     revision = (
         body.revised_candidate.model_dump(mode="json", exclude={"evidence_refs"}) if body.revised_candidate else None
     )
